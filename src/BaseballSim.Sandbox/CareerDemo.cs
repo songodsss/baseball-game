@@ -1,0 +1,93 @@
+using BaseballSim.Career;
+
+namespace BaseballSim.Sandbox
+{
+    /// <summary>
+    /// Plays a whole career with a simple autopilot standing in for the user, so growth speed,
+    /// money and injuries can be checked season by season.
+    /// </summary>
+    public static class CareerDemo
+    {
+        public static void Run(int seed)
+        {
+            var random = new SeededRandom(seed);
+            var club = new Club();
+
+            for (int generation = 1; generation <= 2; generation++)
+            {
+                var league = new League(new RosterGenerator(random));
+                var me = Career.Career.NewPlayer(generation == 1 ? "강하늘" : "윤바다", random, club.PotentialBonus);
+                var career = new Career.Career(me, league, league.Teams[0], random);
+
+                Console.WriteLine($"=== {generation}대 선수 {me.Name} ({league.Teams[0].Name}) ===");
+                Console.WriteLine($"시작 능력치  {Ratings(me.Ratings)}");
+                Console.WriteLine($"잠재력       {Ratings(me.Potential)}   (명예 포인트 보너스 +{club.PotentialBonus})");
+                Console.WriteLine();
+                Console.WriteLine("시즌 나이  컨택 파워 선구 주루 수비 | 타율   홈런 OPS   | 연봉(만원) 보유금 부상일 | 장비");
+
+                while (true)
+                {
+                    int injuredDays = 0;
+                    while (!career.IsSeasonOver)
+                    {
+                        var day = career.PlayDay(Choose(me));
+                        if (day.SatOut) injuredDays++;
+                        BuyUpgrades(career);
+                    }
+
+                    var l = career.SeasonLine;
+                    var r = me.Ratings;
+                    string avg = l.AtBats == 0 ? "-" : ((double)l.Hits / l.AtBats).ToString("F3");
+                    string gear = string.Join(" ", me.Equipped.Values.OrderBy(e => e.Slot).Select(e => e.Id));
+                    Console.WriteLine(
+                        $"{career.Season,3}  {me.Age,3}   {r[Stat.Contact],3}  {r[Stat.Power],3}  {r[Stat.Eye],3}  {r[Stat.Speed],3}  {r[Stat.Defense],3} | " +
+                        $"{avg}  {l.HomeRuns,3}  {Career.Career.Ops(l):F3} | {me.Salary,8}  {me.Money,6}  {injuredDays,4}  | {gear}");
+
+                    // Retire at 37 to keep the demo short, or when forced.
+                    if (me.Age >= 37 || career.MustRetire) break;
+                    career.EndSeason();
+                }
+
+                career.EndSeason();
+                var retired = club.Retire(career);
+                var t = retired.CareerLine;
+                Console.WriteLine();
+                Console.WriteLine($"은퇴: {retired.Name}, {retired.Seasons}시즌, 통산 {t.Hits}안타 {t.HomeRuns}홈런 타율 {(double)t.Hits / t.AtBats:F3}");
+                Console.WriteLine($"내 팀 합류, 전성기 능력치 {Ratings(retired.PeakRatings)} (종합 {retired.Overall}), 명예 포인트 +{retired.LegacyPoints}");
+                Console.WriteLine();
+            }
+        }
+
+        // Autopilot: rest when tired, otherwise train the stat with the most room left to grow.
+        static DailyAction Choose(CareerPlayer me)
+        {
+            if (me.IsInjured || me.Fatigue >= 65) return DailyAction.Rest;
+            var stat = CareerPlayer.AllStats.OrderByDescending(s => me.Potential[s] - me.Ratings[s]).First();
+            return stat switch
+            {
+                Stat.Contact => DailyAction.TrainContact,
+                Stat.Power => DailyAction.TrainPower,
+                Stat.Eye => DailyAction.TrainEye,
+                Stat.Speed => DailyAction.TrainSpeed,
+                _ => DailyAction.TrainDefense,
+            };
+        }
+
+        // Autopilot: buy the next tier in any slot it can afford.
+        static void BuyUpgrades(Career.Career career)
+        {
+            foreach (EquipmentSlot slot in Enum.GetValues(typeof(EquipmentSlot)))
+            {
+                career.Me.Equipped.TryGetValue(slot, out var current);
+                var next = EquipmentCatalog.All
+                    .Where(e => e.Slot == slot && (current == null || e.Price > current.Price))
+                    .OrderBy(e => e.Price)
+                    .FirstOrDefault();
+                if (next != null) career.Buy(next.Id);
+            }
+        }
+
+        static string Ratings(Dictionary<Stat, int> r) =>
+            $"컨택 {r[Stat.Contact]} 파워 {r[Stat.Power]} 선구 {r[Stat.Eye]} 주루 {r[Stat.Speed]} 수비 {r[Stat.Defense]}";
+    }
+}

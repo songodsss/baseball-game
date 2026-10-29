@@ -1,7 +1,15 @@
 ﻿using BaseballSim;
+using BaseballSim.Sandbox;
 
 // Sandbox: plays whole seasons with no graphics to check the engine's numbers.
-// Usage: dotnet run -- [seed]
+// Usage: dotnet run -- [seed]          league numbers, rating impact, a sample game
+//        dotnet run -- career [seed]   auto-plays one full career to check growth pacing
+if (args.Length > 0 && args[0] == "career")
+{
+    CareerDemo.Run(args.Length > 1 ? int.Parse(args[1]) : 42);
+    return;
+}
+
 int seed = args.Length > 0 ? int.Parse(args[0]) : 42;
 var random = new SeededRandom(seed);
 var generator = new RosterGenerator(random);
