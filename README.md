@@ -18,7 +18,17 @@
   - `Club` — 은퇴 선수가 들어가는 내 팀, 다음 선수 잠재력을 올려주는 명예 포인트
 - `src/BaseballSim.Sandbox` — 시즌을 통째로 돌려 리그 기록과 능력치 영향을 확인하는 콘솔 프로그램
 
-## 실행
+- `unity/` — Unity 프로젝트 (Unity 6). 엔진 폴더를 로컬 패키지로 불러온다 (`unity/Packages/manifest.json`)
+  - `Assets/Scripts/GrowthScreen.cs` — 육성 화면 프로토타입. 씬 설정 없이 Play만 누르면 화면이 코드로 만들어진다
+  - `Assets/Scripts/UiKit.cs` — 코드로 UI를 만드는 도우미. 아트 작업 때 디자인된 프리팹으로 교체 예정
+
+## Unity에서 열기
+
+1. Unity Hub → Add → Add project from disk → 저장소의 `unity` 폴더 선택
+2. 에디터 버전을 물으면 설치한 Unity 6 버전 선택
+3. 열리면 상단 Play 버튼. Game 창 해상도를 1080x1920(세로)으로 맞추면 폰처럼 보인다
+
+## 실행 (엔진만)
 
 ```
 cd src

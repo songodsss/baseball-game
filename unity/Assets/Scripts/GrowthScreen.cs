@@ -1,0 +1,348 @@
+using System.Collections.Generic;
+using System.Linq;
+using BaseballSim;
+using BaseballSim.Career;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+using CareerState = BaseballSim.Career.Career;
+
+namespace BaseballGame
+{
+    /// <summary>
+    /// Prototype growth screen: status, ratings, the six daily actions, today's results,
+    /// the equipment shop and the season-end summary. Everything is built in code.
+    /// </summary>
+    public class GrowthScreen : MonoBehaviour
+    {
+        // Press Play in any scene and the prototype starts.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+            if (FindAnyObjectByType<GrowthScreen>() == null)
+                new GameObject("GrowthScreen").AddComponent<GrowthScreen>();
+        }
+
+        static readonly Dictionary<Stat, string> StatNames = new Dictionary<Stat, string>
+        {
+            { Stat.Contact, "컨택" }, { Stat.Power, "파워" }, { Stat.Eye, "선구안" },
+            { Stat.Speed, "주루" }, { Stat.Defense, "수비" },
+        };
+
+        static readonly (DailyAction Action, string Label)[] Actions =
+        {
+            (DailyAction.TrainContact, "타격 훈련"), (DailyAction.TrainPower, "웨이트"),
+            (DailyAction.TrainEye, "선구안 훈련"), (DailyAction.TrainSpeed, "주루 훈련"),
+            (DailyAction.TrainDefense, "수비 훈련"), (DailyAction.Rest, "휴식"),
+        };
+
+        IRandom _random;
+        CareerState _career;
+        Club _club = new Club();
+
+        Text _header, _status, _log, _seasonLengthLabel;
+        RectTransform _fatigueFill;
+        readonly Dictionary<Stat, Text> _ratingTexts = new Dictionary<Stat, Text>();
+        readonly Dictionary<Stat, RectTransform> _expFills = new Dictionary<Stat, RectTransform>();
+        readonly List<Button> _actionButtons = new List<Button>();
+        Button _seasonLengthButton;
+        RectTransform _overlay;
+        readonly List<string> _logLines = new List<string>();
+
+        void Start()
+        {
+            _random = new SeededRandom(System.Environment.TickCount);
+            StartNewCareer();
+            BuildUi();
+            Refresh();
+            Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
+        }
+
+        void StartNewCareer()
+        {
+            int games = _career != null ? _career.League.GamesPerSeason : 36;
+            var league = new League(new RosterGenerator(_random), games);
+            var me = CareerState.NewPlayer(_club.Roster.Count == 0 ? "강하늘" : $"강하늘 {_club.Roster.Count + 1}세", _random, _club.PotentialBonus);
+            _career = new CareerState(me, league, league.Teams[0], _random);
+        }
+
+        // ---------- UI construction ----------
+
+        void BuildUi()
+        {
+            if (FindAnyObjectByType<EventSystem>() == null)
+                new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+
+            var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvasGo.transform.SetParent(transform, false);
+            canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = canvasGo.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            var root = UiKit.Panel(canvasGo.transform, "Root", UiKit.Background);
+            UiKit.Stretch(root);
+            UiKit.Column(root, 40, 20);
+
+            _header = UiKit.Label(root, "", 44);
+            UiKit.Height(_header, 120);
+
+            BuildStatusCard(root);
+            BuildRatingsCard(root);
+
+            var actions = UiKit.Empty(root, "Actions");
+            UiKit.Height(actions, 260);
+            var grid = actions.gameObject.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(320, 115);
+            grid.spacing = new Vector2(20, 20);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 3;
+            grid.childAlignment = TextAnchor.MiddleCenter;
+            foreach (var (action, label) in Actions)
+            {
+                var a = action;
+                _actionButtons.Add(UiKit.Button(actions, label, () => PlayDay(a),
+                    a == DailyAction.Rest ? new Color(0.2f, 0.6f, 0.45f) : UiKit.Accent));
+            }
+
+            var logCard = UiKit.Panel(root, "Log", UiKit.Card);
+            UiKit.Height(logCard, 400, 1);
+            _log = UiKit.Label(logCard, "", 30, TextAnchor.UpperLeft);
+            UiKit.Stretch(_log.rectTransform);
+            _log.rectTransform.offsetMin = new Vector2(24, 24);
+            _log.rectTransform.offsetMax = new Vector2(-24, -24);
+
+            var bottom = UiKit.Empty(root, "Bottom");
+            UiKit.Height(bottom, 110);
+            UiKit.Row(bottom, 20);
+            UiKit.Button(bottom, "장비 상점", ShowShop, UiKit.Card);
+            _seasonLengthButton = UiKit.Button(bottom, "", CycleSeasonLength, UiKit.Card);
+            _seasonLengthLabel = _seasonLengthButton.GetComponentInChildren<Text>();
+        }
+
+        void BuildStatusCard(RectTransform root)
+        {
+            var card = UiKit.Panel(root, "Status", UiKit.Card);
+            UiKit.Height(card, 150);
+            UiKit.Column(card, 24, 12);
+            _status = UiKit.Label(card, "", 32);
+            UiKit.Height(_status, 50);
+            var fatigueRow = UiKit.Empty(card, "Fatigue");
+            UiKit.Height(fatigueRow, 30);
+            UiKit.Row(fatigueRow, 16);
+            UiKit.Width(UiKit.Label(fatigueRow, "피로", 28, TextAnchor.MiddleLeft, UiKit.Muted), 90);
+            var bar = UiKit.Bar(fatigueRow, UiKit.Warning);
+            UiKit.Width(bar.parent, 0, 1);
+            _fatigueFill = bar;
+        }
+
+        void BuildRatingsCard(RectTransform root)
+        {
+            var card = UiKit.Panel(root, "Ratings", UiKit.Card);
+            UiKit.Height(card, 380);
+            UiKit.Column(card, 24, 10);
+            foreach (var stat in CareerPlayer.AllStats)
+            {
+                var row = UiKit.Empty(card, StatNames[stat]);
+                UiKit.Height(row, 60);
+                UiKit.Row(row, 16);
+                UiKit.Width(UiKit.Label(row, StatNames[stat], 32, TextAnchor.MiddleLeft, UiKit.Muted), 140);
+                var value = UiKit.Label(row, "", 32);
+                UiKit.Width(value, 300);
+                _ratingTexts[stat] = value;
+                var bar = UiKit.Bar(row, UiKit.Accent);
+                UiKit.Width(bar.parent, 0, 1);
+                _expFills[stat] = bar;
+            }
+        }
+
+        // ---------- Actions ----------
+
+        void PlayDay(DailyAction action)
+        {
+            if (_overlay != null) return;
+            var result = _career.PlayDay(action);
+            DescribeDay(result);
+            if (_career.IsSeasonOver) ShowSeasonEnd();
+            Refresh();
+        }
+
+        void DescribeDay(DayResult r)
+        {
+            string label = Actions.First(a => a.Action == r.Action).Label;
+            var lines = new List<string> { $"<b>{r.Day + 1}일차</b> {label}" };
+            if (r.GotInjured) lines.Add("<color=#F28C40>무리하다 부상! 며칠 쉬어야 합니다.</color>");
+            if (r.PointsGained.Count > 0)
+                lines.Add("능력치 상승: " + string.Join(", ", r.PointsGained.Select(p => $"{StatNames[p.Key]} +{p.Value}")));
+
+            if (r.SatOut)
+            {
+                lines.Add("부상으로 결장.");
+            }
+            else if (r.MyGame != null)
+            {
+                var g = r.MyGame;
+                lines.Add($"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}");
+                var l = r.MyLine;
+                lines.Add($"오늘 성적 {l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런 {l.RunsBattedIn}타점 {l.Walks}볼넷  (+{r.MoneyEarned}만원)");
+                foreach (var ev in g.Events.Where(e => e.Batter == r.MyGamePlayer && IsHighlight(e)))
+                    lines.Add($"  {Commentary.HalfInning(ev.Inning, ev.IsTopHalf)} {Commentary.Describe(ev)}");
+            }
+            Log(string.Join("\n", lines));
+        }
+
+        static bool IsHighlight(GameEvent e) =>
+            e.Outcome == Outcome.HomeRun || e.Outcome == Outcome.Double || e.Outcome == Outcome.Triple || e.RunnersScored.Count > 0;
+
+        void CycleSeasonLength()
+        {
+            if (_career.Day != 0) return;
+            var lengths = League.SeasonLengths;
+            int next = lengths[(System.Array.IndexOf(lengths, _career.League.GamesPerSeason) + 1) % lengths.Length];
+            _career.ChangeSeasonLength(next);
+            Refresh();
+        }
+
+        // ---------- Overlays ----------
+
+        RectTransform OpenOverlay(string title)
+        {
+            CloseOverlay();
+            _overlay = UiKit.Panel(GetComponentInChildren<Canvas>().transform, "Overlay", new Color(0, 0, 0, 0.75f));
+            UiKit.Stretch(_overlay);
+            var card = UiKit.Panel(_overlay, "Card", UiKit.Card);
+            card.anchorMin = new Vector2(0.05f, 0.1f);
+            card.anchorMax = new Vector2(0.95f, 0.9f);
+            card.offsetMin = card.offsetMax = Vector2.zero;
+            UiKit.Column(card, 40, 20);
+            UiKit.Height(UiKit.Label(card, title, 48, TextAnchor.MiddleCenter), 90);
+            return card;
+        }
+
+        void CloseOverlay()
+        {
+            if (_overlay != null) Destroy(_overlay.gameObject);
+            _overlay = null;
+        }
+
+        void ShowShop()
+        {
+            var card = OpenOverlay($"장비 상점  (보유 {_career.Me.Money:N0}만원)");
+            foreach (EquipmentSlot slot in System.Enum.GetValues(typeof(EquipmentSlot)))
+            {
+                _career.Me.Equipped.TryGetValue(slot, out var current);
+                var next = EquipmentCatalog.All
+                    .Where(e => e.Slot == slot && (current == null || e.Price > current.Price))
+                    .OrderBy(e => e.Price)
+                    .FirstOrDefault();
+
+                var row = UiKit.Empty(card, slot.ToString());
+                UiKit.Height(row, 110);
+                UiKit.Row(row, 20);
+                string have = current == null ? "없음" : current.Name;
+                UiKit.Width(UiKit.Label(row, $"{have}", 30, TextAnchor.MiddleLeft, UiKit.Muted), 0, 1);
+                if (next == null)
+                {
+                    UiKit.Width(UiKit.Label(row, "최고 등급", 30, TextAnchor.MiddleCenter), 420);
+                    continue;
+                }
+                string bonus = string.Join(" ", next.Bonus.Select(b => $"{StatNames[b.Key]}+{b.Value}"));
+                var item = next;
+                var buy = UiKit.Button(row, $"{item.Name}\n{bonus} · {item.Price:N0}만원", () =>
+                {
+                    if (_career.Buy(item.Id)) Log($"{item.Name} 구입!");
+                    ShowShop();
+                    Refresh();
+                }, _career.Me.Money >= item.Price ? UiKit.Accent : new Color(0.3f, 0.3f, 0.35f));
+                buy.GetComponentInChildren<Text>().fontSize = 28;
+                UiKit.Width(buy, 420);
+            }
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+        }
+
+        void ShowSeasonEnd()
+        {
+            var line = _career.SeasonLine;
+            var summary = _career.EndSeason();
+            var card = OpenOverlay($"{summary.Record.Season}시즌 종료");
+
+            double avg = line.AtBats == 0 ? 0 : (double)line.Hits / line.AtBats;
+            var text = new List<string>
+            {
+                $"팀 순위 {summary.Rank}위",
+                $"타율 {avg:0.000}  {line.HomeRuns}홈런  {line.RunsBattedIn}타점  OPS {CareerState.Ops(line):0.000}",
+                $"연봉 {summary.OldSalary:N0} → <b>{summary.NewSalary:N0}</b>만원",
+                $"나이 {_career.Me.Age}세가 되었습니다.",
+            };
+            if (summary.Decline.Count > 0)
+                text.Add("<color=#F28C40>노쇠화: " + string.Join(", ", summary.Decline.Select(d => $"{StatNames[d.Key]} -{d.Value}")) + "</color>");
+            UiKit.Height(UiKit.Label(card, string.Join("\n\n", text), 34, TextAnchor.UpperCenter), 0, 1);
+
+            if (_career.Me.Age >= 30)
+                UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 110);
+            if (!_career.MustRetire)
+                UiKit.Height(UiKit.Button(card, "다음 시즌", CloseOverlay), 110);
+        }
+
+        void Retire()
+        {
+            var retired = _club.Retire(_career);
+            var card = OpenOverlay("은퇴");
+            var t = retired.CareerLine;
+            string text =
+                $"{retired.Name}, {retired.Seasons}시즌 통산 {t.Hits}안타 {t.HomeRuns}홈런\n\n" +
+                $"전성기 능력치 종합 {retired.Overall}로 내 팀에 합류했습니다.\n" +
+                $"명예 포인트 +{retired.LegacyPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n\n" +
+                $"내 팀 선수 {_club.Roster.Count}명";
+            UiKit.Height(UiKit.Label(card, text, 34, TextAnchor.UpperCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "새 선수 육성 시작", () =>
+            {
+                StartNewCareer();
+                CloseOverlay();
+                _logLines.Clear();
+                Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단!");
+                Refresh();
+            }), 110);
+        }
+
+        // ---------- Refresh ----------
+
+        void Log(string entry)
+        {
+            _logLines.Insert(0, entry);
+            if (_logLines.Count > 4) _logLines.RemoveAt(_logLines.Count - 1);
+            _log.text = string.Join("\n\n", _logLines);
+        }
+
+        void Refresh()
+        {
+            var me = _career.Me;
+            var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
+            _header.text = $"<b>{me.Name}</b>  {me.Age}세 · {_career.MyTeam.Name}\n" +
+                $"<size=32><color=#9EABC2>{_career.Season}시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위</color></size>";
+
+            var l = _career.SeasonLine;
+            string avg = l.AtBats == 0 ? ".000" : ((double)l.Hits / l.AtBats).ToString(".000");
+            string injury = me.IsInjured ? $"  <color=#F28C40>부상 {me.InjuryDaysLeft}일</color>" : "";
+            _status.text = $"타율 {avg}  {l.HomeRuns}홈런  ·  보유 {me.Money:N0}만원{injury}";
+            UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
+
+            foreach (var stat in CareerPlayer.AllStats)
+            {
+                int bonus = me.EquipmentBonus(stat);
+                string gear = bonus > 0 ? $"<color=#5FA8FF>+{bonus}</color>" : "";
+                _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear} <size=24><color=#9EABC2>/ {me.Potential[stat]}</color></size>";
+                bool maxed = me.Ratings[stat] >= me.Potential[stat];
+                UiKit.SetBar(_expFills[stat], maxed ? 1f : (float)me.Exp[stat] / CareerPlayer.ExpToNext(me.Ratings[stat]));
+            }
+
+            foreach (var b in _actionButtons) b.interactable = !me.IsInjured || b == _actionButtons.Last();
+            _seasonLengthLabel.text = _career.Day == 0
+                ? $"시즌 {_career.League.GamesPerSeason}경기 (변경)"
+                : $"시즌 {_career.League.GamesPerSeason}경기";
+            _seasonLengthButton.interactable = _career.Day == 0;
+        }
+    }
+}

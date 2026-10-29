@@ -1,0 +1,7 @@
+{
+  "name": "com.songodsss.baseballsim.engine",
+  "version": "0.1.0",
+  "displayName": "Baseball Sim Engine",
+  "description": "Match simulation and player growth, plain C# with no UnityEngine dependency.",
+  "unity": "2022.3"
+}
