@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BaseballSim.Engine", "BaseballSim.Engine\BaseballSim.Engine.csproj", "{79AFD581-E605-48E6-8FB1-948460B5BA18}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BaseballSim.Sandbox", "BaseballSim.Sandbox\BaseballSim.Sandbox.csproj", "{D4C3DE71-FDAB-44C9-9CE5-726B1A1B8715}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{79AFD581-E605-48E6-8FB1-948460B5BA18}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{79AFD581-E605-48E6-8FB1-948460B5BA18}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{79AFD581-E605-48E6-8FB1-948460B5BA18}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{79AFD581-E605-48E6-8FB1-948460B5BA18}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4C3DE71-FDAB-44C9-9CE5-726B1A1B8715}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4C3DE71-FDAB-44C9-9CE5-726B1A1B8715}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4C3DE71-FDAB-44C9-9CE5-726B1A1B8715}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4C3DE71-FDAB-44C9-9CE5-726B1A1B8715}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
