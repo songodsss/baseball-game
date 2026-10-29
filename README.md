@@ -23,7 +23,7 @@
 ```
 cd src
 dotnet run --project BaseballSim.Sandbox -- 42          # 리그 기록, 능력치 영향, 샘플 경기 (42 = 랜덤 시드)
-dotnet run --project BaseballSim.Sandbox -- career 42   # 자동으로 선수 2명의 커리어를 끝까지 플레이
+dotnet run --project BaseballSim.Sandbox -- career 42   # 자동으로 선수 2명의 커리어를 끝까지 플레이 (시즌 36경기)
 ```
 
 능력치는 1~100, 50이 리그 평균이다. 밸런스는 `PlateAppearanceModel` 맨 위의 기본 확률 상수로 조정한다.

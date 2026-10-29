@@ -47,9 +47,13 @@ namespace BaseballSim.Career
         public const int MinSalary = 3000;
         public const int RetirementAge = 40;
 
+        // The season is a quarter of a real one, so each day's growth and pay count four times
+        // over; that keeps a player peaking around age 26 as with a full 144-game season.
+        const int DayWeight = 4;
+
         // Training and fatigue.
-        const int TrainMainExp = 10;
-        const int TrainSideExp = 3;
+        const int TrainMainExp = 10 * DayWeight;
+        const int TrainSideExp = 3 * DayWeight;
         const int TrainFatigue = 15;
         const int GameFatigue = 6;
         const int RestRecovery = 35;
@@ -131,7 +135,7 @@ namespace BaseballSim.Career
             bool tired = Me.Fatigue >= TiredThreshold;
             if (tired && _random.NextDouble() < InjuryChanceWhenTired)
             {
-                Me.InjuryDaysLeft = 5 + (int)(_random.NextDouble() * 11);
+                Me.InjuryDaysLeft = 2 + (int)(_random.NextDouble() * 3);
                 result.GotInjured = true;
                 return;
             }
@@ -202,7 +206,7 @@ namespace BaseballSim.Career
         void GainGameExp(DayResult result)
         {
             var l = result.MyLine;
-            double mult = AgeGrowth(Me.Age);
+            double mult = AgeGrowth(Me.Age) * DayWeight;
             int extraBase = l.Doubles + l.Triples;
             int Exp(double raw) => (int)Math.Round(raw * mult);
 
@@ -216,7 +220,7 @@ namespace BaseballSim.Career
         void PayForGame(DayResult result)
         {
             var l = result.MyLine;
-            int pay = Me.Salary / League.GamesPerSeason + 5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn;
+            int pay = Me.Salary / League.GamesPerSeason + DayWeight * (5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn);
             Me.Money += pay;
             result.MoneyEarned = pay;
         }

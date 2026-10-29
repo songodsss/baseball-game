@@ -41,7 +41,7 @@ namespace BaseballSim.Career
                 Seasons = me.History.Count,
                 CareerLine = line,
                 PeakRatings = new Dictionary<Stat, int>(me.PeakRatings),
-                LegacyPoints = line.Hits / 10 + line.HomeRuns / 2 + me.History.Count * 5,
+                LegacyPoints = line.Hits / 3 + line.HomeRuns * 2 + me.History.Count * 5,
             };
             Roster.Add(retired);
             LegacyPoints += retired.LegacyPoints;

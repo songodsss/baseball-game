@@ -10,10 +10,11 @@ namespace BaseballSim.Career
         public double WinPct => Wins + Losses == 0 ? 0 : (double)Wins / (Wins + Losses);
     }
 
-    /// <summary>Ten fictional teams playing a 144-game season, every team playing once a day.</summary>
+    /// <summary>Ten fictional teams playing a 36-game season (4 against each rival), every team playing once a day.</summary>
     public class League
     {
-        public const int GamesPerSeason = 144;
+        // A quarter of a real 144-game season, so a 20-season career is about 720 choices.
+        public const int GamesPerSeason = 36;
 
         public static readonly string[] DefaultTeamNames =
         {
