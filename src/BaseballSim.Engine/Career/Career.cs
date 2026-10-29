@@ -47,13 +47,9 @@ namespace BaseballSim.Career
         public const int MinSalary = 3000;
         public const int RetirementAge = 40;
 
-        // The season is a quarter of a real one, so each day's growth and pay count four times
-        // over; that keeps a player peaking around age 26 as with a full 144-game season.
-        const int DayWeight = 4;
-
-        // Training and fatigue.
-        const int TrainMainExp = 10 * DayWeight;
-        const int TrainSideExp = 3 * DayWeight;
+        // Training and fatigue, per day of a full 144-game season.
+        const int TrainMainExp = 10;
+        const int TrainSideExp = 3;
         const int TrainFatigue = 15;
         const int GameFatigue = 6;
         const int RestRecovery = 35;
@@ -84,6 +80,12 @@ namespace BaseballSim.Career
         }
 
         public bool IsSeasonOver => Day >= League.GamesPerSeason;
+
+        /// <summary>
+        /// In a shorter season each day's growth and pay count for more (x2 at 72 games, x4 at 36),
+        /// so a player peaks around age 26 whichever length is picked.
+        /// </summary>
+        int DayWeight => League.FullSeason / League.GamesPerSeason;
         public bool MustRetire => Me.Age >= RetirementAge;
 
         /// <summary>Creates a fresh 18-year-old with random starting ratings and potential.</summary>
@@ -135,15 +137,15 @@ namespace BaseballSim.Career
             bool tired = Me.Fatigue >= TiredThreshold;
             if (tired && _random.NextDouble() < InjuryChanceWhenTired)
             {
-                Me.InjuryDaysLeft = 2 + (int)(_random.NextDouble() * 3);
+                Me.InjuryDaysLeft = (int)Math.Ceiling((5 + _random.NextDouble() * 10) / DayWeight);
                 result.GotInjured = true;
                 return;
             }
 
             var (main, side) = TrainingTargets(action);
             double mult = AgeGrowth(Me.Age) * (tired ? 0.5 : 1.0);
-            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * mult)));
-            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * mult)));
+            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult)));
+            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult)));
             Me.Fatigue = Math.Min(100, Me.Fatigue + TrainFatigue);
         }
 
@@ -239,6 +241,7 @@ namespace BaseballSim.Career
             {
                 Season = Season,
                 Age = Me.Age,
+                Games = League.GamesPerSeason,
                 Line = SeasonLine,
                 Ratings = Me.Snapshot(),
                 Salary = Me.Salary,
@@ -273,6 +276,14 @@ namespace BaseballSim.Career
             SeasonLine = new BattingLine();
             League.ResetStandings();
             return summary;
+        }
+
+        /// <summary>The player can switch between 144, 72 and 36 games before any season starts.</summary>
+        public bool ChangeSeasonLength(int games)
+        {
+            if (Day != 0 || Array.IndexOf(League.SeasonLengths, games) < 0) return false;
+            League.SetSeasonLength(games);
+            return true;
         }
 
         public bool Buy(string equipmentId)

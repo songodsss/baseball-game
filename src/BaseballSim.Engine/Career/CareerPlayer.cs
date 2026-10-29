@@ -8,6 +8,8 @@ namespace BaseballSim.Career
     {
         public int Season;
         public int Age;
+        /// <summary>Season length the player picked for this year.</summary>
+        public int Games;
         public BattingLine Line;
         public Dictionary<Stat, int> Ratings;
         public int Salary;

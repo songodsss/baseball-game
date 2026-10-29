@@ -41,7 +41,8 @@ namespace BaseballSim.Career
                 Seasons = me.History.Count,
                 CareerLine = line,
                 PeakRatings = new Dictionary<Stat, int>(me.PeakRatings),
-                LegacyPoints = line.Hits / 3 + line.HomeRuns * 2 + me.History.Count * 5,
+                // Each season scaled to a full 144 games, so a short-season career earns the same.
+                LegacyPoints = (int)me.History.Sum(r => (r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0) * League.FullSeason / r.Games + 5),
             };
             Roster.Add(retired);
             LegacyPoints += retired.LegacyPoints;

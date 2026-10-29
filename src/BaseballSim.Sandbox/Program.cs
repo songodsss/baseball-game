@@ -3,10 +3,10 @@ using BaseballSim.Sandbox;
 
 // Sandbox: plays whole seasons with no graphics to check the engine's numbers.
 // Usage: dotnet run -- [seed]          league numbers, rating impact, a sample game
-//        dotnet run -- career [seed]   auto-plays one full career to check growth pacing
+//        dotnet run -- career [seed] [games]   auto-plays careers to check growth pacing (games: 144, 72 or 36)
 if (args.Length > 0 && args[0] == "career")
 {
-    CareerDemo.Run(args.Length > 1 ? int.Parse(args[1]) : 42);
+    CareerDemo.Run(args.Length > 1 ? int.Parse(args[1]) : 42, args.Length > 2 ? int.Parse(args[2]) : 36);
     return;
 }
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -10,11 +11,15 @@ namespace BaseballSim.Career
         public double WinPct => Wins + Losses == 0 ? 0 : (double)Wins / (Wins + Losses);
     }
 
-    /// <summary>Ten fictional teams playing a 36-game season (4 against each rival), every team playing once a day.</summary>
+    /// <summary>Ten fictional teams, every team playing once a day. One season is one year.</summary>
     public class League
     {
-        // A quarter of a real 144-game season, so a 20-season career is about 720 choices.
-        public const int GamesPerSeason = 36;
+        public const int FullSeason = 144;
+        /// <summary>Season lengths a player can pick: a full season, a half, or a quarter.</summary>
+        public static readonly int[] SeasonLengths = { 144, 72, 36 };
+
+        /// <summary>Games per season; a multiple of 9 so every rival is met equally often.</summary>
+        public int GamesPerSeason { get; private set; }
 
         public static readonly string[] DefaultTeamNames =
         {
@@ -26,10 +31,19 @@ namespace BaseballSim.Career
         public Dictionary<Team, Standing> Standings = new Dictionary<Team, Standing>();
         readonly Dictionary<Team, int> _nextStarter = new Dictionary<Team, int>();
 
-        public League(RosterGenerator generator)
+        public League(RosterGenerator generator, int gamesPerSeason = 36)
         {
+            SetSeasonLength(gamesPerSeason);
             foreach (var name in DefaultTeamNames) Teams.Add(generator.CreateTeam(name));
             ResetStandings();
+        }
+
+        /// <summary>Only between seasons; Career.ChangeSeasonLength checks that.</summary>
+        public void SetSeasonLength(int games)
+        {
+            if (Array.IndexOf(SeasonLengths, games) < 0)
+                throw new ArgumentException($"Season length must be one of {string.Join(", ", SeasonLengths)}.");
+            GamesPerSeason = games;
         }
 
         public void ResetStandings()
