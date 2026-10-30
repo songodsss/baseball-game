@@ -68,6 +68,8 @@ namespace BaseballSim.Career
         /// <summary>Clubs moved to by trade, free agency or tryout, in order. Empty means a one-club career.</summary>
         public List<string> Clubs = new List<string>();
         public int AllStarSelections;
+        /// <summary>Steals over the whole career (season lines in history don't keep them).</summary>
+        public int CareerStolenBases;
         public int AllStarMvps;
         /// <summary>Big at bats where the pitch I sat on came.</summary>
         public int ReadsRight;

@@ -388,6 +388,8 @@ namespace BaseballSim.Career
         MyGameState _game;
         public bool IsMidGame => _game != null;
         public AtBatSituation PendingAtBat => _game?.Result.AtBat;
+        /// <summary>The club my team is playing in the paused game, or null.</summary>
+        public Team MidGameOpponent => _game == null ? null : _game.Home == MyTeam ? _game.Away : _game.Home;
 
         /// <summary>Returns false if the game paused at a big at bat.</summary>
         bool StartMyGame(Team away, Team home, DayResult result)
@@ -472,6 +474,7 @@ namespace BaseballSim.Career
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
             if (result.MyLine.AtBats > 0) HitlessStreak = result.MyLine.Hits == 0 ? HitlessStreak + 1 : 0;
             Accumulate(SeasonLine, result.MyLine);
+            Me.CareerStolenBases += result.MyLine.StolenBases;
             Accumulate(StintLine, result.MyLine);
             StintDays++;
             GainGameExp(result, result.MyLine);
@@ -705,6 +708,7 @@ namespace BaseballSim.Career
             total.Doubles += add.Doubles; total.Triples += add.Triples; total.HomeRuns += add.HomeRuns;
             total.Walks += add.Walks; total.Strikeouts += add.Strikeouts; total.Runs += add.Runs;
             total.RunsBattedIn += add.RunsBattedIn;
+            total.StolenBases += add.StolenBases; total.CaughtStealing += add.CaughtStealing;
         }
 
         static double Normal(IRandom random, double mean, double sd)

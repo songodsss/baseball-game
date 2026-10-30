@@ -19,9 +19,9 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        /// 20: daily missions and the album on the club; club and career can be saved apart (player slots);
-        /// main story progress on the career and each retired player's ending on the club.
-        public const int Version = 20;
+        /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
+        /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
+        public const int Version = 22;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -169,6 +169,7 @@ namespace BaseballSim.Career
             w.Write(d.RecoveryTickets);
             WriteList(w, club.LegendsMet.ToList(), w.Write);
             WriteList(w, club.RivalsMet, w.Write);
+            // Added in version 22.
             WriteList(w, club.Roster, p => { w.Write((int)p.Ending); w.Write((int)p.Route); });
         }
 
@@ -256,6 +257,9 @@ namespace BaseballSim.Career
                 d.RecoveryTickets = r.ReadInt32();
                 club.LegendsMet = new HashSet<string>(ReadList(r, r.ReadString));
                 club.RivalsMet = ReadList(r, r.ReadString);
+            }
+            if (version >= 22)
+            {
                 int e = 0;
                 ReadList(r, () =>
                 {
@@ -419,7 +423,12 @@ namespace BaseballSim.Career
             // Added in version 19.
             w.Write((int)me.Role);
 
-            // Added in version 20.
+            // Added in version 21.
+            w.Write(career.SeasonLine.StolenBases);
+            w.Write(career.SeasonLine.CaughtStealing);
+            w.Write(me.CareerStolenBases);
+
+            // Added in version 22.
             var story = career.Story;
             w.Write((int)story.Route);
             WriteList(w, story.Seen, w.Write);
@@ -575,7 +584,13 @@ namespace BaseballSim.Career
                     career.League.Pitching[p.Id] = p;
             }
             if (version >= 19) me.Role = (PitcherRole)r.ReadInt32();
-            if (version >= 20)
+            if (version >= 21)
+            {
+                career.SeasonLine.StolenBases = r.ReadInt32();
+                career.SeasonLine.CaughtStealing = r.ReadInt32();
+                me.CareerStolenBases = r.ReadInt32();
+            }
+            if (version >= 22)
             {
                 var story = career.Story;
                 story.Route = (StoryRoute)r.ReadInt32();
