@@ -53,10 +53,10 @@
   - `Assets/Scripts/GrowthScreen.cs` — 육성 화면 프로토타입. 씬 설정 없이 Play만 누르면 화면이 코드로 만들어진다. 처음 켜거나 은퇴하면 선수 이름과 시즌 길이를 정하는 등록 화면이 뜬다
   - `Assets/Scripts/RecordsScreen.cs` — 기록 화면: 리그 순위(승률, 승차), 내 이번 시즌·시즌별·통산 기록, 내 팀 은퇴 선수
   - `Assets/Scripts/MatchScreen.cs` — 경기 화면. 육성 화면의 "오늘 경기 보기"로 연다. 점수판, 아웃·주자 표시, 중계, 일시정지 / 속도 x1·x2·x4 / 내 타석으로 / 결과 보기
-  - `Assets/Scripts/MatchField.cs` — 경기 화면의 3D 구장. 기본 도형(캡슐 선수, 공, 베이스, 펜스)으로 투구, 타구, 수비수 쫓아가기, 주루를 연출. 내 선수는 금색. 아트 작업 때 3D 애니풍 캐릭터 모델로 교체 예정
+  - `Assets/Scripts/MatchField.cs` — 경기 화면의 3D 구장. 투구, 타구, 수비수 쫓아가기, 주루를 연출. 무료 에셋이 있으면 잔디·흙 텍스처, 하늘 파노라마, 애니메이션 되는 선수 모델(`Figure.cs`, `WorldArt.cs`)을 쓰고 없으면 기본 도형(캡슐 선수)으로 대신. 내 선수는 머리 위 금색 표시
   - `Assets/Scripts/SaveStore.cs` — 폰 내부 저장소에 저장 파일을 쓴다. 하루 진행, 장비 구입, 시즌 길이 변경, 은퇴 때마다, 그리고 앱을 내리거나 끌 때 자동 저장
   - `Assets/Scripts/Monetization.cs` — 보상형 광고(`IRewardedAds`)와 인앱 결제(`IStore`) 연결 지점. 지금은 테스트용이라 바로 지급하고 실제 청구는 없다. 광고는 하루 3번, 한 번에 피로 30 회복. 결제로 팔 상품은 아직 정하지 않았다. 실제 SDK(AdMob/Unity Ads, Unity IAP)는 이 인터페이스 뒤에 붙인다
-  - 육성 화면 위쪽 "설정"(경기 기본 속도, 도움말 다시 보기, 데이터 초기화). 행동 버튼 위에 오늘 상대 표시
+  - 육성 화면 위쪽 "설정"(경기 기본 속도, 효과음 켜기/끄기, 도움말 다시 보기, 데이터 초기화). 행동 버튼 위에 오늘 상대 표시
   - `Assets/Scripts/SafeArea.cs` — 노치·둥근 모서리를 피해 화면 배치
   - `Assets/Editor/AndroidBuild.cs` — 메뉴 Baseball → 안드로이드 설정 적용 / 안드로이드 APK 빌드. 세로 고정, 패키지명 `com.songodsss.baseballgame`, IL2CPP ARM64, 빈 씬 자동 생성
   - `Assets/Scripts/UiKit.cs` — 코드로 UI를 만드는 도우미. 아트 작업 때 디자인된 프리팹으로 교체 예정
@@ -77,6 +77,19 @@
 
 - 글꼴 Jua (SIL Open Font License 1.1) — `Resources/Fonts/OFL.txt`
 - 아이콘 [game-icons.net](https://game-icons.net) Delapouite, Lorc, Skoll (CC BY 3.0, 게임 설정 화면에 출처 표시)
+- 선수 모델 [Quaternius](https://quaternius.com) Ultimate Animated Character Pack의 Casual 남자 3종 (CC0) — `Resources/World/Characters/player_a~c.fbx`
+- 잔디(sparse_grass, 회색으로 바꿔 코드에서 색 입힘)·흙(gravelly_sand)·하늘(kloofendal_48d_partly_cloudy_puresky) [Poly Haven](https://polyhaven.com) (CC0) — `Resources/World/Textures/`
+- 버튼 모양·버튼 효과음 [Kenney](https://kenney.nl) UI Pack (CC0) — `Resources/Art/UI/button.png`, `Resources/Sounds/tap.ogg`
+
+CC0는 출처 표기가 필수는 아니지만 설정 화면에 같이 적어 뒀어요.
+
+### 3D 구장 에셋
+
+`unity/Assets/Resources/World/` 아래 파일은 자동으로 알맞게 불러와요(`Assets/Editor/ArtImport.cs`).
+
+- `Textures/grass.jpg`, `Textures/dirt.jpg` 바둑판처럼 반복되는 잔디·흙. 잔디는 회색 그림이고 줄무늬 색은 코드에서 입혀요
+- `Textures/sky.jpg` 360° 하늘 사진. 에디터가 열릴 때 `World/Sky.mat`을 자동으로 만들어요
+- `Characters/player_a~c.fbx` 선수 모델. `Shirt` 재질은 팀 색, `Pants` 재질은 흰색으로 바뀌고, 모델 안의 `Idle`, `Walk`, `Victory`, `Defeat`, `PickUp` 동작을 써요. 다른 모델로 바꿀 땐 같은 이름으로 넣으면 돼요
 
 ## Unity 설치 (처음 한 번)
 

@@ -684,6 +684,13 @@ namespace BaseballGame
                 }, _career.DecideAtBats ? UiKit.Accent : UiKit.Background), 110);
             }
 
+            UiKit.Height(UiKit.Label(card, "소리", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+            UiKit.Height(UiKit.Button(card, UiSound.Muted ? "효과음: 꺼짐" : "효과음: 켜짐", () =>
+            {
+                UiSound.Muted = !UiSound.Muted;
+                ShowSettings();
+            }, UiSound.Muted ? UiKit.Background : UiKit.Accent), 110);
+
             UiKit.Height(UiKit.Label(card, "도움말", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
             UiKit.Height(UiKit.Button(card, "도움말 처음부터 다시 보기", () =>
             {
@@ -698,7 +705,8 @@ namespace BaseballGame
 
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Label(card, "프로토타입 0.1 · 결제와 광고는 아직 테스트용이라 실제로 청구되지 않아요.", 24, TextAnchor.MiddleCenter, UiKit.Muted), 60);
-            UiKit.Height(UiKit.Label(card, "아이콘: game-icons.net (Delapouite, Lorc, Skoll · CC BY 3.0) · 글꼴: Jua (SIL OFL)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 40);
+            UiKit.Height(UiKit.Label(card, "아이콘: game-icons.net (Delapouite, Lorc, Skoll · CC BY 3.0) · 글꼴: Jua (SIL OFL)\n" +
+                "선수 모델: Quaternius · 잔디·흙·하늘: Poly Haven · 버튼·효과음: Kenney (모두 CC0)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 70);
             UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
         }
 

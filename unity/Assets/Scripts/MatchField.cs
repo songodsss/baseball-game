@@ -9,7 +9,9 @@ namespace BaseballGame
     /// <summary>
     /// The 3D ballpark for the match screen, built from primitives: field, fielders, runners, ball
     /// and a broadcast camera. It only animates what a ReplayStep says happened.
-    /// The art pass will swap the capsules for 3D anime-style character models.
+    /// With the free assets in Resources/World/ the ground gets real grass and dirt, the sky a
+    /// panorama, and the players animated character models (see WorldArt and Figure);
+    /// without them it falls back to tinted shapes and capsules.
     /// </summary>
     public class MatchField : MonoBehaviour
     {
@@ -31,6 +33,14 @@ namespace BaseballGame
 
         static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
         static readonly Color Dirt = new Color(0.74f, 0.53f, 0.34f);
+        static readonly Color LightGrass = new Color(0.34f, 0.67f, 0.33f);
+        static readonly Color DarkGrass = new Color(0.29f, 0.6f, 0.29f);
+        /// <summary>Metres one copy of a ground texture covers.</summary>
+        const float TileMetres = 6f;
+        /// <summary>The grass picture is a grey detail map averaging about 0.8; this undoes the darkening.</summary>
+        const float GrassBoost = 1.25f;
+        /// <summary>Run cycles play the model's walk clip this much faster.</summary>
+        const float RunAnimSpeed = 2.6f;
         static readonly Color Skin = new Color(0.96f, 0.8f, 0.66f);
         static readonly Vector3 BodyScale = new Vector3(0.9f, 0.8f, 0.9f);
 
@@ -43,6 +53,7 @@ namespace BaseballGame
         Camera _camera;
         Transform _ball;
         readonly List<Transform> _fielders = new List<Transform>();
+        Vector3 _bodyScale = BodyScale;
         readonly Dictionary<Player, Transform> _runners = new Dictionary<Player, Transform>();
         Color _battingColor = Color.white;
 
@@ -79,11 +90,18 @@ namespace BaseballGame
             _camera.farClipPlane = 600;
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = new Color(0.5f, 0.72f, 0.96f);
+            var sky = WorldArt.Sky;
+            if (sky != null)
+            {
+                RenderSettings.skybox = sky;
+                _camera.clearFlags = CameraClearFlags.Skybox;
+                DynamicGI.UpdateEnvironment();
+            }
             ResetCamera();
             // A light haze pushes the stands back and blends them into the sky.
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = new Color(0.68f, 0.8f, 0.95f);
+            RenderSettings.fogColor = sky != null ? new Color(0.76f, 0.83f, 0.93f) : new Color(0.68f, 0.8f, 0.95f);
             RenderSettings.fogStartDistance = 90;
             RenderSettings.fogEndDistance = 320;
 
@@ -98,30 +116,32 @@ namespace BaseballGame
                 light.shadows = LightShadows.Soft;
             }
 
-            var grass = Shape(PrimitiveType.Plane, "Grass", Color.white);
-            grass.localScale = new Vector3(30, 1, 30);
-            grass.localPosition = new Vector3(0, 0, 80);
-            grass.GetComponent<Renderer>().material.mainTexture = MowedGrass();
+            BuildGrass();
 
             // The infield skin: an arc of dirt around the mound, and a circle round home plate.
             var arc = Shape(PrimitiveType.Cylinder, "Infield Arc", Dirt);
             arc.localScale = new Vector3(58, 0.005f, 58);
             arc.localPosition = Mound + Vector3.up * 0.005f;
+            DirtTexture(arc, 58, 58);
             var homeCircle = Shape(PrimitiveType.Cylinder, "Home Circle", Dirt);
             homeCircle.localScale = new Vector3(8, 0.005f, 8);
             homeCircle.localPosition = Vector3.up * 0.025f;
+            DirtTexture(homeCircle, 8, 8);
 
             float side = BaseDistance + 6;
             var dirt = Shape(PrimitiveType.Cube, "Infield Dirt", Dirt);
             dirt.localScale = new Vector3(side, 0.02f, side);
             dirt.SetPositionAndRotation(BasePosition(1) * 0.5f + Vector3.up * 0.01f, Quaternion.Euler(0, 45, 0));
+            DirtTexture(dirt, side, side);
             var infieldGrass = Shape(PrimitiveType.Cube, "Infield Grass", new Color(0.33f, 0.66f, 0.33f));
             infieldGrass.localScale = new Vector3(BaseDistance - 6, 0.02f, BaseDistance - 6);
             infieldGrass.SetPositionAndRotation(BasePosition(1) * 0.5f + Vector3.up * 0.02f, Quaternion.Euler(0, 45, 0));
+            GrassTexture(infieldGrass, new Color(0.33f, 0.66f, 0.33f), BaseDistance - 6, BaseDistance - 6);
 
             var mound = Shape(PrimitiveType.Cylinder, "Mound", Dirt);
             mound.localScale = new Vector3(5.5f, 0.15f, 5.5f);
             mound.localPosition = Mound;
+            DirtTexture(mound, 5.5f, 5.5f);
 
             for (int b = 0; b < 3; b++)
             {
@@ -153,7 +173,11 @@ namespace BaseballGame
             BuildBallpark(segments, segLength);
 
             for (int i = 0; i < FielderSpots.Length; i++)
-                _fielders.Add(Person("Fielder " + i, Color.gray, FielderSpots[i]));
+            {
+                var fielder = Person("Fielder " + i, Color.gray, FielderSpots[i], i);
+                Face(fielder, -FielderSpots[i]);
+                _fielders.Add(fielder);
+            }
 
             _ball = Shape(PrimitiveType.Sphere, "Ball", Color.white);
             _ball.localScale = Vector3.one * 0.45f;
@@ -170,6 +194,7 @@ namespace BaseballGame
                 var track = Shape(PrimitiveType.Cube, "Warning Track", new Color(0.62f, 0.45f, 0.32f));
                 track.localScale = new Vector3(segLength, 0.02f, 5);
                 track.SetPositionAndRotation(Direction(angle) * (FenceRadius - 2.5f) + Vector3.up * 0.015f, Quaternion.Euler(0, angle, 0));
+                DirtTexture(track, segLength, 5, new Color(0.8f, 0.72f, 0.68f));
             }
 
             // Outfield bleachers rise in tiers behind the fence.
@@ -217,6 +242,56 @@ namespace BaseballGame
             }
         }
 
+        /// <summary>
+        /// The outfield lawn in light and dark mowing stripes. With the grass texture each stripe is
+        /// its own strip of turf; without it, one plane with a striped colour texture.
+        /// </summary>
+        void BuildGrass()
+        {
+            const float size = 300;
+            const int stripes = 24;
+            if (WorldArt.Texture("grass") == null)
+            {
+                var plane = Shape(PrimitiveType.Plane, "Grass", Color.white);
+                plane.localScale = new Vector3(size / 10, 1, size / 10);
+                plane.localPosition = new Vector3(0, 0, 80);
+                plane.GetComponent<Renderer>().material.mainTexture = MowedGrass();
+                return;
+            }
+            float width = size / stripes;
+            for (int x = 0; x < stripes; x++)
+            {
+                var strip = Shape(PrimitiveType.Plane, "Grass", Color.white);
+                strip.localScale = new Vector3(width / 10, 1, size / 10);
+                strip.localPosition = new Vector3(-size / 2 + width * (x + 0.5f), 0, 80);
+                GrassTexture(strip, x % 2 == 0 ? DarkGrass : LightGrass, width, size);
+            }
+        }
+
+        /// <summary>Lays the grass texture on a shape, tinted; sizes are in metres. No-op without it.</summary>
+        static void GrassTexture(Transform t, Color tint, float width, float length)
+        {
+            var tex = WorldArt.Texture("grass");
+            if (tex == null) return;
+            var m = t.GetComponent<Renderer>().material;
+            m.mainTexture = tex;
+            m.mainTextureScale = new Vector2(width / TileMetres, length / TileMetres);
+            m.color = new Color(tint.r * GrassBoost, tint.g * GrassBoost, tint.b * GrassBoost);
+            m.SetFloat("_Glossiness", 0.1f);
+        }
+
+        /// <summary>Lays the infield dirt texture on a shape; sizes are in metres. No-op without it.</summary>
+        static void DirtTexture(Transform t, float width, float length, Color? tint = null)
+        {
+            var tex = WorldArt.Texture("dirt");
+            if (tex == null) return;
+            var m = t.GetComponent<Renderer>().material;
+            m.mainTexture = tex;
+            m.mainTextureScale = new Vector2(width / TileMetres, length / TileMetres);
+            m.color = tint ?? Color.white;
+            m.SetFloat("_Glossiness", 0.05f);
+        }
+
         /// <summary>Light and dark mowing stripes running out from home plate.</summary>
         static Texture2D MowedGrass()
         {
@@ -257,9 +332,21 @@ namespace BaseballGame
             return go.transform;
         }
 
-        /// <summary>A uniformed figure: body in the team colour, a head, and a cap with a brim.</summary>
-        Transform Person(string name, Color color, Vector3 position)
+        /// <summary>
+        /// A uniformed player: a character model when there is one (variant picks which), otherwise
+        /// a capsule body in the team colour, a head, and a cap with a brim.
+        /// </summary>
+        Transform Person(string name, Color color, Vector3 position, int variant)
         {
+            var model = WorldArt.Body(variant, out var clips);
+            if (model != null)
+            {
+                _bodyScale = Vector3.one;
+                var figure = Figure.Create(transform, name, model, clips, position);
+                figure.SetUniform(color);
+                return figure.transform;
+            }
+
             var body = Shape(PrimitiveType.Capsule, name, color);
             body.localScale = BodyScale;
             body.localPosition = position + Vector3.up;
@@ -282,12 +369,31 @@ namespace BaseballGame
         static Vector3 Direction(float degrees) =>
             new Vector3(Mathf.Sin(degrees * Mathf.Deg2Rad), 0, Mathf.Cos(degrees * Mathf.Deg2Rad));
 
-        /// <summary>Recolours a figure's uniform; the cap is a shade darker.</summary>
+        /// <summary>Recolours a player's uniform; the cap is a shade darker.</summary>
         static void Tint(Transform t, Color color)
         {
+            var figure = t.GetComponent<Figure>();
+            if (figure != null)
+            {
+                figure.SetUniform(color);
+                return;
+            }
             t.GetComponent<Renderer>().material.color = color;
             foreach (Transform part in t)
                 if (part.name == "Cap") part.GetComponent<Renderer>().material.color = new Color(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f);
+        }
+
+        /// <summary>Turns a model player to face along a direction; capsules have no front, so they're left alone.</summary>
+        static void Face(Transform t, Vector3 direction)
+        {
+            var figure = t.GetComponent<Figure>();
+            if (figure != null) figure.Face(direction);
+        }
+
+        static void Animate(Transform t, string clip, float speed = 1f)
+        {
+            var figure = t.GetComponent<Figure>();
+            if (figure != null) figure.Play(clip, speed);
         }
 
         // ---------- State ----------
@@ -301,7 +407,12 @@ namespace BaseballGame
         /// <summary>Puts everyone where they stand before (or after) a play, with no animation.</summary>
         public void Snap(Player[] bases, Player batter)
         {
-            for (int i = 0; i < _fielders.Count; i++) _fielders[i].localPosition = FielderSpots[i] + Vector3.up;
+            for (int i = 0; i < _fielders.Count; i++)
+            {
+                _fielders[i].localPosition = FielderSpots[i] + Vector3.up;
+                Face(_fielders[i], -FielderSpots[i]);
+                Animate(_fielders[i], "Idle");
+            }
             _ball.gameObject.SetActive(false);
             ResetCamera();
 
@@ -310,12 +421,19 @@ namespace BaseballGame
                 if (bases[b] != null)
                 {
                     keep.Add(bases[b]);
-                    Runner(bases[b]).localPosition = BasePosition(b) + Vector3.up;
+                    var runner = Runner(bases[b]);
+                    runner.localPosition = BasePosition(b) + Vector3.up;
+                    Face(runner, BasePosition(b + 1) - BasePosition(b));
+                    Animate(runner, "Idle");
                 }
             if (batter != null)
             {
                 keep.Add(batter);
-                Runner(batter).localPosition = BattersBox + Vector3.up;
+                var hitter = Runner(batter);
+                hitter.localPosition = BattersBox + Vector3.up;
+                // Side-on to the pitcher, the way a right-handed hitter stands in the left box.
+                Face(hitter, Vector3.right);
+                Animate(hitter, "Idle");
             }
 
             var gone = new List<Player>();
@@ -332,17 +450,17 @@ namespace BaseballGame
         {
             if (_runners.TryGetValue(p, out var t))
             {
-                t.localScale = BodyScale;
+                t.localScale = _bodyScale;
                 Tint(t, _battingColor);
                 return t;
             }
-            t = Person(p.Name, _battingColor, BattersBox);
+            t = Person(p.Name, _battingColor, BattersBox, p.Name.GetHashCode());
             if (p == Mine)
             {
                 // My player wears the team uniform like everyone else; a gold marker overhead picks them out.
                 var marker = Shape(PrimitiveType.Sphere, "Mine Marker", Gold);
                 marker.SetParent(t, false);
-                marker.localPosition = new Vector3(0, 2.1f, 0);
+                marker.localPosition = new Vector3(0, t.GetComponent<Figure>() != null ? Figure.HeadTop + 0.45f : 2.1f, 0);
                 marker.localScale = new Vector3(0.45f, 0.4f, 0.45f);
             }
             _runners[p] = t;
@@ -429,6 +547,11 @@ namespace BaseballGame
             var chaserStart = chaser != null ? chaser.localPosition : Vector3.zero;
             var chaserEnd = landing + Vector3.up;
 
+            if (chaser != null)
+            {
+                Face(chaser, chaserEnd - chaserStart);
+                Animate(chaser, "Walk", RunAnimSpeed);
+            }
             for (float t = 0; t < 1 && !Skipping(); t += Step / seconds)
             {
                 _ball.localPosition = Vector3.Lerp(from, landing, t) + Vector3.up * (4 * height * t * (1 - t));
@@ -439,6 +562,11 @@ namespace BaseballGame
             }
 
             // Grounders go to first; anything else still in the park comes back to the infield.
+            if (chaser != null)
+            {
+                Face(chaser, -chaserEnd);
+                Animate(chaser, step.Event.Outcome == Outcome.GroundOut ? "PickUp" : "Idle");
+            }
             if (distance < FenceRadius)
             {
                 var start = _ball.localPosition;
@@ -469,16 +597,22 @@ namespace BaseballGame
             }
 
             for (int i = 1; i < path.Count; i++)
+            {
+                Face(runner, path[i] - path[i - 1]);
+                Animate(runner, "Walk", RunAnimSpeed);
                 for (float t = 0; t < 1 && !Skipping(); t += Step / RunSecondsPerBase)
                 {
                     runner.localPosition = Vector3.Lerp(path[i - 1], path[i], t);
                     yield return null;
                 }
+            }
+            Animate(runner, move.To == RunnerMove.Scored && outcome == Outcome.HomeRun ? "Victory"
+                : move.To == RunnerMove.Out ? "Defeat" : "Idle");
 
             if (move.To == RunnerMove.Out || move.To == RunnerMove.Scored)
                 for (float t = 0; t < 1 && !Skipping(); t += Step / 0.4f)
                 {
-                    runner.localScale = BodyScale * (1 - t);
+                    runner.localScale = _bodyScale * (1 - t);
                     yield return null;
                 }
         }

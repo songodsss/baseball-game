@@ -59,6 +59,9 @@ namespace BaseballGame
             return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect, border);
         }
 
+        /// <summary>The button skin (Kenney UI Pack, a light grey glossy button tinted per button), or null.</summary>
+        static Sprite ButtonSprite => ArtLibrary.Get("UI/button");
+
         /// <summary>A vertical gradient from top to bottom.</summary>
         public static Sprite GradientSprite(Color top, Color bottom)
         {
@@ -206,8 +209,17 @@ namespace BaseballGame
         public static Button Button(Transform parent, string label, UnityAction onClick, Color? color = null)
         {
             var rt = Panel(parent, "Button " + label, color ?? Accent);
+            var image = rt.GetComponent<Image>();
+            var skin = ButtonSprite;
+            if (skin != null)
+            {
+                image.sprite = skin;
+                // Draw the nine-slice edges at double size, so the corners match the rounded cards.
+                image.pixelsPerUnitMultiplier = 0.5f;
+            }
             var button = rt.gameObject.AddComponent<Button>();
-            button.targetGraphic = rt.GetComponent<Image>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(UiSound.Tap);
             button.onClick.AddListener(onClick);
             var colors = button.colors;
             colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f);
@@ -216,7 +228,8 @@ namespace BaseballGame
             colors.colorMultiplier = 1.2f;
             colors.fadeDuration = 0.08f;
             button.colors = colors;
-            AddShadow(rt.GetComponent<Image>(), 6, 0.3f);
+            // Kenney's button already has its own raised edge.
+            if (skin == null) AddShadow(image, 6, 0.3f);
             rt.gameObject.AddComponent<PressScale>();
             var text = Label(rt, label, 34, TextAnchor.MiddleCenter);
             text.fontStyle = FontStyle.Bold;
