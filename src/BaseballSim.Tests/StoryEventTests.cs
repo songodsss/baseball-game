@@ -82,34 +82,25 @@ public class StoryEventTests
     }
 
     [Fact]
-    public void CoachBoostsTrainingInTheirBestStats()
+    public void EachLegendVisitsOncePerCareer()
     {
         var career = NewCareer(7);
-        var coach = new RetiredPlayer
-        {
-            Name = "코치",
-            PeakRatings = new Dictionary<Stat, int> { { Stat.Contact, 85 }, { Stat.Power, 45 }, { Stat.Eye, 70 }, { Stat.Speed, 60 }, { Stat.Defense, 50 } },
-        };
-        Assert.Equal(0, career.CoachBonus(Stat.Contact));
-        career.Coach = coach;
-        Assert.Equal(0.3, career.CoachBonus(Stat.Contact), 3);
-        Assert.Equal(0.2, career.CoachBonus(Stat.Eye), 3);
-        Assert.Equal(0, career.CoachBonus(Stat.Power));
+        var visit = StoryEvents.Find("legend_jang");
+        Assert.True(visit.Weight(career, new DayResult()) > 0);
+        Assert.Contains("장태산", visit.TextFor(career));
+        SetPending(career, visit);
+        int before = career.Me.Exp[Stat.Power] + career.Me.Ratings[Stat.Power] * 1000;
+        career.ResolveEvent(0);
+        Assert.Contains("jang", career.Me.MetLegends);
+        Assert.True(career.Me.Exp[Stat.Power] + career.Me.Ratings[Stat.Power] * 1000 > before);
+        Assert.Equal(0, visit.Weight(career, new DayResult()));
     }
 
     [Fact]
-    public void CoachedCareersGrowFaster()
+    public void LegendsAreLeagueHistoryNotMyPlayers()
     {
-        int Grown(bool coached)
-        {
-            var career = NewCareer(8);
-            if (coached)
-                career.Coach = new RetiredPlayer { Name = "코치", PeakRatings = CareerPlayer.AllStats.ToDictionary(s => s, s => 90) };
-            int before = career.Me.Ratings[Stat.Contact];
-            for (int i = 0; i < 20; i++) career.PlayDay(i % 3 == 2 ? DailyAction.Rest : DailyAction.TrainContact);
-            return career.Me.Ratings[Stat.Contact] - before;
-        }
-        Assert.True(Grown(true) > Grown(false));
+        Assert.Equal(5, Legends.All.Count);
+        Assert.Equal(CareerPlayer.AllStats.Count(), Legends.All.Select(l => l.Speciality).Distinct().Count());
     }
 
     static void SetPending(CareerState career, StoryEvent ev) =>

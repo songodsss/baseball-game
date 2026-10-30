@@ -69,14 +69,16 @@ namespace BaseballSim.Career
         public League League;
         public Team MyTeam;
         public int Season = 1;
+
+        /// <summary>Every career starts in 2026: each player gets their own timeline rather than following the last one's.</summary>
+        public const int StartYear = 2026;
+        public static int YearOf(int season) => StartYear + season - 1;
+        public int Year => YearOf(Season);
         public int Day;
         public BattingLine SeasonLine = new BattingLine();
 
         /// <summary>My player bats here; the regular in that spot sits for the game.</summary>
         public int LineupSlot = 5;
-
-        /// <summary>A retired player from my club coaching this career; boosts training in their best stats.</summary>
-        public RetiredPlayer Coach;
 
         /// <summary>Games in a row with at bats and no hit. Story events react to slumps.</summary>
         public int HitlessStreak;
@@ -164,13 +166,6 @@ namespace BaseballSim.Career
             return outcome;
         }
 
-        /// <summary>Extra training exp from the coach for this stat: up to +30% from a coach whose peak was in the 80s or better.</summary>
-        public double CoachBonus(Stat stat)
-        {
-            if (Coach == null || !Coach.PeakRatings.TryGetValue(stat, out var peak)) return 0;
-            return Math.Max(0, Math.Min(0.3, (peak - 50) / 100.0));
-        }
-
         void ApplyAction(DailyAction action, DayResult result)
         {
             if (action == DailyAction.Rest)
@@ -190,7 +185,7 @@ namespace BaseballSim.Career
 
             var (main, side) = TrainingTargets(action);
             double mult = AgeGrowth(Me.Age) * (tired ? 0.5 : 1.0);
-            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * (1 + CoachBonus(main)))));
+            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult)));
             AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult)));
             Me.Fatigue = Math.Min(100, Me.Fatigue + TrainFatigue);
         }

@@ -33,6 +33,13 @@ public class StatsTests
     }
 
     [Fact]
+    public void EveryCareerStartsIn2026()
+    {
+        Assert.Equal(2026, CareerState.YearOf(1));
+        Assert.Equal(2045, CareerState.YearOf(20));
+    }
+
+    [Fact]
     public void GamesBehindTheLeader()
     {
         var random = new SeededRandom(9);

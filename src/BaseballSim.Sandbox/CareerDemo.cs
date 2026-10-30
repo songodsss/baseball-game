@@ -17,16 +17,11 @@ namespace BaseballSim.Sandbox
             {
                 var league = new League(new RosterGenerator(random), gamesPerSeason);
                 var me = Career.Career.NewPlayer(generation == 1 ? "강하늘" : "윤바다", random, club.PotentialBonus);
-                // From the second player on, the best retired player coaches.
-                var career = new Career.Career(me, league, league.Teams[0], random)
-                {
-                    Coach = club.Roster.OrderByDescending(p => p.Overall).FirstOrDefault(),
-                };
+                var career = new Career.Career(me, league, league.Teams[0], random);
 
                 Console.WriteLine($"=== {generation}대 선수 {me.Name} ({league.Teams[0].Name}, 시즌 {gamesPerSeason}경기) ===");
                 Console.WriteLine($"시작 능력치  {Ratings(me.Ratings)}");
                 Console.WriteLine($"잠재력       {Ratings(me.Potential)}   (명예 포인트 보너스 +{club.PotentialBonus})");
-                if (career.Coach != null) Console.WriteLine($"코치         {career.Coach.Name} (종합 {career.Coach.Overall})");
                 Console.WriteLine();
                 Console.WriteLine("시즌 나이  컨택 파워 선구 주루 수비 | 타율   홈런 OPS   | 연봉(만원) 보유금 부상일 이벤트 | 장비");
 

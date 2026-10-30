@@ -68,7 +68,7 @@ namespace BaseballGame
 
             if (_career == null) ShowNewPlayer();
             else if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
-            else Log($"{_career.Me.Name} 선수, {_career.Season}시즌 {_career.Day + 1}일차부터 이어서 합니다.");
+            else Log($"{_career.Me.Name} 선수, {_career.Year}년 {_career.Day + 1}일차부터 이어서 합니다.");
         }
 
         // Phones kill backgrounded apps without warning, so save whenever the app is left too.
@@ -82,11 +82,11 @@ namespace BaseballGame
         /// <summary>Between retiring and starting the next player there's no career to save.</summary>
         void Save() => SaveStore.Save(_club, _retired ? null : _career);
 
-        void StartNewCareer(string name, int games, RetiredPlayer coach)
+        void StartNewCareer(string name, int games)
         {
             var league = new League(new RosterGenerator(_random), games);
             var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus);
-            _career = new CareerState(me, league, league.Teams[0], _random) { Coach = coach };
+            _career = new CareerState(me, league, league.Teams[0], _random);
             _lastDay = null;
             _retired = false;
             Save();
@@ -412,7 +412,7 @@ namespace BaseballGame
         {
             var line = _career.SeasonLine;
             var summary = _career.EndSeason();
-            var card = OpenOverlay($"{summary.Record.Season}시즌 종료");
+            var card = OpenOverlay($"{CareerState.YearOf(summary.Record.Season)} 시즌 종료");
             var body = UiKit.ScrollList(card, 6);
             UiKit.Height(body.parent, 0, 1);
             void Section(string title) => UiKit.Height(UiKit.Label(body, title, 32, TextAnchor.LowerLeft, Gold), 70);
@@ -511,24 +511,6 @@ namespace BaseballGame
             UiKit.Row(lengths, 16);
             int games = _career != null ? _career.League.GamesPerSeason : 36;
 
-            // A retired player from my team can coach the new one.
-            RetiredPlayer coach = null;
-            if (_club.Roster.Count > 0)
-            {
-                var coaches = new List<RetiredPlayer> { null };
-                coaches.AddRange(_club.Roster.OrderByDescending(p => p.Overall));
-                coach = coaches[1];
-                UiKit.Height(UiKit.Label(card, "레전드 코치 (전성기에 강했던 능력치의 훈련 효과가 올라가요)", 30, TextAnchor.LowerLeft), 80);
-                Button coachButton = null;
-                string CoachLabel() => coach == null ? "코치 없음" : $"{coach.Name}  종합 {coach.Overall}  ·  최고 {Stats.Name(BestStat(coach))} {coach.PeakRatings[BestStat(coach)]}";
-                coachButton = UiKit.Button(card, CoachLabel(), () =>
-                {
-                    coach = coaches[(coaches.IndexOf(coach) + 1) % coaches.Count];
-                    UiKit.SetButtonLabel(coachButton, CoachLabel());
-                }, UiKit.Background);
-                UiKit.Height(coachButton, 110);
-            }
-
             var buttons = new List<(int Games, Button Button)>();
             void Highlight()
             {
@@ -550,17 +532,14 @@ namespace BaseballGame
                     placeholder.color = UiKit.Warning;
                     return;
                 }
-                StartNewCareer(name, games, coach);
+                StartNewCareer(name, games);
                 CloseOverlay();
                 _logLines.Clear();
-                Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요." +
-                    (coach != null ? $"\n레전드 {coach.Name} 코치가 함께합니다." : ""));
+                Log($"{CareerState.StartYear}년, {_career.Me.Name} 선수 {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
                 Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 잠재력(/ 뒤 숫자)까지 키울 수 있어요.");
                 Refresh();
             }), 120);
         }
-
-        static Stat BestStat(RetiredPlayer p) => p.PeakRatings.OrderByDescending(r => r.Value).First().Key;
 
         // ---------- Refresh ----------
 
@@ -577,7 +556,7 @@ namespace BaseballGame
             var me = _career.Me;
             var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
             _header.text = $"<b>{me.Name}</b>  {me.Age}세 · {_career.MyTeam.Name}\n" +
-                $"<size=32><color=#9EABC2>{_career.Season}시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위</color></size>";
+                $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위</color></size>";
 
             var l = _career.SeasonLine;
             string avg = l.AtBats == 0 ? ".000" : ((double)l.Hits / l.AtBats).ToString(".000");

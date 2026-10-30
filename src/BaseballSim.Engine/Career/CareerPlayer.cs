@@ -49,6 +49,8 @@ namespace BaseballSim.Career
         public List<SeasonRecord> History = new List<SeasonRecord>();
         /// <summary>Level 0-3 of each facility; missing means 0.</summary>
         public Dictionary<Facility, int> Facilities = new Dictionary<Facility, int>();
+        /// <summary>League legends this player has met in story events, so each visits once.</summary>
+        public List<string> MetLegends = new List<string>();
         /// <summary>Achievement ids unlocked in this career, in the order reached.</summary>
         public List<string> Achievements = new List<string>();
 

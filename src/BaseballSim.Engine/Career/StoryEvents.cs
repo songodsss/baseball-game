@@ -101,6 +101,11 @@ namespace BaseballSim.Career
 
         public void Say(string text) => Outcome.Text += "\n" + text;
 
+        public void MeetLegend(string id)
+        {
+            if (!Me.MetLegends.Contains(id)) Me.MetLegends.Add(id);
+        }
+
         static string Signed(int v) => v >= 0 ? $"+{v:N0}" : $"{v:N0}";
     }
 
@@ -284,7 +289,30 @@ namespace BaseballSim.Career
                 },
             });
 
+            foreach (var legend in Legends.All) list.Add(LegendVisit(legend));
             return list;
         }
+
+        /// <summary>A league legend from before 2026 drops by once per career and offers to teach their speciality.</summary>
+        static StoryEvent LegendVisit(Legend legend) => new StoryEvent
+        {
+            Id = "legend_" + legend.Id,
+            Title = "레전드의 방문",
+            Text = $"\"{legend.Nickname}\" {legend.Name}({legend.Years}).\n{legend.Record}의 전설이 오늘 훈련장을 찾았다.\n\"{legend.Line}\"",
+            Weight = (c, d) => c.Me.Age <= 30 && !c.Me.IsInjured && !c.Me.MetLegends.Contains(legend.Id) ? 0.35 : 0,
+            Choices =
+            {
+                new EventChoice
+                {
+                    Label = $"{Stats.Name(legend.Speciality)} 비법을 배운다", Result = legend.Lesson,
+                    Apply = e => { e.MeetLegend(legend.Id); e.Exp(legend.Speciality, 80); e.Fatigue(10); },
+                },
+                new EventChoice
+                {
+                    Label = "옛날 이야기를 듣는다", Result = $"{legend.Name}의 현역 시절 이야기에 시간 가는 줄 몰랐다.",
+                    Apply = e => { e.MeetLegend(legend.Id); e.Morale(6); },
+                },
+            },
+        };
     }
 }

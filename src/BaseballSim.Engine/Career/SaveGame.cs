@@ -15,8 +15,11 @@ namespace BaseballSim.Career
     public static class SaveGame
     {
         const string Magic = "BBSV";
-        /// <summary>2: morale, slump streak and coach. 3: facilities. 4: titles, achievements, league batting.</summary>
-        public const int Version = 4;
+        /// <summary>
+        /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
+        /// 5: legends met; the coach slot is no longer written.
+        /// </summary>
+        public const int Version = 5;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -119,7 +122,6 @@ namespace BaseballSim.Career
             WriteLine(w, career.SeasonLine);
             WriteMe(w, career.Me);
             w.Write(career.HitlessStreak);
-            w.Write(career.Coach == null ? -1 : club.Roster.IndexOf(career.Coach));
 
             var league = career.League;
             w.Write(league.GamesPerSeason);
@@ -152,6 +154,9 @@ namespace BaseballSim.Career
                 w.Write(league.Teams.IndexOf(b.Team));
                 WriteLine(w, b.Line);
             });
+
+            // Added in version 5.
+            WriteList(w, career.Me.MetLegends, w.Write);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -162,7 +167,7 @@ namespace BaseballSim.Career
             var seasonLine = ReadLine(r);
             var me = ReadMe(r, version);
             int hitlessStreak = version >= 2 ? r.ReadInt32() : 0;
-            int coach = version >= 2 ? r.ReadInt32() : -1;
+            if (version >= 2 && version < 5) r.ReadInt32(); // coach, since removed
 
             int games = r.ReadInt32();
             var standings = new List<(int Wins, int Losses, int Ties, int Starts)>();
@@ -193,7 +198,6 @@ namespace BaseballSim.Career
                 LineupSlot = lineupSlot,
                 SeasonLine = seasonLine,
                 HitlessStreak = hitlessStreak,
-                Coach = coach >= 0 && coach < club.Roster.Count ? club.Roster[coach] : null,
             };
 
             if (version >= 4)
@@ -211,6 +215,7 @@ namespace BaseballSim.Career
                 foreach (var b in ReadList(r, () => new BatterSeason { Id = r.ReadString(), Name = r.ReadString(), Team = teams[r.ReadInt32()], Line = ReadLine(r) }))
                     league.Batting[b.Id] = b;
             }
+            if (version >= 5) me.MetLegends = ReadList(r, r.ReadString);
             return career;
         }
 

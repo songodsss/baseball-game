@@ -84,7 +84,7 @@ namespace BaseballGame
         void ShowStandings()
         {
             var league = _career.League;
-            Section($"{_career.Season}시즌 {_career.Day}/{league.GamesPerSeason}경기");
+            Section($"{_career.Year} 시즌 {_career.Day}/{league.GamesPerSeason}경기");
             float[] widths = { 0, 100, 100, 100, 150, 130 };
             Header(widths, "팀", "승", "패", "무", "승률", "승차");
             var ranked = league.Ranked();
@@ -102,7 +102,7 @@ namespace BaseballGame
         {
             var me = _career.Me;
             var l = _career.SeasonLine;
-            Section($"{me.Name}  {_career.Season}시즌");
+            Section($"{me.Name}  {_career.Year} 시즌");
             float[] statWidths = { 0, 0, 0, 0, 0, 0 };
             Header(statWidths, "타율", "출루율", "장타율", "OPS", "홈런", "타점");
             Row(statWidths, 0, false, Stats.Rate(Stats.Avg(l)), Stats.Rate(Stats.Obp(l)), Stats.Rate(Stats.Slg(l)),
@@ -113,12 +113,12 @@ namespace BaseballGame
 
             Section("시즌별 기록");
             float[] widths = { 0, 100, 110, 110, 100, 100, 130, 170 };
-            Header(widths, "시즌", "나이", "경기", "타율", "홈런", "타점", "OPS", "연봉");
+            Header(widths, "연도", "나이", "경기", "타율", "홈런", "타점", "OPS", "연봉");
             if (me.History.Count == 0) Note("첫 시즌이 끝나면 여기에 기록이 쌓여요.");
             for (int i = 0; i < me.History.Count; i++)
             {
                 var h = me.History[i];
-                Row(widths, i, false, $"{h.Season}", $"{h.Age}", $"{h.Games}", Stats.Rate(Stats.Avg(h.Line)),
+                Row(widths, i, false, $"{CareerState.YearOf(h.Season)}", $"{h.Age}", $"{h.Games}", Stats.Rate(Stats.Avg(h.Line)),
                     $"{h.Line.HomeRuns}", $"{h.Line.RunsBattedIn}", Stats.Rate(Stats.Ops(h.Line)), $"{h.Salary:N0}");
             }
 
@@ -126,7 +126,7 @@ namespace BaseballGame
             if (titled.Count > 0)
             {
                 Section("수상");
-                foreach (var h in titled) Note($"{h.Season}시즌  {string.Join(", ", h.Titles)}", TextAnchor.MiddleLeft, 60);
+                foreach (var h in titled) Note($"{CareerState.YearOf(h.Season)}  {string.Join(", ", h.Titles)}", TextAnchor.MiddleLeft, 60);
             }
 
             var t = Stats.CareerTotal(_career);
@@ -166,7 +166,7 @@ namespace BaseballGame
             for (int i = 0; i < roster.Count; i++)
             {
                 var p = roster[i];
-                Row(widths, i, p == _career.Coach, p == _career.Coach ? $"{p.Name} (코치)" : p.Name, $"{p.Seasons}", $"{p.CareerLine.Hits}", $"{p.CareerLine.HomeRuns}", $"{p.Overall}");
+                Row(widths, i, false, p.Name, $"{p.Seasons}", $"{p.CareerLine.Hits}", $"{p.CareerLine.HomeRuns}", $"{p.Overall}");
             }
         }
 
