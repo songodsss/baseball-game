@@ -69,6 +69,7 @@ namespace BaseballGame
             if (_career == null) ShowNewPlayer();
             else if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
             else if (_career.Day == 0 && _career.PendingOffers.Count > 0) ShowOffers(); // closed the app mid-negotiation
+            else if (_career.Day == 0 && _career.PendingSalary != null) ShowSalaryTalk();
             else Log($"{_career.Me.Name} 선수, {_career.Year}년 {_career.Day + 1}일차부터 이어서 합니다.");
         }
 
@@ -699,7 +700,11 @@ namespace BaseballGame
             }
 
             Section("계약");
-            Line($"연봉 {summary.OldSalary:N0} → <b>{summary.NewSalary:N0}</b>만원" + (post.Bonus > 0 ? $"  ·  가을야구 보너스 {post.Bonus:N0}만원" : ""));
+            if (summary.SalaryTalk != null)
+                Line($"구단 제시 연봉 {summary.OldSalary:N0} → <b>{summary.SalaryTalk.Offer:N0}</b>만원  (성적 시세 {summary.SalaryTalk.Worth:N0}만원)");
+            else
+                Line($"연봉 {summary.OldSalary:N0} → <b>{summary.NewSalary:N0}</b>만원" + (_career.ContractSeasonsLeft > 0 ? "  (계약 기간)" : ""));
+            if (post.Bonus > 0) Line($"가을야구 보너스 {post.Bonus:N0}만원");
             Line($"나이 {_career.Me.Age}세가 되었습니다.");
             if (summary.Decline.Count > 0)
                 Line("<color=#F28C40>노쇠화: " + string.Join(", ", summary.Decline.Select(d => $"{StatNames[d.Key]} -{d.Value}")) + "</color>");
@@ -736,8 +741,37 @@ namespace BaseballGame
                 UiKit.Height(UiKit.Button(card, "결정전 마지막 경기 보기", () => Watch(finalGame), UiKit.Muted), 100);
             if (_career.Me.Age >= 30 || _career.MustRetire)
                 UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 100);
-            if (!_career.MustRetire && !mustPick)
+            if (!_career.MustRetire && !mustPick && _career.PendingSalary != null)
+                UiKit.Height(UiKit.Button(card, "연봉 협상하기", ShowSalaryTalk), 100);
+            else if (!_career.MustRetire && !mustPick)
                 UiKit.Height(UiKit.Button(card, "다음 시즌", CloseOverlay), 100);
+        }
+
+        /// <summary>Accept the club's number or push for more; the odds depend on how the season compares to the offer.</summary>
+        void ShowSalaryTalk()
+        {
+            var talk = _career.PendingSalary;
+            if (talk == null) { CloseOverlay(); return; }
+            var card = OpenOverlay("연봉 협상");
+            string leverage = talk.Worth > talk.Offer ? "<color=#5FA8FF>성적이 제시액보다 좋아요. 협상력이 있어요.</color>"
+                : "<color=#F28C40>성적이 제시액만 못해요. 무리하면 마음만 상할 수 있어요.</color>";
+            UiKit.Height(UiKit.Label(card,
+                $"작년 연봉 {talk.OldSalary:N0}만원\n구단 제시 <b>{talk.Offer:N0}</b>만원\n성적 시세 {talk.Worth:N0}만원" + (talk.Titles > 0 ? $" · 타이틀 {talk.Titles}개" : "") + $"\n\n{leverage}",
+                34, TextAnchor.MiddleCenter), 0, 1);
+            void Choice(string label, SalaryAsk ask, Color? color = null) =>
+                UiKit.Height(UiKit.Button(card, ask == SalaryAsk.Accept ? label : $"{label} {talk.Ask(ask):N0}만원  (성공 {talk.Chance(ask):P0})", () =>
+                {
+                    var result = _career.Negotiate(ask);
+                    Log($"<b>연봉 협상</b> {result.Text}");
+                    Save();
+                    Refresh();
+                    var done = OpenOverlay(result.Granted ? "협상 완료" : "협상 결렬");
+                    UiKit.Height(UiKit.Label(done, result.Text + (result.MoraleChange < 0 ? $"\n\n<color=#F28C40>사기 {result.MoraleChange}</color>" : ""), 36, TextAnchor.MiddleCenter), 0, 1);
+                    UiKit.Height(UiKit.Button(done, "다음 시즌", CloseOverlay), 110);
+                }, color), 110);
+            Choice("제시액 수락", SalaryAsk.Accept);
+            Choice("소폭 인상 요구", SalaryAsk.AskSome, UiKit.Muted);
+            Choice("대폭 인상 요구", SalaryAsk.AskBig, UiKit.Warning);
         }
 
         void AddOfferButtons(Transform parent, List<ContractOffer> offers)

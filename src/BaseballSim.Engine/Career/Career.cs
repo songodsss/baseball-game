@@ -64,6 +64,8 @@ namespace BaseballSim.Career
         public List<ContractOffer> Offers = new List<ContractOffer>();
         /// <summary>Let go by the club; Offers are tryouts, and none means the career is over.</summary>
         public bool Released;
+        /// <summary>The club's salary offer to negotiate; null in a year with a running deal, free agency or a release.</summary>
+        public SalaryTalk SalaryTalk;
         public List<Achievement> NewAchievements = new List<Achievement>();
     }
 
@@ -172,6 +174,7 @@ namespace BaseballSim.Career
             if (Released) throw new InvalidOperationException("Released; sign a tryout offer or retire.");
             if (IsMidGame) throw new InvalidOperationException("Answer the big at bat first.");
             PendingOffers.Clear(); // free-agency offers left unanswered: stays on a yearly deal
+            PendingSalary = null;  // salary offer left unanswered: accepted
             PendingTrade = null;
 
             var result = new DayResult { Season = Season, Day = Day, Action = action };
@@ -502,6 +505,7 @@ namespace BaseballSim.Career
             League.ResetStandings();
             PendingOffers = Released ? TryoutOffers() : FreeAgencyOffers(worth);
             summary.Offers = new List<ContractOffer>(PendingOffers);
+            PendingSalary = summary.SalaryTalk = OpenSalaryTalk(summary, worth);
             return summary;
         }
 
