@@ -44,6 +44,10 @@ namespace BaseballSim.Career
         public List<Equipment> Owned = new List<Equipment>();
         public Dictionary<EquipmentSlot, Equipment> Equipped = new Dictionary<EquipmentSlot, Equipment>();
         public List<SeasonRecord> History = new List<SeasonRecord>();
+        /// <summary>Level 0-3 of each facility; missing means 0.</summary>
+        public Dictionary<Facility, int> Facilities = new Dictionary<Facility, int>();
+
+        public int FacilityLevel(Facility f) => Facilities.TryGetValue(f, out var level) ? level : 0;
 
         public bool IsInjured => InjuryDaysLeft > 0;
 

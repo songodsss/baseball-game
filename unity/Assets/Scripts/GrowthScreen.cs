@@ -141,7 +141,7 @@ namespace BaseballGame
             UiKit.Height(bottom, 110);
             UiKit.Row(bottom, 20);
             _watchButton = UiKit.Button(bottom, "오늘 경기 보기", WatchGame);
-            UiKit.Button(bottom, "장비 상점", ShowShop, UiKit.Card);
+            UiKit.Button(bottom, "상점", ShowShop, UiKit.Card);
             UiKit.Button(bottom, "기록", () => RecordsScreen.Open(_career, _club), UiKit.Card);
             _seasonLengthButton = UiKit.Button(bottom, "", CycleSeasonLength, UiKit.Card);
             _seasonLengthLabel = _seasonLengthButton.GetComponentInChildren<Text>();
@@ -254,7 +254,7 @@ namespace BaseballGame
             if (_career.Me.Fatigue >= 60)
                 Tip("fatigue", "피로가 80을 넘으면 훈련 효과가 반으로 줄고 부상 위험이 생겨요. 휴식으로 회복하세요.");
             if (_career.Me.Money >= 200)
-                Tip("shop", "연봉이 쌓였어요. 장비 상점에서 장비를 사면 능력치가 올라가요.");
+                Tip("shop", "연봉이 쌓였어요. 상점에서 장비를 사면 능력치가 올라가요. 장비를 다 모으면 개인 시설에 투자할 수 있어요.");
             if (_career.Day >= 5)
                 Tip("records", "'기록'에서 리그 순위와 내 성적을 볼 수 있어요.");
         }
@@ -327,7 +327,8 @@ namespace BaseballGame
 
         void ShowShop()
         {
-            var card = OpenOverlay($"장비 상점  (보유 {_career.Me.Money:N0}만원)");
+            var card = OpenOverlay($"상점  (보유 {_career.Me.Money:N0}만원)");
+            UiKit.Height(UiKit.Label(card, "장비", 30, TextAnchor.LowerLeft, UiKit.Muted), 40);
             foreach (EquipmentSlot slot in System.Enum.GetValues(typeof(EquipmentSlot)))
             {
                 _career.Me.Equipped.TryGetValue(slot, out var current);
@@ -337,7 +338,7 @@ namespace BaseballGame
                     .FirstOrDefault();
 
                 var row = UiKit.Empty(card, slot.ToString());
-                UiKit.Height(row, 110);
+                UiKit.Height(row, 100);
                 UiKit.Row(row, 20);
                 string have = current == null ? "없음" : current.Name;
                 UiKit.Width(UiKit.Label(row, $"{have}", 30, TextAnchor.MiddleLeft, UiKit.Muted), 0, 1);
@@ -360,6 +361,37 @@ namespace BaseballGame
                 }, _career.Me.Money >= item.Price ? UiKit.Accent : new Color(0.3f, 0.3f, 0.35f));
                 buy.GetComponentInChildren<Text>().fontSize = 28;
                 UiKit.Width(buy, 420);
+            }
+
+            // Facilities: a place for salary once gear is maxed. They never raise a rating directly.
+            UiKit.Height(UiKit.Label(card, "개인 시설", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+            foreach (var facility in Facilities.All)
+            {
+                int level = _career.Me.FacilityLevel(facility);
+                var row = UiKit.Empty(card, facility.ToString());
+                UiKit.Height(row, 100);
+                UiKit.Row(row, 20);
+                string now = level == 0 ? "없음" : Facilities.Describe(facility, level);
+                UiKit.Width(UiKit.Label(row, $"{Facilities.Name(facility)} Lv.{level}\n<size=24>{now}</size>", 30, TextAnchor.MiddleLeft, UiKit.Muted), 0, 1);
+                if (level >= Facilities.MaxLevel)
+                {
+                    UiKit.Width(UiKit.Label(row, "최고 단계", 30, TextAnchor.MiddleCenter), 420);
+                    continue;
+                }
+                int price = Facilities.Price(level + 1);
+                var f = facility;
+                var upgrade = UiKit.Button(row, $"Lv.{level + 1}: {Facilities.Describe(f, level + 1)}\n{price:N0}만원", () =>
+                {
+                    if (_career.UpgradeFacility(f))
+                    {
+                        Log($"{Facilities.Name(f)} Lv.{_career.Me.FacilityLevel(f)} 완공!");
+                        Save();
+                    }
+                    ShowShop();
+                    Refresh();
+                }, _career.Me.Money >= price ? UiKit.Accent : new Color(0.3f, 0.3f, 0.35f));
+                upgrade.GetComponentInChildren<Text>().fontSize = 26;
+                UiKit.Width(upgrade, 420);
             }
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);

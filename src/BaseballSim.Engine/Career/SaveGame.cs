@@ -15,8 +15,8 @@ namespace BaseballSim.Career
     public static class SaveGame
     {
         const string Magic = "BBSV";
-        /// <summary>2: morale, slump streak and coach.</summary>
-        public const int Version = 2;
+        /// <summary>2: morale, slump streak and coach. 3: facilities.</summary>
+        public const int Version = 3;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -178,6 +178,7 @@ namespace BaseballSim.Career
             w.Write(me.Money);
             w.Write(me.Salary);
             w.Write(me.Morale);
+            WriteList(w, me.Facilities.ToList(), f => { w.Write((int)f.Key); w.Write(f.Value); });
             WriteList(w, me.Owned, e => w.Write(e.Id));
             WriteList(w, me.Equipped.Values.ToList(), e => w.Write(e.Id));
             WriteList(w, me.History, h =>
@@ -208,6 +209,7 @@ namespace BaseballSim.Career
                 Salary = r.ReadInt32(),
             };
             if (version >= 2) me.Morale = r.ReadInt32();
+            if (version >= 3) me.Facilities = ReadList(r, () => ((Facility)r.ReadInt32(), r.ReadInt32())).ToDictionary(f => f.Item1, f => f.Item2);
             // Gear is saved by id; anything since removed from the catalog is dropped.
             me.Owned = ReadList(r, () => EquipmentCatalog.Find(r.ReadString())).Where(e => e != null).ToList();
             foreach (var e in ReadList(r, () => EquipmentCatalog.Find(r.ReadString())))

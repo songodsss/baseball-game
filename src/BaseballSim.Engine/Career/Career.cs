@@ -134,7 +134,7 @@ namespace BaseballSim.Career
                 else League.Record(_sim.Play(away, home, League.NextStarter(away), League.NextStarter(home)));
             }
 
-            Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery);
+            Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery - Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom)));
             if (Me.InjuryDaysLeft > 0) Me.InjuryDaysLeft--;
             Me.Morale -= Math.Sign(Me.Morale);
             Day++;
@@ -172,9 +172,10 @@ namespace BaseballSim.Career
             }
 
             bool tired = Me.Fatigue >= TiredThreshold;
-            if (tired && _random.NextDouble() < InjuryChanceWhenTired)
+            double rehab = 1 - Facilities.InjuryReduction(Me.FacilityLevel(Facility.RehabCenter));
+            if (tired && _random.NextDouble() < InjuryChanceWhenTired * rehab)
             {
-                Me.InjuryDaysLeft = (int)Math.Ceiling((5 + _random.NextDouble() * 10) / DayWeight);
+                Me.InjuryDaysLeft = (int)Math.Ceiling((5 + _random.NextDouble() * 10) * rehab / DayWeight);
                 result.GotInjured = true;
                 return;
             }
@@ -301,6 +302,7 @@ namespace BaseballSim.Career
                 {
                     int drop = (int)(_random.NextDouble() * (Me.Age - 30));
                     if (stat == Stat.Speed) drop += 1; // legs go first
+                    drop = (int)Math.Round(drop * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
                     int before = Me.Ratings[stat];
                     // The ceiling drops too, or training would simply win the points back.
                     Me.Potential[stat] = Math.Max(20, Me.Potential[stat] - drop);
@@ -331,6 +333,16 @@ namespace BaseballSim.Career
             Me.Money -= item.Price;
             Me.Owned.Add(item);
             Me.Equipped[item.Slot] = item;
+            return true;
+        }
+
+        /// <summary>Buys the next level of a facility; false if maxed or not enough money.</summary>
+        public bool UpgradeFacility(Facility facility)
+        {
+            int next = Me.FacilityLevel(facility) + 1;
+            if (next > Facilities.MaxLevel || Me.Money < Facilities.Price(next)) return false;
+            Me.Money -= Facilities.Price(next);
+            Me.Facilities[facility] = next;
             return true;
         }
 

@@ -49,7 +49,8 @@ namespace BaseballSim.Sandbox
                     var l = career.SeasonLine;
                     var r = me.Ratings;
                     string avg = l.AtBats == 0 ? "-" : ((double)l.Hits / l.AtBats).ToString("F3");
-                    string gear = string.Join(" ", me.Equipped.Values.OrderBy(e => e.Slot).Select(e => e.Id));
+                    string gear = string.Join(" ", me.Equipped.Values.OrderBy(e => e.Slot).Select(e => e.Id))
+                        + "  시설 " + string.Join("", Facilities.All.Select(f => me.FacilityLevel(f)));
                     Console.WriteLine(
                         $"{career.Season,3}  {me.Age,3}   {r[Stat.Contact],3}  {r[Stat.Power],3}  {r[Stat.Eye],3}  {r[Stat.Speed],3}  {r[Stat.Defense],3} | " +
                         $"{avg}  {l.HomeRuns,3}  {Career.Career.Ops(l):F3} | {me.Salary,8}  {me.Money,6}  {injuredDays,4}  {events,4} | {gear}");
@@ -84,9 +85,13 @@ namespace BaseballSim.Sandbox
             };
         }
 
-        // Autopilot: buy the next tier in any slot it can afford.
+        // Autopilot: buy the next tier in any slot it can afford, then facilities once gear is maxed.
         static void BuyUpgrades(Career.Career career)
         {
+            if (career.Me.Equipped.Count == 5 && career.Me.Equipped.Values.All(e => e.Price == EquipmentCatalog.All.Max(x => x.Price)))
+                foreach (var f in Facilities.All.OrderBy(f => career.Me.FacilityLevel(f)))
+                    career.UpgradeFacility(f);
+
             foreach (EquipmentSlot slot in Enum.GetValues(typeof(EquipmentSlot)))
             {
                 career.Me.Equipped.TryGetValue(slot, out var current);
