@@ -93,8 +93,6 @@ namespace BaseballSim.Career
                 }
                 else if (IsStartDay) { DaysSinceStart = 0; PlayFarmStart(result); }
                 else { DaysSinceStart++; result.BetweenStarts = true; }
-                result.MoneyEarned = InMilitary ? 20 : Me.Salary / League.GamesPerSeason;
-                Me.Money += result.MoneyEarned;
                 return;
             }
 
@@ -108,9 +106,7 @@ namespace BaseballSim.Career
             Accumulate(FarmLine, line);
             Accumulate(StintLine, line);
             GainGameExp(result, line);
-            // 2군 pays the salary share but no hit bonuses; the army pays a token allowance.
-            result.MoneyEarned = InMilitary ? 20 : Me.Salary / League.GamesPerSeason;
-            Me.Money += result.MoneyEarned;
+            // 2군 days earn no incentives; the salary still comes on payday.
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue + Positions.ExtraGameFatigue(Me.Position)));
         }
 
