@@ -38,6 +38,7 @@ namespace BaseballGame
             var canvasGo = new GameObject("RecordsCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
             _canvas = canvasGo;
+            UiAnim.FadeIn(canvasGo.transform, 0.2f);
             var canvas = canvasGo.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 5;

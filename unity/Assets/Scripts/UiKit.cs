@@ -109,6 +109,7 @@ namespace BaseballGame
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0.5f;
+            UiAnim.FadeIn(go.transform, 0.2f); // screens fade in rather than pop
             return go;
         }
 

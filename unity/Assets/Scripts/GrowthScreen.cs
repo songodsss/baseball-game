@@ -116,6 +116,7 @@ namespace BaseballGame
             var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
             _canvas = canvasGo;
+            UiAnim.FadeIn(canvasGo.transform, 0.25f);
             canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -139,6 +140,7 @@ namespace BaseballGame
             _emblem = ArtLibrary.Emblem(top, "", 104);
             _emblem.sizeDelta = new Vector2(104, 104);
             _header = UiKit.Label(top, "", 44);
+            Tappable(_header, () => ProfileScreen.Open(_career));
             _header.rectTransform.sizeDelta = new Vector2(0, 120);
             UiKit.Width(_header, 0, 1);
             _missionButton = HeaderButton(top, "미션", ShowMissions);
@@ -152,6 +154,7 @@ namespace BaseballGame
             UiKit.Height(todayRow, 64);
             UiKit.Row(todayRow, 16).childForceExpandWidth = false;
             _todayText = UiKit.Label(todayRow, "", 30, TextAnchor.MiddleCenter, UiKit.Muted);
+            Tappable(_todayText, () => ScheduleScreen.Open(_career));
             UiKit.Width(_todayText, 0, 1);
             _fastButton = UiKit.Button(todayRow, "", () => { _fast = !_fast; Refresh(); }, UiKit.Card);
             _fastButton.GetComponentInChildren<Text>().fontSize = 26;
@@ -235,6 +238,15 @@ namespace BaseballGame
             UiKit.Width(_ticketButton, 200);
         }
 
+        /// <summary>Makes a label open something when tapped, with no button look.</summary>
+        void Tappable(Text label, UnityEngine.Events.UnityAction onClick)
+        {
+            var button = label.gameObject.AddComponent<Button>();
+            button.targetGraphic = label;
+            button.onClick.AddListener(UiSound.Tap);
+            button.onClick.AddListener(() => { if (_overlay == null && _career != null) onClick(); });
+        }
+
         Button HeaderButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick)
         {
             var button = UiKit.Button(parent, label, onClick, UiKit.Card);
@@ -275,6 +287,7 @@ namespace BaseballGame
                 ShowGoalOffer(action);
                 return;
             }
+            TakeSnapshot();
             if (_fast && Premium.Owns(Premium.FastSkip)) { FastForward(action); return; }
             var result = _career.PlayDay(action);
             if (result.AtBat != null) ShowAtBat(result);
@@ -346,7 +359,39 @@ namespace BaseballGame
             }
             Save();
             Refresh();
+            ShowGains(result);
             ShowTips();
+        }
+
+        // ---------- Growth feedback ----------
+
+        readonly Dictionary<Stat, (int Rating, int Exp)> _before = new Dictionary<Stat, (int Rating, int Exp)>();
+        int _moneyBefore;
+
+        void TakeSnapshot()
+        {
+            _before.Clear();
+            foreach (var stat in _career.Me.MyStats) _before[stat] = (_career.Me.Ratings[stat], _career.Me.Exp[stat]);
+            _moneyBefore = _career.Me.Money;
+        }
+
+        /// <summary>Numbers rise off each rating that grew today, and off the money.</summary>
+        void ShowGains(DayResult result)
+        {
+            var me = _career.Me;
+            int shown = 0;
+            foreach (var stat in me.MyStats)
+            {
+                if (!_before.TryGetValue(stat, out var was) || !_ratingTexts.TryGetValue(stat, out var label)) continue;
+                int up = me.Ratings[stat] - was.Rating;
+                int exp = me.Exp[stat] - was.Exp;
+                string text = up > 0 ? $"▲{up}" : exp > 0 ? $"+{exp}" : null;
+                if (text == null) continue;
+                UiAnim.FloatUp(label.rectTransform, text, up > 0 ? Gold : new Color(0.55f, 0.8f, 1f), up > 0 ? 44 : 32, 0.08f * shown++);
+            }
+            int earned = me.Money - _moneyBefore;
+            if (earned > 0) UiAnim.FloatUp(_money.rectTransform, $"+{earned:N0}만원", Gold, 32);
+            _before.Clear();
         }
 
         // ---------- Big at bats ----------
@@ -1596,7 +1641,7 @@ namespace BaseballGame
                 ArtLibrary.SetEmblem(_emblem, _emblemTeam);
                 _headerBand.color = UiKit.Shade(TeamColor(_emblemTeam), 0.55f) + new Color(0.05f, 0.05f, 0.08f, 0);
             }
-            _header.text = $"<b>{me.Name}</b>  {number}{position} · {me.Age}세 · {_career.MyTeam.Name}\n" +
+            _header.text = $"<b>{me.Name}</b> <size=26><color=#5FA8FF>프로필 ›</color></size>  {number}{position} · {me.Age}세 · {_career.MyTeam.Name}\n" +
                 $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InMilitary ? " · <color=#9EABC2>군 복무 중</color>" : _career.InFarm ? " · <color=#F28C40>2군</color>" : role) +
                 (_career.ContractSeasonsLeft > 0 ? $" · 계약 {_career.ContractSeasonsLeft}년" : "") + "</color></size>";
 
@@ -1648,7 +1693,7 @@ namespace BaseballGame
                 : $"{_career.League.GamesPerSeason}경기 시즌";
             _seasonLengthButton.interactable = _career.Day == 0;
             var today = _career.TodaysGame();
-            _todayText.text = today == null ? "" : $"오늘 경기  vs {today.Value.Opponent.Name} ({(today.Value.Home ? "홈" : "원정")})";
+            _todayText.text = (today == null ? "" : $"오늘 경기  vs {today.Value.Opponent.Name} ({(today.Value.Home ? "홈" : "원정")})  ") + "<color=#5FA8FF>일정 ›</color>";
             int adsLeft = Monetization.AdsLeftToday;
             UiKit.SetButtonLabel(_adButton, $"{(Premium.Owns(Premium.RemoveAds) ? "바로 회복" : "광고 보고 회복")} ({adsLeft})");
             _adButton.interactable = adsLeft > 0 && me.Fatigue > 0;

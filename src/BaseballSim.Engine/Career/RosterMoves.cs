@@ -61,8 +61,10 @@ namespace BaseballSim.Career
         public TradeOffer PendingTrade { get; private set; }
 
         int ReviewEvery => Math.Max(3, League.GamesPerSeason / 12);
-        int TradeDeadline => League.GamesPerSeason * 3 / 5;
-        public string MonthText => $"{Math.Min(9, 4 + Day * 6 / League.GamesPerSeason)}월";
+        public int TradeDeadline => League.GamesPerSeason * 3 / 5;
+        public string MonthText => MonthOf(Day, League.GamesPerSeason);
+        /// <summary>The month a season day falls in: April to September.</summary>
+        public static string MonthOf(int day, int games) => $"{Math.Min(9, 4 + day * 6 / games)}월";
 
         static readonly Player FarmPitcher = new Player("farm", "2군 투수")
         {
@@ -295,7 +297,7 @@ namespace BaseballSim.Career
                 .ToList();
         }
 
-        int AllStarDay => League.GamesPerSeason / 2;
+        public int AllStarDay => League.GamesPerSeason / 2;
 
         void PlayAllStar(DayResult result)
         {
@@ -306,7 +308,7 @@ namespace BaseballSim.Career
             Me.Morale = Math.Min(CareerPlayer.MaxMorale, Me.Morale + 2);
         }
 
-        int TournamentDay => League.GamesPerSeason * 11 / 20;
+        public int TournamentDay => League.GamesPerSeason * 11 / 20;
 
         void PlayTournament(DayResult result)
         {
