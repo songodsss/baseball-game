@@ -11,7 +11,7 @@ namespace BaseballGame
     /// <summary>League standings, my season and career numbers, and the retired players on my team.</summary>
     public class RecordsScreen : MonoBehaviour
     {
-        enum Tab { Standings, MyRecord, Achievements, MyTeam }
+        enum Tab { Standings, MyRecord, Achievements, MyTeam, News }
 
         static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
         static readonly Color Highlight = new Color(0.25f, 0.55f, 0.95f, 0.25f);
@@ -59,6 +59,8 @@ namespace BaseballGame
             _tabs[Tab.MyRecord] = UiKit.Button(tabs, "내 기록", () => Show(Tab.MyRecord), UiKit.Card);
             _tabs[Tab.Achievements] = UiKit.Button(tabs, "업적", () => Show(Tab.Achievements), UiKit.Card);
             _tabs[Tab.MyTeam] = UiKit.Button(tabs, "내 팀", () => Show(Tab.MyTeam), UiKit.Card);
+            _tabs[Tab.News] = UiKit.Button(tabs, "뉴스", () => Show(Tab.News), UiKit.Card);
+            foreach (var tab in _tabs.Values) tab.GetComponentInChildren<Text>().fontSize = 28;
 
             var card = UiKit.Panel(root, "Card", UiKit.Card);
             UiKit.Height(card, 0, 1);
@@ -79,6 +81,7 @@ namespace BaseballGame
                 case Tab.Standings: ShowStandings(); break;
                 case Tab.MyRecord: ShowMyRecord(); break;
                 case Tab.Achievements: ShowAchievements(); break;
+                case Tab.News: ShowNews(); break;
                 default: ShowMyTeam(); break;
             }
         }
@@ -106,7 +109,80 @@ namespace BaseballGame
         {
             if (_career.Me.IsPitcher) ShowMyPitching();
             else ShowMyBatting();
+            ShowGrowth();
             ShowMoves();
+        }
+
+        static readonly Color[] StatColors =
+        {
+            new Color(0.35f, 0.65f, 1f), new Color(1f, 0.45f, 0.4f), new Color(0.45f, 0.85f, 0.5f),
+            new Color(1f, 0.8f, 0.3f), new Color(0.75f, 0.55f, 1f),
+        };
+
+        /// <summary>Ratings and results season by season, ending with where the player stands now.</summary>
+        void ShowGrowth()
+        {
+            var me = _career.Me;
+            Section("성장 그래프");
+            if (me.History.Count == 0)
+            {
+                Note("첫 시즌이 끝나면 시즌별 능력치 변화가 그래프로 나와요.");
+                return;
+            }
+            // Show at most the last 12 seasons so the points stay readable.
+            var history = me.History.Skip(Mathf.Max(0, me.History.Count - 12)).ToList();
+            var labels = history.Select(h => $"{h.Age}세").Concat(new[] { "지금" }).ToList();
+
+            var stats = me.MyStats.ToList();
+            var series = new List<LineChart.Series>();
+            for (int i = 0; i < stats.Count; i++)
+            {
+                var stat = stats[i];
+                var line = new LineChart.Series { Name = Stats.Name(stat), Color = StatColors[i % StatColors.Length] };
+                foreach (var h in history) line.Values.Add(h.Ratings != null && h.Ratings.TryGetValue(stat, out int v) ? v : me.Ratings[stat]);
+                line.Values.Add(me.Ratings[stat]);
+                series.Add(line);
+            }
+            float low = Mathf.Floor(series.Min(l => l.Values.Min()) / 10f) * 10;
+            LineChart.Create(_content, 460, Mathf.Min(low, 60), 100, labels, series.ToArray());
+
+            if (me.IsPitcher)
+            {
+                var era = new LineChart.Series { Name = "평균자책", Color = new Color(1f, 0.55f, 0.3f) };
+                foreach (var h in history) era.Values.Add((float)(h.Pitching?.Era ?? 0));
+                era.Values.Add((float)_career.SeasonPitching.Era);
+                Note("평균자책은 낮을수록 좋아요.", TextAnchor.MiddleLeft, 50);
+                LineChart.Create(_content, 340, 0, Mathf.Max(6, Mathf.Ceil(era.Values.Max())), labels, era);
+            }
+            else
+            {
+                var ops = new LineChart.Series { Name = "OPS", Color = Gold };
+                foreach (var h in history) ops.Values.Add((float)CareerState.Ops(h.Line));
+                ops.Values.Add((float)CareerState.Ops(_career.SeasonLine));
+                LineChart.Create(_content, 340, 0.4f, Mathf.Max(1.2f, ops.Values.Max() + 0.05f), labels, ops);
+            }
+        }
+
+        static readonly Dictionary<NewsKind, string> NewsColors = new Dictionary<NewsKind, string>
+        {
+            { NewsKind.Me, "#FFD24D" }, { NewsKind.Rival, "#F28C40" }, { NewsKind.League, "#FFFFFF" },
+        };
+
+        void ShowNews()
+        {
+            Section(CareerState.PaperName);
+            if (_career.News.Count == 0)
+            {
+                Note("경기를 치르면 하루하루 기사가 실려요.");
+                return;
+            }
+            float[] widths = { 220, 0 };
+            for (int i = 0; i < _career.News.Count; i++)
+            {
+                var n = _career.News[i];
+                string when = $"{CareerState.YearOf(n.Season)} · {n.Day}일차";
+                Row(widths, i, false, $"<color=#9EABC2>{when}</color>", $"<color={NewsColors[n.Kind]}>{n.Headline}</color>");
+            }
         }
 
         void ShowMyPitching()
