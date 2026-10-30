@@ -81,13 +81,18 @@ namespace BaseballGame
         void OnApplicationQuit() => Save();
 
         /// <summary>Between retiring and starting the next player there's no career to save.</summary>
-        void Save() => SaveStore.Save(_club, _retired ? null : _career);
+        void Save()
+        {
+            // Mid-game the day is half played; the last save (before the day) stands, and the day replays on restart.
+            if (_career != null && _career.IsMidGame) return;
+            SaveStore.Save(_club, _retired ? null : _career);
+        }
 
         void StartNewCareer(string name, int games, int team)
         {
             var league = new League(new RosterGenerator(_random), games);
             var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus);
-            _career = new CareerState(me, league, league.Teams[team], _random);
+            _career = new CareerState(me, league, league.Teams[team], _random) { DecideAtBats = true };
             _lastDay = null;
             _retired = false;
             Save();
@@ -206,6 +211,12 @@ namespace BaseballGame
         {
             if (_overlay != null) return;
             var result = _career.PlayDay(action);
+            if (result.AtBat != null) ShowAtBat(result);
+            else AfterDay(result);
+        }
+
+        void AfterDay(DayResult result)
+        {
             _lastDay = result;
             DescribeDay(result);
             if (_career.IsSeasonOver)
@@ -235,6 +246,39 @@ namespace BaseballGame
             Save();
             Refresh();
             ShowTips();
+        }
+
+        // ---------- Big at bats ----------
+
+        static readonly string[] BaseNames = { "1루", "2루", "3루" };
+
+        /// <summary>The game is paused at my big at bat: read the pitcher and pick an approach.</summary>
+        void ShowAtBat(DayResult result)
+        {
+            var s = result.AtBat;
+            var card = OpenOverlay("찬스 타석!");
+            var runners = Enumerable.Range(0, 3).Where(i => s.Bases[i]).Select(i => BaseNames[i]).ToList();
+            string hunch = s.Hunch == Pitch.Fastball ? "직구" : "변화구";
+            string previous = result.AtBatLog.Count > 0 ? $"<color=#9EABC2>직전 찬스: {result.AtBatLog.Last()}</color>\n\n" : "";
+            string text = previous +
+                $"{Commentary.HalfInning(s.Inning, s.IsTopHalf)} {s.Outs}아웃 · 주자 {(runners.Count == 0 ? "없음" : string.Join(", ", runners))}\n" +
+                $"{_career.MyTeam.Name} {s.MyRuns} : {s.TheirRuns} 상대\n\n" +
+                $"투수 {s.Pitcher.Name}  직구 {s.FastballShare:P0} · 변화구 {1 - s.FastballShare:P0}\n" +
+                $"<color=#FFD24D>느낌: 이번엔 {hunch}가 올 것 같다</color>  (선구안 감 적중률 {s.HunchAccuracy:P0})";
+            UiKit.Height(UiKit.Label(card, text, 32, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "직구 노리기", () => Answer(Approach.SitFastball)), 105);
+            UiKit.Height(UiKit.Button(card, "변화구 노리기", () => Answer(Approach.SitBreaking)), 105);
+            UiKit.Height(UiKit.Button(card, "신중하게 (볼넷 노림)", () => Answer(Approach.Patient), UiKit.Muted), 105);
+            UiKit.Height(UiKit.Button(card, "평소대로", () => Answer(Approach.Normal), UiKit.Background), 105);
+            Tip("atbat", "찬스 타석에선 노림수를 골라요. 노린 공이 오면 장타 확률이 크게 오르고, 틀리면 삼진이 늘어요. 선구안이 높을수록 '느낌'이 정확해요.");
+        }
+
+        void Answer(Approach approach)
+        {
+            CloseOverlay();
+            var result = _career.ChooseApproach(approach);
+            if (result.AtBat != null) ShowAtBat(result);
+            else AfterDay(result);
         }
 
         // ---------- Story events ----------
@@ -368,6 +412,7 @@ namespace BaseballGame
                 foreach (var ev in g.Events.Where(e => e.Batter == r.MyGamePlayer && IsHighlight(e)))
                     lines.Add($"  {Commentary.HalfInning(ev.Inning, ev.IsTopHalf)} {Commentary.Describe(ev)}");
             }
+            foreach (var atBat in r.AtBatLog) lines.Add($"  찬스: {atBat}");
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
             if (r.AllStar != null)
             {
@@ -418,7 +463,7 @@ namespace BaseballGame
 
         // ---------- Settings ----------
 
-        static readonly string[] TipKeys = { "start", "watch", "fatigue", "shop", "records", "event", "season_end", "move" };
+        static readonly string[] TipKeys = { "start", "watch", "fatigue", "shop", "records", "event", "season_end", "move", "atbat" };
 
         void ShowSettings()
         {
@@ -438,6 +483,17 @@ namespace BaseballGame
                     PlayerPrefs.Save();
                     ShowSettings();
                 }, i == current ? UiKit.Accent : UiKit.Background);
+            }
+
+            if (_career != null)
+            {
+                UiKit.Height(UiKit.Label(card, "찬스 타석", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+                UiKit.Height(UiKit.Button(card, _career.DecideAtBats ? "노림수 직접 고르기: 켜짐" : "노림수 직접 고르기: 꺼짐 (자동)", () =>
+                {
+                    _career.DecideAtBats = !_career.DecideAtBats;
+                    Save();
+                    ShowSettings();
+                }, _career.DecideAtBats ? UiKit.Accent : UiKit.Background), 110);
             }
 
             UiKit.Height(UiKit.Label(card, "도움말", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);

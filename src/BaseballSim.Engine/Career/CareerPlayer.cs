@@ -63,6 +63,8 @@ namespace BaseballSim.Career
         public List<string> Clubs = new List<string>();
         public int AllStarSelections;
         public int AllStarMvps;
+        /// <summary>Big at bats where the pitch I sat on came.</summary>
+        public int ReadsRight;
 
         public int FacilityLevel(Facility f) => Facilities.TryGetValue(f, out var level) ? level : 0;
 

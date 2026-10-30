@@ -12,6 +12,19 @@ namespace BaseballSim
 
         readonly IRandom _random;
 
+        /// <summary>
+        /// When set, big at bats by <see cref="DecideFor"/> ask for an approach. Returning null pauses the
+        /// game: Play returns null and <see cref="Suspended"/> holds the at bat. Replaying with the same
+        /// seed and the answers so far reaches the same spot, so a game can be resumed by playing it again.
+        /// </summary>
+        public Func<AtBatSituation, Approach?> Decide;
+        public Player DecideFor;
+        public AtBatSituation Suspended { get; private set; }
+        /// <summary>The game so far; after a pause, everything up to the paused at bat.</summary>
+        public GameResult Partial => _result;
+
+        class SuspendGame : Exception { }
+
         public GameSimulator(IRandom random)
         {
             _random = random;
@@ -40,14 +53,22 @@ namespace BaseballSim
             _result = new GameResult { Away = away, Home = home };
             _away = NewSide(away, awayStarter);
             _home = NewSide(home, homeStarter);
+            Suspended = null;
 
-            for (_inning = 1; _inning <= MaxInnings; _inning++)
+            try
             {
-                PlayHalf(top: true);
-                // Home team leading after the top of the 9th or later doesn't bat.
-                if (_inning >= 9 && _result.HomeScore > _result.AwayScore) break;
-                PlayHalf(top: false);
-                if (_inning >= 9 && _result.HomeScore != _result.AwayScore) break;
+                for (_inning = 1; _inning <= MaxInnings; _inning++)
+                {
+                    PlayHalf(top: true);
+                    // Home team leading after the top of the 9th or later doesn't bat.
+                    if (_inning >= 9 && _result.HomeScore > _result.AwayScore) break;
+                    PlayHalf(top: false);
+                    if (_inning >= 9 && _result.HomeScore != _result.AwayScore) break;
+                }
+            }
+            catch (SuspendGame)
+            {
+                return null;
             }
 
             _result.Innings = Math.Min(_inning, MaxInnings);
@@ -120,6 +141,7 @@ namespace BaseballSim
             double fatigue = Math.Max(0, (fielding.PitchCount - limit * 0.8) / (limit * 0.2)) * 0.3;
 
             var odds = PlateAppearanceModel.Compute(batter, pitcher, fielding.Defense, fatigue);
+            string note = Decide != null && batter == DecideFor ? AskApproach(batter, pitcher, odds) : null;
             var outcome = odds.Pick(_random);
 
             var ev = new GameEvent
@@ -132,6 +154,7 @@ namespace BaseballSim
                 Outcome = outcome,
                 OutsBefore = _outs,
                 BasesBefore = (Player[])_bases.Clone(),
+                Note = note,
             };
 
             ResolveOutcome(ev, batter);
@@ -149,6 +172,31 @@ namespace BaseballSim
 
             _result.Events.Add(ev);
             RecordStats(ev);
+        }
+
+        /// <summary>In a big spot, reads the pitcher and applies the chosen approach; pauses the game if there's no answer yet.</summary>
+        string AskApproach(Player batter, Player pitcher, OutcomeOdds odds)
+        {
+            var bases = _bases.Select(b => b != null).ToArray();
+            int mine = _top ? _result.AwayScore : _result.HomeScore;
+            int theirs = _top ? _result.HomeScore : _result.AwayScore;
+            if (!AtBatChoice.IsBig(_inning, bases, mine - theirs)) return null;
+
+            var situation = AtBatChoice.Read(batter, pitcher, _random);
+            situation.Inning = _inning;
+            situation.IsTopHalf = _top;
+            situation.Outs = _outs;
+            situation.Bases = bases;
+            situation.MyRuns = mine;
+            situation.TheirRuns = theirs;
+            var approach = Decide(situation);
+            if (approach == null)
+            {
+                Suspended = situation;
+                throw new SuspendGame();
+            }
+            AtBatChoice.Apply(odds, approach.Value, situation.Coming);
+            return AtBatChoice.Note(approach.Value, situation.Coming);
         }
 
         int PitchesFor(Outcome outcome)

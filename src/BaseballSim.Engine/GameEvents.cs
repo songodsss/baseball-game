@@ -31,6 +31,8 @@ namespace BaseballSim
         public int AwayScore;
         public int HomeScore;
         public int PitchesThrown;
+        /// <summary>My approach in a big at bat, e.g. "직구 노림 적중!"; null otherwise.</summary>
+        public string Note;
     }
 
     public class BattingLine

@@ -37,6 +37,10 @@ namespace BaseballSim.Career
         public RosterMove Move;
         /// <summary>A trade offer to answer before the next day, or null.</summary>
         public TradeOffer Trade;
+        /// <summary>A big at bat waiting for <see cref="Career.ChooseApproach"/>; null once the day is done.</summary>
+        public AtBatSituation AtBat;
+        /// <summary>My big at bats so far today with the approach taken, e.g. "7회 ... 2루타 (직구 노림 적중!)".</summary>
+        public List<string> AtBatLog = new List<string>();
         /// <summary>The all-star game, played on the midseason day; null on other days.</summary>
         public AllStarResult AllStar;
     }
@@ -160,6 +164,7 @@ namespace BaseballSim.Career
         {
             if (IsSeasonOver) throw new InvalidOperationException("Season is over; call EndSeason first.");
             if (Released) throw new InvalidOperationException("Released; sign a tryout offer or retire.");
+            if (IsMidGame) throw new InvalidOperationException("Answer the big at bat first.");
             PendingOffers.Clear(); // free-agency offers left unanswered: stays on a yearly deal
             PendingTrade = null;
 
@@ -169,13 +174,30 @@ namespace BaseballSim.Career
 
             ApplyAction(action, result);
 
+            (Team Away, Team Home)? myGame = null;
             foreach (var (away, home) in League.Matchups(Day))
             {
                 if ((away == MyTeam || home == MyTeam) && InFarm) PlayFarmGame(away, home, result);
-                else if (away == MyTeam || home == MyTeam) PlayMyGame(away, home, result);
+                else if (away == MyTeam || home == MyTeam) myGame = (away, home);
                 else League.Record(_sim.Play(away, home, League.NextStarter(away), League.NextStarter(home)));
             }
+            // My game goes last, since it may pause for a big at bat.
+            if (myGame != null && !StartMyGame(myGame.Value.Away, myGame.Value.Home, result)) return result;
+            return FinishDay(result);
+        }
 
+        /// <summary>Answers the paused big at bat. Returns the day's result: paused again at the next big at bat, or finished.</summary>
+        public DayResult ChooseApproach(Approach approach)
+        {
+            if (!IsMidGame) throw new InvalidOperationException("No at bat waiting.");
+            _game.Decisions.Add(approach);
+            var result = _game.Result;
+            return RunMyGame(result) ? FinishDay(result) : result;
+        }
+
+        DayResult FinishDay(DayResult result)
+        {
+            result.AtBat = null;
             Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery - Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom)));
             if (Me.InjuryDaysLeft > 0) Me.InjuryDaysLeft--;
             Me.Morale -= Math.Sign(Me.Morale);
@@ -246,7 +268,26 @@ namespace BaseballSim.Career
             result.PointsGained[stat] = p + points;
         }
 
-        void PlayMyGame(Team away, Team home, DayResult result)
+        /// <summary>When on, my big at bats pause the game for the user to pick an approach. Off plays them straight.</summary>
+        public bool DecideAtBats;
+
+        /// <summary>A game of mine paused at a big at bat; resumed by replaying it from its seed with the answers so far.</summary>
+        class MyGameState
+        {
+            public Team Away, Home;
+            public Player AwayStarter, HomeStarter;
+            public Player Player;
+            public int Seed;
+            public List<Approach> Decisions = new List<Approach>();
+            public DayResult Result;
+        }
+
+        MyGameState _game;
+        public bool IsMidGame => _game != null;
+        public AtBatSituation PendingAtBat => _game?.Result.AtBat;
+
+        /// <summary>Returns false if the game paused at a big at bat.</summary>
+        bool StartMyGame(Team away, Team home, DayResult result)
         {
             var awayStarter = League.NextStarter(away);
             var homeStarter = League.NextStarter(home);
@@ -257,22 +298,70 @@ namespace BaseballSim.Career
                 InjuredThisSeason = true;
                 result.MyGame = _sim.Play(away, home, awayStarter, homeStarter);
                 League.Record(result.MyGame);
-                return;
+                return true;
             }
 
-            var gamePlayer = Me.ForGame(_random);
+            _game = new MyGameState
+            {
+                Away = away,
+                Home = home,
+                AwayStarter = awayStarter,
+                HomeStarter = homeStarter,
+                Player = Me.ForGame(_random),
+                Seed = (int)(_random.NextDouble() * int.MaxValue),
+                Result = result,
+            };
+            return RunMyGame(result);
+        }
+
+        bool RunMyGame(DayResult result)
+        {
+            var g = _game;
+            var sim = _sim;
+            if (DecideAtBats)
+            {
+                int asked = 0;
+                sim = new GameSimulator(new SeededRandom(g.Seed))
+                {
+                    DecideFor = g.Player,
+                    Decide = s => asked < g.Decisions.Count ? g.Decisions[asked++] : (Approach?)null,
+                };
+            }
+
             var regular = MyTeam.Lineup[LineupSlot];
-            MyTeam.Lineup[LineupSlot] = gamePlayer;
+            MyTeam.Lineup[LineupSlot] = g.Player;
+            GameResult game;
             try
             {
-                result.MyGame = _sim.Play(away, home, awayStarter, homeStarter);
-                League.Record(result.MyGame);
+                game = sim.Play(g.Away, g.Home, g.AwayStarter, g.HomeStarter);
+                // Record while my player is still in the lineup, so his line is filed under my club.
+                if (game != null) League.Record(game);
             }
             finally
             {
                 MyTeam.Lineup[LineupSlot] = regular;
             }
 
+            var events = game?.Events ?? sim.Partial.Events;
+            result.AtBatLog = events
+                .Where(e => e.Batter == g.Player && e.Note != null)
+                .Select(e => $"{Commentary.HalfInning(e.Inning, e.IsTopHalf)} {Commentary.Describe(e)} ({e.Note})")
+                .ToList();
+            if (game == null)
+            {
+                result.AtBat = sim.Suspended;
+                return false;
+            }
+
+            _game = null;
+            result.MyGame = game;
+            Me.ReadsRight += game.Events.Count(e => e.Batter == g.Player && e.Note != null && e.Note.EndsWith("적중!"));
+            FinishMyGame(result, g.Player);
+            return true;
+        }
+
+        void FinishMyGame(DayResult result, Player gamePlayer)
+        {
             result.MyGamePlayer = gamePlayer;
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
             if (result.MyLine.AtBats > 0) HitlessStreak = result.MyLine.Hits == 0 ? HitlessStreak + 1 : 0;

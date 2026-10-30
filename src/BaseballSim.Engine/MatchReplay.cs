@@ -66,7 +66,7 @@ namespace BaseballSim
                 {
                     Index = i,
                     Event = ev,
-                    Text = Commentary.Describe(ev),
+                    Text = Commentary.Describe(ev) + (ev.Note != null ? $" ({ev.Note})" : ""),
                     HalfLabel = Commentary.HalfInning(ev.Inning, ev.IsTopHalf),
                     StartsHalf = prev == null || prev.Inning != ev.Inning || prev.IsTopHalf != ev.IsTopHalf,
                     IsMine = mine != null && ev.Kind == EventKind.PlateAppearance && ev.Batter == mine,

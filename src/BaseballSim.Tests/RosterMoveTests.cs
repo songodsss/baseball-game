@@ -29,7 +29,7 @@ public class RosterMoveTests
     [Fact]
     public void SlumpingHitterGoesDownAndPlaysIn2군()
     {
-        var career = NewCareer(1, 20);
+        var career = NewCareer(1, 5);
         RosterMove move = null;
         while (move == null && !career.IsSeasonOver) move = career.PlayDay(DailyAction.Rest).Move;
         Assert.Equal(RosterMoveKind.Demoted, move.Kind);
