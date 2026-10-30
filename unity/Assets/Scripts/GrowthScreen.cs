@@ -848,38 +848,38 @@ namespace BaseballGame
             }
             else if (r.FarmPitching != null)
             {
-                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} {(_career.Me.Role == PitcherRole.Starter ? "선발" : "구원")}</color> {PitchingText(r.FarmPitching)}  (+{r.MoneyEarned}만원)");
+                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} {(_career.Me.Role == PitcherRole.Starter ? "선발" : "구원")}</color> {PitchingText(r.FarmPitching)}");
             }
             else if (r.InFarm && r.BetweenStarts)
             {
-                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")}</color> 등판 없는 날" + (_career.Me.Role == PitcherRole.Starter ? $" · 다음 등판까지 {_career.DaysToNextStart + 1}일" : "") + $"  (+{r.MoneyEarned}만원)");
+                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")}</color> 등판 없는 날" + (_career.Me.Role == PitcherRole.Starter ? $" · 다음 등판까지 {_career.DaysToNextStart + 1}일" : "") + $"");
             }
             else if (r.MyGame != null && r.MyPitching == null && _career.Me.IsPitcher)
             {
                 var g = r.MyGame;
                 lines.Add($"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}");
                 lines.Add((_career.Me.Role == PitcherRole.Starter ? $"등판 없는 날 · 다음 선발까지 {_career.DaysToNextStart + 1}일"
-                    : _career.Me.Fatigue >= CareerState.ReliefFatigueLimit ? "피로가 쌓여 휴식 (불펜 대기 제외)" : "불펜 대기, 등판 기회 없음") + $"  (+{r.MoneyEarned}만원)");
+                    : _career.Me.Fatigue >= CareerState.ReliefFatigueLimit ? "피로가 쌓여 휴식 (불펜 대기 제외)" : "불펜 대기, 등판 기회 없음") + $"");
             }
             else if (r.MyGame != null && r.MyPitching != null)
             {
                 var g = r.MyGame;
                 lines.Add($"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}");
-                lines.Add($"<b>{(_career.Me.Role == PitcherRole.Starter ? "선발 등판" : "구원 등판")}</b> {PitchingText(r.MyPitching)}  (+{r.MoneyEarned}만원)");
+                lines.Add($"<b>{(_career.Me.Role == PitcherRole.Starter ? "선발 등판" : "구원 등판")}</b> {PitchingText(r.MyPitching)}");
                 if (r.RivalLine != null)
                     lines.Add($"<color=#E0475B>라이벌과 투타 대결</color> {_career.Rival.Name} {r.RivalLine.AtBats}타수 {r.RivalLine.Hits}안타 {r.RivalLine.HomeRuns}홈런");
             }
             else if (r.FarmLine != null)
             {
                 var f = r.FarmLine;
-                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} 경기</color> {f.AtBats}타수 {f.Hits}안타 {f.HomeRuns}홈런 {f.Walks}볼넷  (+{r.MoneyEarned}만원)");
+                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} 경기</color> {f.AtBats}타수 {f.Hits}안타 {f.HomeRuns}홈런 {f.Walks}볼넷");
             }
             else if (r.MyGame != null)
             {
                 var g = r.MyGame;
                 lines.Add($"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}");
                 var l = r.MyLine;
-                lines.Add($"오늘 성적 {l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런 {l.RunsBattedIn}타점 {l.Walks}볼넷  (+{r.MoneyEarned}만원)");
+                lines.Add($"오늘 성적 {l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런 {l.RunsBattedIn}타점 {l.Walks}볼넷");
                 if (r.RivalLine != null)
                     lines.Add($"<color=#E0475B>라이벌 맞대결</color> {_career.Rival.Name} {r.RivalLine.AtBats}타수 {r.RivalLine.Hits}안타 {r.RivalLine.HomeRuns}홈런");
                 foreach (var ev in g.Events.Where(e => e.Batter == r.MyGamePlayer && IsHighlight(e)))
@@ -902,6 +902,12 @@ namespace BaseballGame
             {
                 var g = r.AllStar.Game;
                 lines.Add($"<color=#FFD24D>올스타전</color> {g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}  MVP {r.AllStar.Mvp}");
+            }
+            if (r.Payday != null)
+            {
+                var pay = r.Payday;
+                string label2 = _career.InMilitary ? "군 복무 수당" : "월급";
+                lines.Add($"<color=#FFD24D>{pay.Month} {label2} {pay.Salary:N0}만원" + (pay.Bonus > 0 ? $" + 성적 보너스 {pay.Bonus:N0}만원" : "") + " 입금!</color>");
             }
             Log(string.Join("\n", lines));
         }

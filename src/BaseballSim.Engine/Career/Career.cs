@@ -38,7 +38,10 @@ namespace BaseballSim.Career
         public List<string> Milestones = new List<string>();
         /// <summary>A pitcher resting between starts while his club played.</summary>
         public bool BetweenStarts;
+        /// <summary>Money paid today: only on a payday (see <see cref="Payday"/>).</summary>
         public int MoneyEarned;
+        /// <summary>Set on the day a monthly salary is paid.</summary>
+        public Payday Payday;
         /// <summary>A story event to answer before the next day, or null.</summary>
         public StoryEvent Event;
         public List<Achievement> NewAchievements = new List<Achievement>();
@@ -251,6 +254,7 @@ namespace BaseballSim.Career
             ReviewRoster(result);
             if (Day == AllStarDay) PlayAllStar(result);
             if (Day == TournamentDay && NationalTeam.IsTournamentYear(Year)) PlayTournament(result);
+            PayMonths(result);
             WriteNews(result);
 
             if (PendingTrade == null && result.AllStar == null && result.Tournament == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
@@ -493,15 +497,18 @@ namespace BaseballSim.Career
             AddPoints(result, Stat.Speed, Me.GainExp(Stat.Speed, Exp(l.Runs + 2 * l.Triples)));
         }
 
+        /// <summary>
+        /// Banks today's performance bonuses (contract incentives) toward the next payday; nothing is
+        /// paid on the day itself.
+        /// </summary>
         void PayForGame(DayResult result)
         {
-            int pay = Me.Salary / League.GamesPerSeason;
             var l = result.MyLine;
             var p = result.MyPitching;
-            if (l != null) pay += DayWeight * (5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn);
-            if (p != null) pay += DayWeight * (60 * p.Wins + 40 * p.Saves + 25 * p.Holds + 5 * p.Strikeouts);
-            Me.Money += pay;
-            result.MoneyEarned = pay;
+            int bonus = 0;
+            if (l != null) bonus += DayWeight * (5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn);
+            if (p != null) bonus += DayWeight * (60 * p.Wins + 40 * p.Saves + 25 * p.Holds + 5 * p.Strikeouts);
+            PendingBonus += bonus;
         }
 
         /// <summary>
@@ -581,6 +588,8 @@ namespace BaseballSim.Career
             Day = 0;
             InjuredThisSeason = false;
             SeasonLine = new BattingLine();
+            PaidMonths = 0;
+            PendingBonus = 0;
             SeasonPitching = new PitcherLine();
             DaysSinceStart = StartEvery - 1;
             ResetSeasonMoves();
