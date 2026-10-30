@@ -43,6 +43,8 @@ namespace BaseballSim.Career
             { "대구 썬더볼츠", "#F2C230" }, { "광주 타이거릴리", "#F07A1A" }, { "대전 이글아이즈", "#7B4FCF" },
             { "수원 나이츠", "#2A2F3A" }, { "창원 다이노스톰", "#2FA84F" }, { "고양 레드폭스", "#D63A3A" },
             { "울산 웨일스", "#1E3A8A" },
+            { AllStar.EastName, "#E0475B" },
+            { AllStar.WestName, "#3E8EDE" },
         };
 
         public static string ColorOf(Team team) => TeamColors.TryGetValue(team.Name, out var c) ? c : "#888888";

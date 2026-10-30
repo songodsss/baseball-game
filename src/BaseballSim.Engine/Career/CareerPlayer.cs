@@ -61,6 +61,8 @@ namespace BaseballSim.Career
         public List<string> Achievements = new List<string>();
         /// <summary>Clubs moved to by trade, free agency or tryout, in order. Empty means a one-club career.</summary>
         public List<string> Clubs = new List<string>();
+        public int AllStarSelections;
+        public int AllStarMvps;
 
         public int FacilityLevel(Facility f) => Facilities.TryGetValue(f, out var level) ? level : 0;
 

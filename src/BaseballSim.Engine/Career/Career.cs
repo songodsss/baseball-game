@@ -37,6 +37,8 @@ namespace BaseballSim.Career
         public RosterMove Move;
         /// <summary>A trade offer to answer before the next day, or null.</summary>
         public TradeOffer Trade;
+        /// <summary>The all-star game, played on the midseason day; null on other days.</summary>
+        public AllStarResult AllStar;
     }
 
     public class SeasonSummary
@@ -179,8 +181,9 @@ namespace BaseballSim.Career
             Me.Morale -= Math.Sign(Me.Morale);
             Day++;
             ReviewRoster(result);
+            if (Day == AllStarDay) PlayAllStar(result);
 
-            if (PendingTrade == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
+            if (PendingTrade == null && result.AllStar == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
                 PendingEvent = StoryEvents.Pick(this, result, _random);
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);

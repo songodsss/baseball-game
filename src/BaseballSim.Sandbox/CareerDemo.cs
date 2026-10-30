@@ -58,7 +58,7 @@ namespace BaseballSim.Sandbox
                     var summary = career.EndSeason();
                     Console.WriteLine(row + (summary.Record.Titles.Count > 0 ? "  " + string.Join(", ", summary.Record.Titles) : ""));
                     if (summary.Record.Notes.Count > 0 || summary.Record.FarmDays > 0)
-                        Console.WriteLine($"  2군 {summary.Record.FarmDays}일  " + string.Join(" / ", summary.Record.Notes));
+                        Console.WriteLine("  " + (summary.Record.FarmDays > 0 ? $"2군 {summary.Record.FarmDays}일  " : "") + string.Join(" / ", summary.Record.Notes));
 
                     // Free agency: the autopilot takes the richest offer.
                     if (summary.Offers.Count > 0)
@@ -78,6 +78,9 @@ namespace BaseballSim.Sandbox
                 Console.WriteLine();
                 Console.WriteLine($"은퇴: {retired.Name}, {retired.Seasons}시즌, 통산 {t.Hits}안타 {t.HomeRuns}홈런 타율 {(double)t.Hits / t.AtBats:F3}");
                 Console.WriteLine($"내 팀 합류, 전성기 능력치 {Ratings(retired.PeakRatings)} (종합 {retired.Overall}), 명예 포인트 +{retired.LegacyPoints}");
+                Console.WriteLine($"명예의 전당 점수 {retired.HallOfFameScore} ({(retired.HallOfFame ? "헌액" : "미달")})" +
+                    (retired.NumberRetiredBy != null ? $", {retired.NumberRetiredBy} 영구결번" : "") +
+                    $", 올스타 {retired.AllStars}회, 기부 {retired.Donation:N0}만원 → 명예 포인트 +{retired.DonationPoints}");
                 Console.WriteLine($"업적 {retired.Achievements.Count}/{Achievements.All.Count}: {string.Join(", ", retired.Achievements.Select(id => Achievements.Find(id).Name))}");
                 Console.WriteLine();
             }

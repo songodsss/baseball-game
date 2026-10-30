@@ -223,6 +223,10 @@ namespace BaseballGame
                 ShowTrade(result.Trade);
                 Tip("move", "성적이 나쁘면 2군에 내려가고, 2군에서 잘 치면 다시 올라와요. 트레이드 마감 즈음엔 이적할 수도 있어요.");
             }
+            else if (result.AllStar != null)
+            {
+                ShowAllStar(result.AllStar);
+            }
             else if (result.Event != null)
             {
                 ShowEvent(result.Event);
@@ -292,6 +296,26 @@ namespace BaseballGame
             }, UiKit.Muted), 120);
         }
 
+        void ShowAllStar(AllStarResult allStar)
+        {
+            var g = allStar.Game;
+            var card = OpenOverlay(allStar.MyMvp ? "올스타전 MVP!" : "올스타전");
+            string text = $"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}\nMVP {allStar.Mvp}\n\n";
+            if (allStar.Selected)
+            {
+                var l = allStar.MyLine;
+                text += $"팬과 감독이 뽑은 올스타!\n내 성적 {l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런 {l.RunsBattedIn}타점\n" +
+                        $"<color=#5FA8FF>보너스 +{allStar.Bonus:N0}만원 · 사기 +2</color>";
+            }
+            else
+            {
+                text += _career.InFarm ? "2군에 있어서 올스타에 뽑히지 못했어요." : "이번엔 올스타에 뽑히지 못했어요. 시즌 전반기 OPS가 높으면 뽑혀요.";
+            }
+            UiKit.Height(UiKit.Label(card, text, 34, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "올스타전 보기", () => Watch(g), UiKit.Muted), 110);
+            UiKit.Height(UiKit.Button(card, "확인", CloseOverlay), 110);
+        }
+
         // ---------- Tutorial ----------
 
         /// <summary>One-time hints for a new player, remembered across launches.</summary>
@@ -345,6 +369,11 @@ namespace BaseballGame
                     lines.Add($"  {Commentary.HalfInning(ev.Inning, ev.IsTopHalf)} {Commentary.Describe(ev)}");
             }
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
+            if (r.AllStar != null)
+            {
+                var g = r.AllStar.Game;
+                lines.Add($"<color=#FFD24D>올스타전</color> {g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}  MVP {r.AllStar.Mvp}");
+            }
             Log(string.Join("\n", lines));
         }
 
@@ -669,12 +698,21 @@ namespace BaseballGame
             var retired = _club.Retire(_career);
             _retired = true;
             Save();
-            var card = OpenOverlay("은퇴");
+            var card = OpenOverlay(retired.HallOfFame ? "은퇴 · 명예의 전당 헌액" : "은퇴");
             var t = retired.CareerLine;
+            string honours = retired.HallOfFame
+                ? $"<color=#FFD24D>★ 명예의 전당 헌액 (점수 {retired.HallOfFameScore})</color>\n" +
+                  (retired.NumberRetiredBy != null ? $"<color=#FFD24D>{retired.NumberRetiredBy}가 등번호를 영구결번했습니다.</color>\n" : "")
+                : $"<color=#9EABC2>명예의 전당 점수 {retired.HallOfFameScore} / {Club.HallOfFameLine}</color>\n";
+            string donation = retired.Donation > 0
+                ? $"남은 돈 {retired.Donation:N0}만원을 유소년 야구에 기부 → 명예 포인트 +{retired.DonationPoints}\n"
+                : "";
             string text =
-                $"{retired.Name}, {retired.Seasons}시즌 통산 {t.Hits}안타 {t.HomeRuns}홈런\n\n" +
+                $"{retired.Name}, {retired.Seasons}시즌 통산 {t.Hits}안타 {t.HomeRuns}홈런 · 올스타 {retired.AllStars}회\n\n" +
+                honours + "\n" +
                 $"전성기 능력치 종합 {retired.Overall}로 내 팀에 합류했습니다.\n" +
-                $"명예 포인트 +{retired.LegacyPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n\n" +
+                donation +
+                $"명예 포인트 +{retired.LegacyPoints + retired.DonationPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n\n" +
                 $"내 팀 선수 {_club.Roster.Count}명";
             UiKit.Height(UiKit.Label(card, text, 34, TextAnchor.UpperCenter), 0, 1);
             UiKit.Height(UiKit.Button(card, "새 선수 육성 시작", ShowNewPlayer), 110);

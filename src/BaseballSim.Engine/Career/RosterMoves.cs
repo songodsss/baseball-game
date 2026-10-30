@@ -270,6 +270,16 @@ namespace BaseballSim.Career
                 .ToList();
         }
 
+        int AllStarDay => League.GamesPerSeason / 2;
+
+        void PlayAllStar(DayResult result)
+        {
+            result.AllStar = AllStar.Play(this, _sim);
+            if (!result.AllStar.Selected) return;
+            SeasonNotes.Add(result.AllStar.MyMvp ? $"{MonthText} 올스타전 MVP" : $"{MonthText} 올스타 선정");
+            Me.Morale = Math.Min(CareerPlayer.MaxMorale, Me.Morale + 2);
+        }
+
         void ResetSeasonMoves()
         {
             FarmLine = new BattingLine();

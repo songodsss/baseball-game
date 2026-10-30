@@ -19,7 +19,7 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        public const int Version = 9;
+        public const int Version = 10;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -85,6 +85,16 @@ namespace BaseballSim.Career
                 WriteList(w, p.Achievements, w.Write);
                 WriteList(w, p.Titles, w.Write);
             });
+            // Added in version 10.
+            WriteList(w, club.Roster, p =>
+            {
+                w.Write(p.AllStars);
+                w.Write(p.HallOfFameScore);
+                w.Write(p.HallOfFame);
+                w.Write(p.NumberRetiredBy ?? "");
+                w.Write(p.Donation);
+                w.Write(p.DonationPoints);
+            });
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -106,6 +116,22 @@ namespace BaseballSim.Career
                     var p = club.Roster[i++];
                     p.Achievements = ReadList(r, r.ReadString);
                     p.Titles = ReadList(r, r.ReadString);
+                    return p;
+                });
+            }
+            if (version >= 10)
+            {
+                int i = 0;
+                ReadList(r, () =>
+                {
+                    var p = club.Roster[i++];
+                    p.AllStars = r.ReadInt32();
+                    p.HallOfFameScore = r.ReadInt32();
+                    p.HallOfFame = r.ReadBoolean();
+                    var by = r.ReadString();
+                    p.NumberRetiredBy = by.Length == 0 ? null : by;
+                    p.Donation = r.ReadInt32();
+                    p.DonationPoints = r.ReadInt32();
                     return p;
                 });
             }
@@ -189,6 +215,10 @@ namespace BaseballSim.Career
                 WriteList(w, h.Notes, w.Write);
                 w.Write(h.FarmDays);
             });
+
+            // Added in version 10.
+            w.Write(career.Me.AllStarSelections);
+            w.Write(career.Me.AllStarMvps);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -279,6 +309,11 @@ namespace BaseballSim.Career
                     h.FarmDays = r.ReadInt32();
                     return h;
                 });
+            }
+            if (version >= 10)
+            {
+                me.AllStarSelections = r.ReadInt32();
+                me.AllStarMvps = r.ReadInt32();
             }
             return career;
         }

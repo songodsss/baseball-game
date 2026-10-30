@@ -201,7 +201,15 @@ namespace BaseballGame
             for (int i = 0; i < roster.Count; i++)
             {
                 var p = roster[i];
-                Row(widths, i, false, p.Name, $"{p.Seasons}", $"{p.CareerLine.Hits}", $"{p.CareerLine.HomeRuns}", $"{p.Overall}");
+                Row(widths, i, p.HallOfFame, (p.HallOfFame ? "★ " : "") + p.Name, $"{p.Seasons}", $"{p.CareerLine.Hits}", $"{p.CareerLine.HomeRuns}", $"{p.Overall}");
+            }
+
+            var famers = roster.Where(p => p.HallOfFame).ToList();
+            if (famers.Count > 0)
+            {
+                Section($"명예의 전당 ({famers.Count}명)");
+                foreach (var p in famers)
+                    Note($"★ {p.Name}  점수 {p.HallOfFameScore}  올스타 {p.AllStars}회" + (p.NumberRetiredBy != null ? $"  · {p.NumberRetiredBy} 영구결번" : ""), TextAnchor.MiddleLeft, 60);
             }
         }
 

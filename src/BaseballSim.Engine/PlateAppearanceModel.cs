@@ -70,14 +70,14 @@ namespace BaseballSim
 
             var odds = new OutcomeOdds
             {
-                Strikeout = BaseStrikeout * Math.Exp(0.6 * velocity + 0.25 * breaking - 0.6 * contact),
+                Strikeout = BaseStrikeout * Math.Exp(0.6 * velocity + 0.25 * breaking - 0.45 * contact),
                 Walk = BaseWalk * Math.Exp(0.6 * eye - 0.7 * control),
                 HitByPitch = BaseHitByPitch * Math.Exp(-0.3 * control),
                 HomeRun = BaseHomeRun * Math.Exp(1.0 * power - 0.4 * breaking - 0.2 * velocity),
             };
 
             double inPlay = Math.Max(0.2, 1 - odds.Strikeout - odds.Walk - odds.HitByPitch - odds.HomeRun);
-            double babip = Clamp(BaseBabip * Math.Exp(0.25 * contact + 0.1 * speed - 0.2 * breaking - 0.15 * defense), 0.18, 0.42);
+            double babip = Clamp(BaseBabip * Math.Exp(0.12 * contact + 0.06 * speed - 0.2 * breaking - 0.15 * defense), 0.18, 0.42);
             double hits = inPlay * babip;
             double outs = inPlay - hits;
 
