@@ -764,11 +764,14 @@ namespace BaseballGame
             }
 
             Section("시즌 타이틀");
-            foreach (var a in summary.Awards)
+            foreach (var a in summary.Awards.Where(a => a.Title != Awards.GoldenGlove))
             {
                 string text = $"{a.Title}  {a.Winner} ({a.Team})  {a.Value}";
                 Line(a.Mine ? $"<color=#FFD24D><b>{text}</b></color>" : text);
             }
+            var gloves = summary.Awards.Where(a => a.Title == Awards.GoldenGlove).ToList();
+            if (gloves.Count > 0)
+                Line($"{Awards.GoldenGlove}  " + string.Join(", ", gloves.Select(g => g.Mine ? $"<color=#FFD24D><b>{g.Winner}</b></color>" : g.Winner)), 80);
 
             if (summary.Goal != null)
             {

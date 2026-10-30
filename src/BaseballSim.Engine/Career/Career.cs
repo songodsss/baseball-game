@@ -460,7 +460,8 @@ namespace BaseballSim.Career
                 Rank = ranked.FindIndex(s => s.Team == MyTeam) + 1,
                 OldSalary = Me.Salary,
                 Postseason = BaseballSim.Career.Postseason.Play(this, _sim, _random),
-                Awards = BaseballSim.Career.Awards.For(League, Me.Id, Me.History.Count == 0),
+                Awards = BaseballSim.Career.Awards.For(League, Me.Id,
+                    Me.History.Count == 0 ? new[] { Me.Id, RivalState.PlayerId } : new string[0], DefenseOf),
             };
 
             summary.Record = new SeasonRecord

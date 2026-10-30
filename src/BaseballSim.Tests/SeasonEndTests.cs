@@ -32,7 +32,7 @@ public class SeasonEndTests
     {
         var career = PlayedSeason(2);
         var league = career.League;
-        var awards = Awards.For(league, "me", true);
+        var awards = Awards.For(league, "me", new[] { "me" });
 
         var hr = awards.Single(a => a.Title == "홈런왕");
         Assert.Equal(league.Batting.Values.Max(b => b.Line.HomeRuns).ToString(), hr.Value);
@@ -47,7 +47,7 @@ public class SeasonEndTests
     public void RookieOfTheYearOnlyInTheFirstSeason()
     {
         var career = PlayedSeason(3);
-        Assert.DoesNotContain(Awards.For(career.League, "me", false), a => a.Title == Awards.Rookie);
+        Assert.DoesNotContain(Awards.For(career.League, "me", new string[0]), a => a.Title == Awards.Rookie);
     }
 
     [Theory]
@@ -124,5 +124,50 @@ public class SeasonEndTests
         Assert.Equal(league.Batting["me"].Line.Hits, loaded.League.Batting["me"].Line.Hits);
         Assert.Equal(career.Me.Achievements, loaded.Me.Achievements);
         Assert.Equal(league.Teams.IndexOf(league.Batting["p1"].Team), loaded.League.Teams.IndexOf(loaded.League.Batting["p1"].Team));
+    }
+}
+
+public class GoldenGloveTests
+{
+    [Fact]
+    public void NineGoldenGlovesGoToTheBestAllRoundPlayers()
+    {
+        var random = new SeededRandom(9);
+        var league = new League(new RosterGenerator(random), 36);
+        var career = new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("테스트", random), league, league.Teams[0], random);
+        while (!career.IsSeasonOver)
+        {
+            var day = career.PlayDay(DailyAction.Rest);
+            if (day.Trade != null) career.DeclineTrade();
+        }
+        var awards = Awards.For(league, "me", new string[0], id => 50);
+        var gloves = awards.Where(a => a.Title == Awards.GoldenGlove).ToList();
+        Assert.Equal(Awards.GoldenGloves, gloves.Count);
+        Assert.Equal(Awards.GoldenGloves, gloves.Select(g => g.Winner + g.Team).Distinct().Count());
+
+        // A great glove can tip it.
+        var bestDefense = Awards.For(league, "me", new string[0], id => id == "p1" ? 99 : 50);
+        Assert.Contains(bestDefense, a => a.Title == Awards.GoldenGlove);
+        Assert.DoesNotContain(Awards.For(league, "me", new string[0]), a => a.Title == Awards.GoldenGlove);
+    }
+
+    [Fact]
+    public void RivalCanWinRookieOfTheYear()
+    {
+        var random = new SeededRandom(10);
+        var league = new League(new RosterGenerator(random), 36);
+        var career = new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("테스트", random), league, league.Teams[0], random);
+        foreach (var stat in BaseballSim.Career.CareerPlayer.AllStats) career.Me.Ratings[stat] = career.Me.Potential[stat] = 20;
+        while (!career.IsSeasonOver)
+        {
+            var day = career.PlayDay(DailyAction.Rest);
+            if (day.Trade != null) career.DeclineTrade();
+        }
+        var rookie = Awards.For(league, "me", new[] { "me", RivalState.PlayerId }).FirstOrDefault(a => a.Title == Awards.Rookie);
+        if (rookie != null)
+        {
+            Assert.False(rookie.Mine);
+            Assert.Equal(career.Rival.Name, rookie.Winner);
+        }
     }
 }

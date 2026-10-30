@@ -19,12 +19,16 @@ namespace BaseballSim.Career
     {
         public const string Mvp = "MVP";
         public const string Rookie = "신인왕";
+        public const string GoldenGlove = "골든글러브";
+        public const int GoldenGloves = 9;
 
         /// <summary>
         /// Rate titles need a qualifying number of plate appearances; counting titles don't.
         /// Ties go to whoever got there with fewer plate appearances.
         /// </summary>
-        public static List<SeasonAward> For(League league, string myId, bool myRookieSeason)
+        /// <param name="rookieIds">Players in their first season: my player and the rival, the only rookies in the league.</param>
+        /// <param name="defenseOf">Defense rating by player id, for the golden gloves.</param>
+        public static List<SeasonAward> For(League league, string myId, IEnumerable<string> rookieIds, Func<string, int> defenseOf = null)
         {
             var all = league.Batting.Values.Where(b => b.Line.PlateAppearances > 0).ToList();
             var qualified = all.Where(b => b.Line.PlateAppearances >= league.QualifyingPa).ToList();
@@ -54,10 +58,25 @@ namespace BaseballSim.Career
                     Title = Mvp, Winner = mvp.Name, Team = mvp.Team.Name, Value = "OPS " + Stats.Rate(Stats.Ops(mvp.Line)), Mine = mvp.Id == myId,
                 });
 
-            // Only my player is ever a rookie: the rest of the league is made of established players.
-            if (myRookieSeason && league.Batting.TryGetValue(myId, out var me)
-                && me.Line.PlateAppearances >= league.QualifyingPa && Stats.Ops(me.Line) >= 0.700)
-                awards.Add(new SeasonAward { Title = Rookie, Winner = me.Name, Team = me.Team.Name, Value = "OPS " + Stats.Rate(Stats.Ops(me.Line)), Mine = true });
+            // The best qualified rookie with a decent OPS; the rest of the league is made of established players.
+            var rookie = rookieIds
+                .Select(id => league.Batting.TryGetValue(id, out var b) ? b : null)
+                .Where(b => b != null && b.Line.PlateAppearances >= league.QualifyingPa && Stats.Ops(b.Line) >= 0.700)
+                .OrderByDescending(b => Stats.Ops(b.Line))
+                .FirstOrDefault();
+            if (rookie != null)
+                awards.Add(new SeasonAward { Title = Rookie, Winner = rookie.Name, Team = rookie.Team.Name, Value = "OPS " + Stats.Rate(Stats.Ops(rookie.Line)), Mine = rookie.Id == myId });
+
+            // Golden gloves: the nine best all-round players, hitting first with the glove counting too.
+            if (defenseOf != null)
+            {
+                foreach (var b in qualified.OrderByDescending(b => Stats.Ops(b.Line) + (defenseOf(b.Id) - 50) * 0.004).Take(GoldenGloves))
+                    awards.Add(new SeasonAward
+                    {
+                        Title = GoldenGlove, Winner = b.Name, Team = b.Team.Name,
+                        Value = $"OPS {Stats.Rate(Stats.Ops(b.Line))} · 수비 {defenseOf(b.Id)}", Mine = b.Id == myId,
+                    });
+            }
 
             return awards;
         }
