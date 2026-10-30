@@ -1041,7 +1041,7 @@ namespace BaseballGame
 
         // ---------- Settings ----------
 
-        static readonly string[] TipKeys = { "start", "watch", "fatigue", "shop", "records", "event", "season_end", "move", "atbat", "trait" };
+        static readonly string[] TipKeys = { "start", "watch", "fatigue", "shop", "records", "event", "season_end", "move", "atbat", "trait", "pitch", "steal" };
 
         void ShowSettings()
         {
