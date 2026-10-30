@@ -82,12 +82,18 @@ namespace BaseballGame
 
         void BuildWorld()
         {
+            // Smooth the jagged edges of foul lines and stands, and keep ground textures sharp at a glance.
+            QualitySettings.antiAliasing = 4;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
+            QualitySettings.shadowDistance = 160;
+
             var camGo = new GameObject("MatchCamera", typeof(Camera));
             camGo.transform.SetParent(transform, false);
             _camera = camGo.GetComponent<Camera>();
             _camera.depth = 10;
             _camera.fieldOfView = 55;
             _camera.farClipPlane = 600;
+            _camera.allowMSAA = true;
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = new Color(0.5f, 0.72f, 0.96f);
             var sky = WorldArt.Sky;
@@ -303,21 +309,45 @@ namespace BaseballGame
             return tex;
         }
 
-        /// <summary>Speckles of shirt colours on grey seats, read from a distance as a crowd.</summary>
+        /// <summary>
+        /// Rows of seated fans: a head over a shirt on each seat, some seats empty. Filtered and
+        /// mipmapped, so from far away it blends into soft colour instead of flickering noise.
+        /// </summary>
         static Texture2D Crowd()
         {
-            const int w = 64, h = 32;
-            var tex = new Texture2D(w, h, TextureFormat.RGB24, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+            const int w = 256, h = 128, rowHeight = 8, seatWidth = 4;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, true)
+            {
+                filterMode = FilterMode.Trilinear, wrapMode = TextureWrapMode.Repeat, anisoLevel = 4,
+            };
             var random = new System.Random(7);
             Color[] shirts =
             {
                 Color.white, new Color(0.85f, 0.2f, 0.2f), new Color(0.2f, 0.4f, 0.85f), new Color(1f, 0.8f, 0.2f),
                 new Color(0.15f, 0.15f, 0.18f), new Color(0.95f, 0.6f, 0.7f), new Color(0.3f, 0.7f, 0.4f),
             };
+            Color[] hair = { new Color(0.08f, 0.07f, 0.07f), new Color(0.25f, 0.17f, 0.1f), new Color(0.9f, 0.9f, 0.9f) };
+            var seat = new Color(0.34f, 0.38f, 0.45f);
+            var step = new Color(0.22f, 0.25f, 0.3f);
+            var pixels = new Color[w * h];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
-                    tex.SetPixel(x, y, random.NextDouble() < 0.7 ? shirts[random.Next(shirts.Length)] : new Color(0.32f, 0.36f, 0.42f));
-            tex.Apply();
+                    pixels[y * w + x] = y % rowHeight < 2 ? step : seat;
+
+            for (int row = 0; row < h / rowHeight; row++)
+                for (int col = 0; col < w / seatWidth; col++)
+                {
+                    if (random.NextDouble() < 0.18) continue; // empty seat
+                    int x0 = col * seatWidth, y0 = row * rowHeight + 2;
+                    var shirt = shirts[random.Next(shirts.Length)];
+                    var head = random.NextDouble() < 0.25 ? hair[random.Next(hair.Length)] : Skin;
+                    for (int y = 0; y < 3; y++)
+                        for (int x = 0; x < 3; x++) pixels[(y0 + y) * w + x0 + x] = shirt;
+                    for (int y = 3; y < 5; y++)
+                        for (int x = 1; x < 3; x++) pixels[(y0 + y) * w + x0 + x] = head;
+                }
+            tex.SetPixels(pixels);
+            tex.Apply(true);
             return tex;
         }
 
