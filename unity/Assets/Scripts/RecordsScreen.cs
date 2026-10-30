@@ -43,8 +43,7 @@ namespace BaseballGame
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0.5f;
 
-            var root = UiKit.Panel(canvasGo.transform, "Root", UiKit.Background);
-            UiKit.Stretch(root);
+            var root = UiKit.SafeRoot(canvasGo.transform, UiKit.Background);
             UiKit.Column(root, 40, 20);
 
             UiKit.Height(UiKit.Label(root, "기록", 48), 80);
@@ -138,7 +137,7 @@ namespace BaseballGame
             for (int i = 0; i < roster.Count; i++)
             {
                 var p = roster[i];
-                Row(widths, i, false, p.Name, $"{p.Seasons}", $"{p.CareerLine.Hits}", $"{p.CareerLine.HomeRuns}", $"{p.Overall}");
+                Row(widths, i, p == _career.Coach, p == _career.Coach ? $"{p.Name} (코치)" : p.Name, $"{p.Seasons}", $"{p.CareerLine.Hits}", $"{p.CareerLine.HomeRuns}", $"{p.Overall}");
             }
         }
 

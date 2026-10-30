@@ -80,11 +80,11 @@ namespace BaseballGame
         /// <summary>Between retiring and starting the next player there's no career to save.</summary>
         void Save() => SaveStore.Save(_club, _retired ? null : _career);
 
-        void StartNewCareer(string name, int games)
+        void StartNewCareer(string name, int games, RetiredPlayer coach)
         {
             var league = new League(new RosterGenerator(_random), games);
             var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus);
-            _career = new CareerState(me, league, league.Teams[0], _random);
+            _career = new CareerState(me, league, league.Teams[0], _random) { Coach = coach };
             _lastDay = null;
             _retired = false;
             Save();
@@ -106,8 +106,7 @@ namespace BaseballGame
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0.5f;
 
-            var root = UiKit.Panel(canvasGo.transform, "Root", UiKit.Background);
-            UiKit.Stretch(root);
+            var root = UiKit.SafeRoot(canvasGo.transform, UiKit.Background);
             UiKit.Column(root, 40, 20);
 
             _header = UiKit.Label(root, "", 44);
@@ -193,9 +192,71 @@ namespace BaseballGame
             var result = _career.PlayDay(action);
             _lastDay = result;
             DescribeDay(result);
-            if (_career.IsSeasonOver) ShowSeasonEnd();
+            if (_career.IsSeasonOver)
+            {
+                ShowSeasonEnd();
+                Tip("season_end", "시즌이 끝나면 성적(OPS)에 따라 연봉이 재계약돼요. 30세부터는 은퇴해서 내 팀에 영입할 수 있어요.");
+            }
+            else if (result.Event != null)
+            {
+                ShowEvent(result.Event);
+                Tip("event", "가끔 이벤트가 생겨요. 고르는 답에 따라 경험치, 피로, 사기가 달라져요. 사기가 높으면 경기 컨디션이 좋아져요.");
+            }
             Save();
             Refresh();
+            ShowTips();
+        }
+
+        // ---------- Story events ----------
+
+        void ShowEvent(StoryEvent ev)
+        {
+            var card = OpenOverlay(ev.Title);
+            UiKit.Height(UiKit.Label(card, ev.TextFor(_career), 36, TextAnchor.MiddleCenter), 0, 1);
+            for (int i = 0; i < ev.Choices.Count; i++)
+            {
+                int choice = i;
+                UiKit.Height(UiKit.Button(card, ev.Choices[i].Label, () => ResolveEvent(ev, choice)), 120);
+            }
+        }
+
+        void ResolveEvent(StoryEvent ev, int choice)
+        {
+            var outcome = _career.ResolveEvent(choice);
+            string changes = outcome.Changes.Count == 0 ? "" : string.Join("  ", outcome.Changes);
+            Log($"<b>{ev.Title}</b> {ev.Choices[choice].Label}" + (changes.Length > 0 ? $"\n{changes}" : ""));
+
+            var card = OpenOverlay(ev.Title);
+            string text = outcome.Text + (changes.Length > 0 ? $"\n\n<color=#5FA8FF>{changes}</color>" : "");
+            UiKit.Height(UiKit.Label(card, text, 36, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "확인", CloseOverlay), 120);
+            Save();
+            Refresh();
+        }
+
+        // ---------- Tutorial ----------
+
+        /// <summary>One-time hints for a new player, remembered across launches.</summary>
+        void Tip(string key, string text)
+        {
+            string pref = "tip_" + key;
+            if (PlayerPrefs.GetInt(pref, 0) == 1) return;
+            PlayerPrefs.SetInt(pref, 1);
+            PlayerPrefs.Save();
+            Log($"<color=#5FA8FF><b>도움말</b> {text}</color>");
+        }
+
+        void ShowTips()
+        {
+            if (_career == null) return;
+            if (_career.Day >= 1)
+                Tip("watch", "'오늘 경기 보기'를 누르면 방금 끝난 경기를 3D로 다시 볼 수 있어요.");
+            if (_career.Me.Fatigue >= 60)
+                Tip("fatigue", "피로가 80을 넘으면 훈련 효과가 반으로 줄고 부상 위험이 생겨요. 휴식으로 회복하세요.");
+            if (_career.Me.Money >= 200)
+                Tip("shop", "연봉이 쌓였어요. 장비 상점에서 장비를 사면 능력치가 올라가요.");
+            if (_career.Day >= 5)
+                Tip("records", "'기록'에서 리그 순위와 내 성적을 볼 수 있어요.");
         }
 
         void DescribeDay(DayResult r)
@@ -376,6 +437,25 @@ namespace BaseballGame
             UiKit.Height(lengths, 110);
             UiKit.Row(lengths, 16);
             int games = _career != null ? _career.League.GamesPerSeason : 36;
+
+            // A retired player from my team can coach the new one.
+            RetiredPlayer coach = null;
+            if (_club.Roster.Count > 0)
+            {
+                var coaches = new List<RetiredPlayer> { null };
+                coaches.AddRange(_club.Roster.OrderByDescending(p => p.Overall));
+                coach = coaches[1];
+                UiKit.Height(UiKit.Label(card, "레전드 코치 (전성기에 강했던 능력치의 훈련 효과가 올라가요)", 30, TextAnchor.LowerLeft), 80);
+                Button coachButton = null;
+                string CoachLabel() => coach == null ? "코치 없음" : $"{coach.Name}  종합 {coach.Overall}  ·  최고 {Stats.Name(BestStat(coach))} {coach.PeakRatings[BestStat(coach)]}";
+                coachButton = UiKit.Button(card, CoachLabel(), () =>
+                {
+                    coach = coaches[(coaches.IndexOf(coach) + 1) % coaches.Count];
+                    UiKit.SetButtonLabel(coachButton, CoachLabel());
+                }, UiKit.Background);
+                UiKit.Height(coachButton, 110);
+            }
+
             var buttons = new List<(int Games, Button Button)>();
             void Highlight()
             {
@@ -397,13 +477,17 @@ namespace BaseballGame
                     placeholder.color = UiKit.Warning;
                     return;
                 }
-                StartNewCareer(name, games);
+                StartNewCareer(name, games, coach);
                 CloseOverlay();
                 _logLines.Clear();
-                Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
+                Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요." +
+                    (coach != null ? $"\n레전드 {coach.Name} 코치가 함께합니다." : ""));
+                Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 잠재력(/ 뒤 숫자)까지 키울 수 있어요.");
                 Refresh();
             }), 120);
         }
+
+        static Stat BestStat(RetiredPlayer p) => p.PeakRatings.OrderByDescending(r => r.Value).First().Key;
 
         // ---------- Refresh ----------
 
@@ -425,7 +509,8 @@ namespace BaseballGame
             var l = _career.SeasonLine;
             string avg = l.AtBats == 0 ? ".000" : ((double)l.Hits / l.AtBats).ToString(".000");
             string injury = me.IsInjured ? $"  <color=#F28C40>부상 {me.InjuryDaysLeft}일</color>" : "";
-            _status.text = $"타율 {avg}  {l.HomeRuns}홈런  ·  보유 {me.Money:N0}만원{injury}";
+            string morale = me.Morale > 0 ? $"  <color=#5FA8FF>사기 +{me.Morale}</color>" : me.Morale < 0 ? $"  <color=#F28C40>사기 {me.Morale}</color>" : "";
+            _status.text = $"타율 {avg}  {l.HomeRuns}홈런  ·  보유 {me.Money:N0}만원{injury}{morale}";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
 
             foreach (var stat in CareerPlayer.AllStats)

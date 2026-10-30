@@ -34,6 +34,20 @@ namespace BaseballGame
             return (RectTransform)go.transform;
         }
 
+        /// <summary>
+        /// A screen's root: an optional full-screen background, and inside it the area clear of
+        /// notches where the layout goes.
+        /// </summary>
+        public static RectTransform SafeRoot(Transform canvas, Color? background = null)
+        {
+            var back = background.HasValue ? Panel(canvas, "Background", background.Value) : Empty(canvas, "Background");
+            Stretch(back);
+            var root = Empty(back, "Root");
+            Stretch(root);
+            root.gameObject.AddComponent<SafeArea>();
+            return root;
+        }
+
         public static void Stretch(RectTransform rt)
         {
             rt.anchorMin = Vector2.zero;

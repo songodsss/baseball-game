@@ -27,10 +27,13 @@ public class SaveGameTests
         club.Retire(first);
 
         var career = NewCareer(random, club);
+        career.Coach = club.Roster[0];
         career.Me.Money += 5000;
         Assert.True(career.Buy("bat2"));
         Assert.True(career.Buy("glove1"));
         for (int day = 0; day < 20; day++) career.PlayDay(day % 4 == 3 ? DailyAction.Rest : DailyAction.TrainContact);
+        career.Me.Morale = 4;
+        career.HitlessStreak = 2;
         return (club, career);
     }
 
@@ -56,6 +59,9 @@ public class SaveGameTests
         Assert.Equal(career.Me.Exp, loaded.Me.Exp);
         Assert.Equal(career.Me.Fatigue, loaded.Me.Fatigue);
         Assert.Equal(career.Me.Money, loaded.Me.Money);
+        Assert.Equal(4, loaded.Me.Morale);
+        Assert.Equal(2, loaded.HitlessStreak);
+        Assert.Same(loadedClub.Roster[0], loaded.Coach);
         Assert.Equal(career.Me.EquipmentBonus(Stat.Power), loaded.Me.EquipmentBonus(Stat.Power));
         Assert.Equal(new[] { "bat2", "glove1" }, loaded.Me.Owned.Select(e => e.Id));
         Assert.Equal(career.League.Teams.IndexOf(career.MyTeam), loaded.League.Teams.IndexOf(loaded.MyTeam));

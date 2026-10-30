@@ -3,6 +3,18 @@ namespace BaseballSim.Career
     /// <summary>Rate stats for record screens.</summary>
     public static class Stats
     {
+        public static string Name(Stat stat)
+        {
+            switch (stat)
+            {
+                case Stat.Contact: return "컨택";
+                case Stat.Power: return "파워";
+                case Stat.Eye: return "선구안";
+                case Stat.Speed: return "주루";
+                default: return "수비";
+            }
+        }
+
         public static double Avg(BattingLine l) => l.AtBats == 0 ? 0 : (double)l.Hits / l.AtBats;
 
         public static double Obp(BattingLine l) => l.PlateAppearances == 0 ? 0 : (double)(l.Hits + l.Walks) / l.PlateAppearances;

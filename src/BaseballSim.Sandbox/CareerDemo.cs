@@ -17,21 +17,32 @@ namespace BaseballSim.Sandbox
             {
                 var league = new League(new RosterGenerator(random), gamesPerSeason);
                 var me = Career.Career.NewPlayer(generation == 1 ? "강하늘" : "윤바다", random, club.PotentialBonus);
-                var career = new Career.Career(me, league, league.Teams[0], random);
+                // From the second player on, the best retired player coaches.
+                var career = new Career.Career(me, league, league.Teams[0], random)
+                {
+                    Coach = club.Roster.OrderByDescending(p => p.Overall).FirstOrDefault(),
+                };
 
                 Console.WriteLine($"=== {generation}대 선수 {me.Name} ({league.Teams[0].Name}, 시즌 {gamesPerSeason}경기) ===");
                 Console.WriteLine($"시작 능력치  {Ratings(me.Ratings)}");
                 Console.WriteLine($"잠재력       {Ratings(me.Potential)}   (명예 포인트 보너스 +{club.PotentialBonus})");
+                if (career.Coach != null) Console.WriteLine($"코치         {career.Coach.Name} (종합 {career.Coach.Overall})");
                 Console.WriteLine();
-                Console.WriteLine("시즌 나이  컨택 파워 선구 주루 수비 | 타율   홈런 OPS   | 연봉(만원) 보유금 부상일 | 장비");
+                Console.WriteLine("시즌 나이  컨택 파워 선구 주루 수비 | 타율   홈런 OPS   | 연봉(만원) 보유금 부상일 이벤트 | 장비");
 
                 while (true)
                 {
-                    int injuredDays = 0;
+                    int injuredDays = 0, events = 0;
                     while (!career.IsSeasonOver)
                     {
                         var day = career.PlayDay(Choose(me));
                         if (day.SatOut) injuredDays++;
+                        if (day.Event != null)
+                        {
+                            // Autopilot answers story events at random.
+                            career.ResolveEvent((int)(random.NextDouble() * day.Event.Choices.Count));
+                            events++;
+                        }
                         BuyUpgrades(career);
                     }
 
@@ -41,7 +52,7 @@ namespace BaseballSim.Sandbox
                     string gear = string.Join(" ", me.Equipped.Values.OrderBy(e => e.Slot).Select(e => e.Id));
                     Console.WriteLine(
                         $"{career.Season,3}  {me.Age,3}   {r[Stat.Contact],3}  {r[Stat.Power],3}  {r[Stat.Eye],3}  {r[Stat.Speed],3}  {r[Stat.Defense],3} | " +
-                        $"{avg}  {l.HomeRuns,3}  {Career.Career.Ops(l):F3} | {me.Salary,8}  {me.Money,6}  {injuredDays,4}  | {gear}");
+                        $"{avg}  {l.HomeRuns,3}  {Career.Career.Ops(l):F3} | {me.Salary,8}  {me.Money,6}  {injuredDays,4}  {events,4} | {gear}");
 
                     // Retire at 37 to keep the demo short, or when forced.
                     if (me.Age >= 37 || career.MustRetire) break;

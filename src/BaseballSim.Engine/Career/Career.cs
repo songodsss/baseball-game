@@ -27,6 +27,8 @@ namespace BaseballSim.Career
         public Player MyGamePlayer;
         public BattingLine MyLine;
         public int MoneyEarned;
+        /// <summary>A story event to answer before the next day, or null.</summary>
+        public StoryEvent Event;
     }
 
     public class SeasonSummary
@@ -56,6 +58,8 @@ namespace BaseballSim.Career
         const int DailyRecovery = 5;
         const int TiredThreshold = 80;
         const double InjuryChanceWhenTired = 0.08;
+        /// <summary>Story events per day of a full season; about 8-9 a season whatever its length.</summary>
+        const double EventChancePerDay = 0.06;
 
         public CareerPlayer Me;
         public League League;
@@ -66,6 +70,15 @@ namespace BaseballSim.Career
 
         /// <summary>My player bats here; the regular in that spot sits for the game.</summary>
         public int LineupSlot = 5;
+
+        /// <summary>A retired player from my club coaching this career; boosts training in their best stats.</summary>
+        public RetiredPlayer Coach;
+
+        /// <summary>Games in a row with at bats and no hit. Story events react to slumps.</summary>
+        public int HitlessStreak;
+
+        /// <summary>Set by PlayDay now and then; answer it with ResolveEvent. The next PlayDay drops it.</summary>
+        public StoryEvent PendingEvent { get; private set; }
 
         readonly IRandom _random;
         readonly GameSimulator _sim;
@@ -111,6 +124,7 @@ namespace BaseballSim.Career
 
             var result = new DayResult { Season = Season, Day = Day, Action = action };
             if (Me.IsInjured) result.Action = action = DailyAction.Rest;
+            PendingEvent = null;
 
             ApplyAction(action, result);
 
@@ -122,8 +136,31 @@ namespace BaseballSim.Career
 
             Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery);
             if (Me.InjuryDaysLeft > 0) Me.InjuryDaysLeft--;
+            Me.Morale -= Math.Sign(Me.Morale);
             Day++;
+
+            if (_random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
+                PendingEvent = StoryEvents.Pick(this, result, _random);
+            result.Event = PendingEvent;
             return result;
+        }
+
+        /// <summary>Applies the chosen answer to the pending story event.</summary>
+        public EventOutcome ResolveEvent(int choice)
+        {
+            if (PendingEvent == null) throw new InvalidOperationException("No story event to resolve.");
+            var picked = PendingEvent.Choices[choice];
+            PendingEvent = null;
+            var outcome = new EventOutcome { Text = picked.Result };
+            picked.Apply(new EventEffects(this, _random, outcome));
+            return outcome;
+        }
+
+        /// <summary>Extra training exp from the coach for this stat: up to +30% from a coach whose peak was in the 80s or better.</summary>
+        public double CoachBonus(Stat stat)
+        {
+            if (Coach == null || !Coach.PeakRatings.TryGetValue(stat, out var peak)) return 0;
+            return Math.Max(0, Math.Min(0.3, (peak - 50) / 100.0));
         }
 
         void ApplyAction(DailyAction action, DayResult result)
@@ -144,7 +181,7 @@ namespace BaseballSim.Career
 
             var (main, side) = TrainingTargets(action);
             double mult = AgeGrowth(Me.Age) * (tired ? 0.5 : 1.0);
-            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult)));
+            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * (1 + CoachBonus(main)))));
             AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult)));
             Me.Fatigue = Math.Min(100, Me.Fatigue + TrainFatigue);
         }
@@ -198,6 +235,7 @@ namespace BaseballSim.Career
 
             result.MyGamePlayer = gamePlayer;
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
+            if (result.MyLine.AtBats > 0) HitlessStreak = result.MyLine.Hits == 0 ? HitlessStreak + 1 : 0;
             Accumulate(SeasonLine, result.MyLine);
             GainGameExp(result);
             PayForGame(result);

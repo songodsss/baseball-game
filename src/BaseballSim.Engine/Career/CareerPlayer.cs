@@ -32,6 +32,10 @@ namespace BaseballSim.Career
         public int Fatigue;
         public int InjuryDaysLeft;
 
+        public const int MaxMorale = 10;
+        /// <summary>-10..+10, from story events. Adds to game form and fades by one a day.</summary>
+        public int Morale;
+
         /// <summary>Spendable in-game money, 만원.</summary>
         public int Money;
         /// <summary>Season salary, 만원. Paid out game by game.</summary>
@@ -80,7 +84,7 @@ namespace BaseballSim.Career
             p.Batting.Defense = EffectiveRating(Stat.Defense);
             int form = (int)Math.Round(random.NextDouble() * 8 - 4);
             int tiredness = Math.Max(0, (Fatigue - 50) / 6);
-            p.Condition = form - tiredness;
+            p.Condition = form - tiredness + Morale / 2;
             return p;
         }
 

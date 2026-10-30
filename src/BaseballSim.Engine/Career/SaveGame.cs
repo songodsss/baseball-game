@@ -15,7 +15,8 @@ namespace BaseballSim.Career
     public static class SaveGame
     {
         const string Magic = "BBSV";
-        public const int Version = 1;
+        /// <summary>2: morale, slump streak and coach.</summary>
+        public const int Version = 2;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -41,7 +42,7 @@ namespace BaseballSim.Career
                 w.Write(Version);
                 WriteClub(w, club);
                 w.Write(career != null);
-                if (career != null) WriteCareer(w, career);
+                if (career != null) WriteCareer(w, career, club);
             }
         }
 
@@ -57,7 +58,7 @@ namespace BaseballSim.Career
                     throw new InvalidDataException($"Save version {version} is newer than this game ({Version}).");
 
                 var club = ReadClub(r);
-                var career = r.ReadBoolean() ? ReadCareer(r, random) : null;
+                var career = r.ReadBoolean() ? ReadCareer(r, random, club, version) : null;
                 return (club, career);
             }
         }
@@ -93,13 +94,15 @@ namespace BaseballSim.Career
 
         // ---------- Career ----------
 
-        static void WriteCareer(BinaryWriter w, Career career)
+        static void WriteCareer(BinaryWriter w, Career career, Club club)
         {
             w.Write(career.Season);
             w.Write(career.Day);
             w.Write(career.LineupSlot);
             WriteLine(w, career.SeasonLine);
             WriteMe(w, career.Me);
+            w.Write(career.HitlessStreak);
+            w.Write(career.Coach == null ? -1 : club.Roster.IndexOf(career.Coach));
 
             var league = career.League;
             w.Write(league.GamesPerSeason);
@@ -118,13 +121,15 @@ namespace BaseballSim.Career
             w.Write(league.Teams.IndexOf(career.MyTeam));
         }
 
-        static Career ReadCareer(BinaryReader r, IRandom random)
+        static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
         {
             int season = r.ReadInt32();
             int day = r.ReadInt32();
             int lineupSlot = r.ReadInt32();
             var seasonLine = ReadLine(r);
-            var me = ReadMe(r);
+            var me = ReadMe(r, version);
+            int hitlessStreak = version >= 2 ? r.ReadInt32() : 0;
+            int coach = version >= 2 ? r.ReadInt32() : -1;
 
             int games = r.ReadInt32();
             var standings = new List<(int Wins, int Losses, int Ties, int Starts)>();
@@ -154,6 +159,8 @@ namespace BaseballSim.Career
                 Day = day,
                 LineupSlot = lineupSlot,
                 SeasonLine = seasonLine,
+                HitlessStreak = hitlessStreak,
+                Coach = coach >= 0 && coach < club.Roster.Count ? club.Roster[coach] : null,
             };
         }
 
@@ -170,6 +177,7 @@ namespace BaseballSim.Career
             w.Write(me.InjuryDaysLeft);
             w.Write(me.Money);
             w.Write(me.Salary);
+            w.Write(me.Morale);
             WriteList(w, me.Owned, e => w.Write(e.Id));
             WriteList(w, me.Equipped.Values.ToList(), e => w.Write(e.Id));
             WriteList(w, me.History, h =>
@@ -183,7 +191,7 @@ namespace BaseballSim.Career
             });
         }
 
-        static CareerPlayer ReadMe(BinaryReader r)
+        static CareerPlayer ReadMe(BinaryReader r, int version)
         {
             var me = new CareerPlayer
             {
@@ -199,6 +207,7 @@ namespace BaseballSim.Career
                 Money = r.ReadInt32(),
                 Salary = r.ReadInt32(),
             };
+            if (version >= 2) me.Morale = r.ReadInt32();
             // Gear is saved by id; anything since removed from the catalog is dropped.
             me.Owned = ReadList(r, () => EquipmentCatalog.Find(r.ReadString())).Where(e => e != null).ToList();
             foreach (var e in ReadList(r, () => EquipmentCatalog.Find(r.ReadString())))

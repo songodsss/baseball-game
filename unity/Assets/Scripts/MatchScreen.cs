@@ -166,8 +166,7 @@ namespace BaseballGame
             scaler.matchWidthOrHeight = 0.5f;
             _canvas = (RectTransform)canvasGo.transform;
 
-            var root = UiKit.Empty(_canvas, "Root");
-            UiKit.Stretch(root);
+            var root = UiKit.SafeRoot(_canvas);
             UiKit.Column(root, 30, 16);
 
             BuildScoreboard(root);
