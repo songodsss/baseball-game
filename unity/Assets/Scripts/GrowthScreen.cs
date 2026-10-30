@@ -82,11 +82,11 @@ namespace BaseballGame
         /// <summary>Between retiring and starting the next player there's no career to save.</summary>
         void Save() => SaveStore.Save(_club, _retired ? null : _career);
 
-        void StartNewCareer(string name, int games)
+        void StartNewCareer(string name, int games, int team)
         {
             var league = new League(new RosterGenerator(_random), games);
             var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus);
-            _career = new CareerState(me, league, league.Teams[0], _random);
+            _career = new CareerState(me, league, league.Teams[team], _random);
             _lastDay = null;
             _retired = false;
             Save();
@@ -117,12 +117,9 @@ namespace BaseballGame
             topRow.childForceExpandWidth = false;
             _header = UiKit.Label(top, "", 44);
             UiKit.Width(_header, 0, 1);
-            foreach (var (label, onClick) in new (string, UnityEngine.Events.UnityAction)[] { ("꾸미기", ShowWardrobe), ("설정", ShowSettings) })
-            {
-                var b = UiKit.Button(top, label, onClick, UiKit.Card);
-                b.GetComponentInChildren<Text>().fontSize = 28;
-                UiKit.Width(b, 150);
-            }
+            var settings = UiKit.Button(top, "설정", ShowSettings, UiKit.Card);
+            settings.GetComponentInChildren<Text>().fontSize = 28;
+            UiKit.Width(settings, 150);
 
             BuildStatusCard(root);
             BuildRatingsCard(root);
@@ -309,7 +306,7 @@ namespace BaseballGame
         {
             if (_lastDay?.MyGame == null) return;
             _canvas.SetActive(false);
-            MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true), UniformColor);
+            MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true));
         }
 
         /// <summary>Replays any game; my player is found by id among its batters.</summary>
@@ -317,10 +314,8 @@ namespace BaseballGame
         {
             var mine = game.Batting.Keys.FirstOrDefault(p => p.Id == _career.Me.Id);
             _canvas.SetActive(false);
-            MatchScreen.Open(game, mine, () => _canvas.SetActive(true), UniformColor);
+            MatchScreen.Open(game, mine, () => _canvas.SetActive(true));
         }
-
-        Color UniformColor => ColorUtility.TryParseHtmlString(Wardrobe.Find(_club.SelectedUniform).Color, out var c) ? c : Gold;
 
         // ---------- Monetization hooks ----------
 
@@ -340,43 +335,8 @@ namespace BaseballGame
             });
         }
 
-        /// <summary>Uniform colours for my player: three free, the rest sold in the store. Looks only.</summary>
-        void ShowWardrobe()
-        {
-            if (_career == null) return;
-            var card = OpenOverlay("꾸미기");
-            UiKit.Height(UiKit.Label(card, "유니폼은 경기 화면에서 내 선수 색으로 보여요. 능력치에는 영향이 없어요.", 28, TextAnchor.MiddleCenter, UiKit.Muted), 80);
-            foreach (var uniform in Wardrobe.All)
-            {
-                var u = uniform;
-                var row = UiKit.Empty(card, u.Id);
-                UiKit.Height(row, 100);
-                UiKit.Row(row, 20).childForceExpandWidth = false;
-                ColorUtility.TryParseHtmlString(u.Color, out var color);
-                UiKit.Width(UiKit.Panel(row, "Swatch", color), 80);
-                UiKit.Width(UiKit.Label(row, u.Name, 32), 0, 1);
-
-                Button button;
-                if (_club.SelectedUniform == u.Id)
-                    button = UiKit.Button(row, "착용 중", () => { }, UiKit.Background);
-                else if (_club.OwnsUniform(u))
-                    button = UiKit.Button(row, "입기", () => { _club.SelectUniform(u.Id); Save(); ShowWardrobe(); });
-                else
-                    button = UiKit.Button(row, $"구매 {Monetization.Store.PriceOf(u.ProductId)}", () =>
-                        Monetization.Store.Buy(u.ProductId, ok =>
-                        {
-                            if (!ok) return;
-                            _club.GrantUniform(u.Id);
-                            _club.SelectUniform(u.Id);
-                            Log($"{u.Name} 유니폼 구매!");
-                            Save();
-                            ShowWardrobe();
-                        }), new Color(0.75f, 0.58f, 0.15f));
-                UiKit.Width(button, 260);
-            }
-            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
-            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
-        }
+        static Color TeamColor(string teamName) =>
+            ColorUtility.TryParseHtmlString(League.TeamColors.TryGetValue(teamName, out var hex) ? hex : "#888888", out var c) ? c : Color.gray;
 
         // ---------- Settings ----------
 
@@ -422,7 +382,7 @@ namespace BaseballGame
         void ConfirmReset()
         {
             var card = OpenOverlay("정말 지울까요?");
-            UiKit.Height(UiKit.Label(card, "진행 중인 선수, 내 팀 은퇴 선수, 업적, 구매한 유니폼 기록이 모두 사라져요.\n되돌릴 수 없어요.", 32, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Label(card, "진행 중인 선수, 내 팀 은퇴 선수, 업적이 모두 사라져요.\n되돌릴 수 없어요.", 32, TextAnchor.MiddleCenter), 0, 1);
             UiKit.Height(UiKit.Button(card, "지우기", () =>
             {
                 SaveStore.Delete();
@@ -639,6 +599,37 @@ namespace BaseballGame
             input.characterLimit = 8;
             input.text = first ? "강하늘" : "";
 
+            // Each club has its own uniform; picking the club picks the uniform.
+            int team = (int)(_random.NextDouble() * League.DefaultTeamNames.Length);
+            var teamLabel = UiKit.Label(card, "", 30, TextAnchor.LowerLeft);
+            UiKit.Height(teamLabel, 60);
+            var teams = UiKit.Empty(card, "Teams");
+            UiKit.Height(teams, 190);
+            var grid = teams.gameObject.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(166, 85);
+            grid.spacing = new Vector2(10, 10);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 5;
+            grid.childAlignment = TextAnchor.MiddleCenter;
+            var teamButtons = new List<Button>();
+            void ShowTeam()
+            {
+                teamLabel.text = $"입단 팀: <b>{League.DefaultTeamNames[team]}</b>";
+                for (int i = 0; i < teamButtons.Count; i++)
+                {
+                    var c = TeamColor(League.DefaultTeamNames[i]);
+                    teamButtons[i].GetComponent<Image>().color = i == team ? c : new Color(c.r, c.g, c.b, 0.3f);
+                }
+            }
+            for (int i = 0; i < League.DefaultTeamNames.Length; i++)
+            {
+                int index = i;
+                var b = UiKit.Button(teams, League.DefaultTeamNames[i].Replace(" ", "\n"), () => { team = index; ShowTeam(); });
+                b.GetComponentInChildren<Text>().fontSize = 24;
+                teamButtons.Add(b);
+            }
+            ShowTeam();
+
             UiKit.Height(UiKit.Label(card, "시즌 길이 (짧을수록 하루 성장이 커요. 시즌 사이에 바꿀 수 있어요)", 30, TextAnchor.LowerLeft), 80);
             var lengths = UiKit.Empty(card, "Lengths");
             UiKit.Height(lengths, 110);
@@ -666,7 +657,7 @@ namespace BaseballGame
                     placeholder.color = UiKit.Warning;
                     return;
                 }
-                StartNewCareer(name, games);
+                StartNewCareer(name, games, team);
                 CloseOverlay();
                 _logLines.Clear();
                 Log($"{CareerState.StartYear}년, {_career.Me.Name} 선수 {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");

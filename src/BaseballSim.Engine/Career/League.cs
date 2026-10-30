@@ -36,6 +36,17 @@ namespace BaseballSim.Career
             "대전 이글아이즈", "수원 나이츠", "창원 다이노스톰", "고양 레드폭스", "울산 웨일스",
         };
 
+        /// <summary>Each club's own uniform colour, "#RRGGBB", by team name.</summary>
+        public static readonly Dictionary<string, string> TeamColors = new Dictionary<string, string>
+        {
+            { "서울 블루윙스", "#2F6FE0" }, { "부산 마린스타즈", "#12A3A3" }, { "인천 시호크스", "#8C5A3C" },
+            { "대구 썬더볼츠", "#F2C230" }, { "광주 타이거릴리", "#F07A1A" }, { "대전 이글아이즈", "#7B4FCF" },
+            { "수원 나이츠", "#2A2F3A" }, { "창원 다이노스톰", "#2FA84F" }, { "고양 레드폭스", "#D63A3A" },
+            { "울산 웨일스", "#1E3A8A" },
+        };
+
+        public static string ColorOf(Team team) => TeamColors.TryGetValue(team.Name, out var c) ? c : "#888888";
+
         public List<Team> Teams = new List<Team>();
         public Dictionary<Team, Standing> Standings = new Dictionary<Team, Standing>();
         /// <summary>Every batter's season line, by player id. Reset with the standings.</summary>

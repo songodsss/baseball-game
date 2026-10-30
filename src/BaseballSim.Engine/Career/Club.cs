@@ -31,27 +31,6 @@ namespace BaseballSim.Career
         /// <summary>Added to every potential of the next new player, at most +8.</summary>
         public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
 
-        /// <summary>Premium uniforms bought; free ones are always owned. Kept across careers.</summary>
-        public List<string> OwnedUniforms = new List<string>();
-        public string SelectedUniform = Wardrobe.DefaultId;
-
-        public bool OwnsUniform(Uniform u) => !u.Premium || OwnedUniforms.Contains(u.Id);
-
-        /// <summary>Records a store purchase. The store itself (real payments) lives in the Unity layer.</summary>
-        public void GrantUniform(string id)
-        {
-            if (!OwnedUniforms.Contains(id)) OwnedUniforms.Add(id);
-        }
-
-        /// <summary>False if the uniform isn't owned.</summary>
-        public bool SelectUniform(string id)
-        {
-            var u = Wardrobe.All.Find(x => x.Id == id);
-            if (u == null || !OwnsUniform(u)) return false;
-            SelectedUniform = id;
-            return true;
-        }
-
         /// <summary>Achievement ids any retired player of mine ever reached.</summary>
         public HashSet<string> Collection => new HashSet<string>(Roster.SelectMany(p => p.Achievements));
 

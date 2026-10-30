@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using BaseballSim;
+using BaseballSim.Career;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,7 +23,6 @@ namespace BaseballGame
         MatchField _field;
 
         int _speedIndex;
-        Color _uniform;
         bool _paused;
         /// <summary>Steps before this index are applied without animation.</summary>
         int _skipUntil = -1;
@@ -38,13 +38,12 @@ namespace BaseballGame
         /// <summary>Opens the screen; <paramref name="onClose"/> runs when the player leaves it.</summary>
         public const string SpeedPref = "match_speed";
 
-        /// <summary>Opens the screen; <paramref name="onClose"/> runs when the player leaves it. My player wears <paramref name="uniform"/>.</summary>
-        public static MatchScreen Open(GameResult game, Player mine, Action onClose, Color? uniform = null)
+        /// <summary>Opens the screen; <paramref name="onClose"/> runs when the player leaves it.</summary>
+        public static MatchScreen Open(GameResult game, Player mine, Action onClose)
         {
             var screen = new GameObject("MatchScreen").AddComponent<MatchScreen>();
             screen._replay = new MatchReplay(game, mine);
             screen._onClose = onClose;
-            screen._uniform = uniform ?? Gold;
             screen._speedIndex = Mathf.Clamp(PlayerPrefs.GetInt(SpeedPref, 0), 0, Speeds.Length - 1);
             return screen;
         }
@@ -60,7 +59,6 @@ namespace BaseballGame
         {
             _field = MatchField.Build(transform);
             _field.Mine = _replay.Mine;
-            _field.MineColor = _uniform;
             _field.Skipping = () => Skipping;
             BuildUi();
             StartCoroutine(Run());
@@ -362,14 +360,8 @@ namespace BaseballGame
             return step.IsHighlight ? UiKit.Warning : Color.white;
         }
 
-        /// <summary>A stable color per team name, so the same club always wears the same color.</summary>
-        static Color TeamColor(Team team)
-        {
-            int hash = 17;
-            foreach (char c in team.Name) hash = hash * 31 + c;
-            float hue = (hash & 0xFFFF) / 65535f;
-            return Color.HSVToRGB(hue, 0.6f, 0.9f);
-        }
+        /// <summary>The club's own uniform colour.</summary>
+        static Color TeamColor(Team team) => ColorUtility.TryParseHtmlString(League.ColorOf(team), out var c) ? c : Color.gray;
 
         // ---------- Result ----------
 
