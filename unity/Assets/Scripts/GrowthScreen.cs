@@ -45,7 +45,9 @@ namespace BaseballGame
         readonly Dictionary<Stat, Text> _ratingTexts = new Dictionary<Stat, Text>();
         readonly Dictionary<Stat, RectTransform> _expFills = new Dictionary<Stat, RectTransform>();
         readonly List<Button> _actionButtons = new List<Button>();
-        Button _seasonLengthButton;
+        Button _seasonLengthButton, _watchButton;
+        GameObject _canvas;
+        DayResult _lastDay;
         RectTransform _overlay;
         readonly List<string> _logLines = new List<string>();
 
@@ -64,6 +66,7 @@ namespace BaseballGame
             var league = new League(new RosterGenerator(_random), games);
             var me = CareerState.NewPlayer(_club.Roster.Count == 0 ? "강하늘" : $"강하늘 {_club.Roster.Count + 1}세", _random, _club.PotentialBonus);
             _career = new CareerState(me, league, league.Teams[0], _random);
+            _lastDay = null;
         }
 
         // ---------- UI construction ----------
@@ -75,6 +78,7 @@ namespace BaseballGame
 
             var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
+            _canvas = canvasGo;
             canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -116,6 +120,7 @@ namespace BaseballGame
             var bottom = UiKit.Empty(root, "Bottom");
             UiKit.Height(bottom, 110);
             UiKit.Row(bottom, 20);
+            _watchButton = UiKit.Button(bottom, "오늘 경기 보기", WatchGame);
             UiKit.Button(bottom, "장비 상점", ShowShop, UiKit.Card);
             _seasonLengthButton = UiKit.Button(bottom, "", CycleSeasonLength, UiKit.Card);
             _seasonLengthLabel = _seasonLengthButton.GetComponentInChildren<Text>();
@@ -163,6 +168,7 @@ namespace BaseballGame
         {
             if (_overlay != null) return;
             var result = _career.PlayDay(action);
+            _lastDay = result;
             DescribeDay(result);
             if (_career.IsSeasonOver) ShowSeasonEnd();
             Refresh();
@@ -192,8 +198,15 @@ namespace BaseballGame
             Log(string.Join("\n", lines));
         }
 
-        static bool IsHighlight(GameEvent e) =>
-            e.Outcome == Outcome.HomeRun || e.Outcome == Outcome.Double || e.Outcome == Outcome.Triple || e.RunnersScored.Count > 0;
+        static bool IsHighlight(GameEvent e) => MatchReplay.IsHighlight(e);
+
+        /// <summary>Replays the last day's game in 3D; the growth screen hides until it closes.</summary>
+        void WatchGame()
+        {
+            if (_lastDay?.MyGame == null) return;
+            _canvas.SetActive(false);
+            MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true));
+        }
 
         void CycleSeasonLength()
         {
@@ -280,6 +293,8 @@ namespace BaseballGame
                 text.Add("<color=#F28C40>노쇠화: " + string.Join(", ", summary.Decline.Select(d => $"{StatNames[d.Key]} -{d.Value}")) + "</color>");
             UiKit.Height(UiKit.Label(card, string.Join("\n\n", text), 34, TextAnchor.UpperCenter), 0, 1);
 
+            if (_lastDay?.MyGame != null)
+                UiKit.Height(UiKit.Button(card, "마지막 경기 보기", WatchGame, UiKit.Muted), 110);
             if (_career.Me.Age >= 30)
                 UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 110);
             if (!_career.MustRetire)
@@ -343,6 +358,7 @@ namespace BaseballGame
                 ? $"시즌 {_career.League.GamesPerSeason}경기 (변경)"
                 : $"시즌 {_career.League.GamesPerSeason}경기";
             _seasonLengthButton.interactable = _career.Day == 0;
+            _watchButton.interactable = _lastDay?.MyGame != null;
         }
     }
 }
