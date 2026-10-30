@@ -45,7 +45,7 @@ namespace BaseballGame
         RectTransform _emblem;
         string _emblemTeam;
         readonly Dictionary<Stat, int> _shownRatings = new Dictionary<Stat, int>();
-        Text _header, _status, _log, _seasonLengthLabel, _todayText;
+        Text _header, _status, _money, _log, _seasonLengthLabel, _todayText;
         RectTransform _fatigueFill;
         readonly Dictionary<Stat, Text> _ratingTexts = new Dictionary<Stat, Text>();
         readonly Dictionary<Stat, RectTransform> _expFills = new Dictionary<Stat, RectTransform>();
@@ -168,8 +168,9 @@ namespace BaseballGame
             foreach (var (action, label) in Actions)
             {
                 var a = action;
-                var button = UiKit.Button(actions, label, () => PlayDay(a),
+                var button = UiKit.Button(actions, $"{label}\n<size=24><color=#FFE9A8>{ActionEffect(a)}</color></size>", () => PlayDay(a),
                     a == DailyAction.Rest ? new Color(0.2f, 0.6f, 0.45f) : UiKit.Accent);
+                button.GetComponentInChildren<Text>().fontSize = 32;
                 UiKit.ButtonIcon(button, ArtLibrary.TrainingIcon(a));
                 _actionButtons.Add(button);
             }
@@ -193,11 +194,30 @@ namespace BaseballGame
             foreach (var label in bottom.GetComponentsInChildren<Text>()) label.fontSize = 30;
         }
 
+        /// <summary>What a training raises: the main stat a lot, a side stat a little.</summary>
+        static string ActionEffect(DailyAction action)
+        {
+            if (action == DailyAction.Rest) return "피로 회복";
+            var (main, side) = CareerState.TrainingTargets(action);
+            return $"{Stats.Name(main)}▲▲ {Stats.Name(side)}▲";
+        }
+
         void BuildStatusCard(RectTransform root)
         {
             var card = UiKit.Panel(root, "Status", UiKit.Card);
-            UiKit.Height(card, 180);
+            UiKit.Height(card, 240);
             UiKit.Column(card, 24, 12);
+            var moneyRow = UiKit.Empty(card, "Money");
+            UiKit.Height(moneyRow, 50);
+            UiKit.Row(moneyRow, 12).childForceExpandWidth = false;
+            var coin = UiKit.Panel(moneyRow, "Coin", Gold);
+            coin.GetComponent<Image>().sprite = UiKit.CircleSprite;
+            coin.GetComponent<Image>().type = Image.Type.Simple;
+            UiKit.Width(coin, 40);
+            UiKit.Height(coin, 40);
+            _money = UiKit.Label(moneyRow, "", 36, TextAnchor.MiddleLeft, Gold);
+            _money.fontStyle = FontStyle.Bold;
+            UiKit.Width(_money, 0, 1);
             _status = UiKit.Label(card, "", 32);
             UiKit.Height(_status, 90);
             var fatigueRow = UiKit.Empty(card, "Fatigue");
@@ -1545,7 +1565,8 @@ namespace BaseballGame
                 : me.Role == PitcherRole.Closer ? $"{p.Saves}세이브 평균자책 {p.EraText}"
                 : me.Role == PitcherRole.Setup ? $"{p.Holds}홀드 평균자책 {p.EraText}"
                 : $"{p.Wins}승 {p.Losses}패 평균자책 {p.EraText}";
-            _status.text = $"{season}  ·  보유 {me.Money:N0}만원  ·  인기 {me.Popularity}{injury}{morale}\n" +
+            _money.text = $"{me.Money:N0}만원  <size=26><color=#9EABC2>연봉 {me.Salary:N0}만원</color></size>";
+            _status.text = $"{season}  ·  인기 {me.Popularity}{injury}{morale}\n" +
                 $"<size=24><color=#9EABC2>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
 
