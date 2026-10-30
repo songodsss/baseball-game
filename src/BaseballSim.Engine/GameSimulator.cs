@@ -195,7 +195,7 @@ namespace BaseballSim
                 Suspended = situation;
                 throw new SuspendGame();
             }
-            AtBatChoice.Apply(odds, approach.Value, situation.Coming);
+            AtBatChoice.Apply(odds, approach.Value, situation.Coming, batter);
             return AtBatChoice.Note(approach.Value, situation.Coming);
         }
 

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace BaseballSim
 {
     /// <summary>Batting ratings, each 1-100 where 50 is league average.</summary>
@@ -28,6 +30,8 @@ namespace BaseballSim
         public PitchingRatings Pitching;
         /// <summary>Day-of-game form, -10..+10, added to every rating while playing.</summary>
         public int Condition;
+        /// <summary>Traits that change big at bats (see AtBatChoice); empty for league players.</summary>
+        public HashSet<string> Traits = new HashSet<string>();
 
         public bool IsPitcher => Pitching != null;
 

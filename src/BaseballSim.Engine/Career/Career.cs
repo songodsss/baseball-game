@@ -39,6 +39,10 @@ namespace BaseballSim.Career
         public TradeOffer Trade;
         /// <summary>A big at bat waiting for <see cref="Career.ChooseApproach"/>; null once the day is done.</summary>
         public AtBatSituation AtBat;
+        /// <summary>Stats whose potential went up today through training past the limit.</summary>
+        public List<Stat> Breakthroughs = new List<Stat>();
+        /// <summary>A trait slot opened: pick one with ChooseTrait. Stays on offer until picked.</summary>
+        public List<Trait> TraitOffer;
         /// <summary>My big at bats so far today with the approach taken, e.g. "7회 ... 2루타 (직구 노림 적중!)".</summary>
         public List<string> AtBatLog = new List<string>();
         /// <summary>The all-star game, played on the midseason day; null on other days.</summary>
@@ -209,6 +213,14 @@ namespace BaseballSim.Career
                 PendingEvent = StoryEvents.Pick(this, result, _random);
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
+            result.Breakthroughs = new List<Stat>(Me.NewBreakthroughs);
+            Me.NewBreakthroughs.Clear();
+            if (PendingTraitOffer == null && Me.Traits.Count < Traits.SlotsEarned(Me))
+            {
+                var offer = Traits.Offer(Me, _random);
+                if (offer.Count > 0) PendingTraitOffer = offer;
+            }
+            result.TraitOffer = PendingTraitOffer;
             return result;
         }
 
@@ -235,16 +247,17 @@ namespace BaseballSim.Career
             double rehab = 1 - Facilities.InjuryReduction(Me.FacilityLevel(Facility.RehabCenter));
             if (tired && _random.NextDouble() < InjuryChanceWhenTired * rehab)
             {
-                Me.InjuryDaysLeft = (int)Math.Ceiling((5 + _random.NextDouble() * 10) * rehab / DayWeight);
+                double quick = Me.Traits.Contains(Traits.Recovery) ? 0.6 : 1.0;
+                Me.InjuryDaysLeft = (int)Math.Ceiling((5 + _random.NextDouble() * 10) * rehab * quick / DayWeight);
                 result.GotInjured = true;
                 return;
             }
 
             var (main, side) = TrainingTargets(action);
-            double mult = AgeGrowth(Me.Age) * (tired ? 0.5 : 1.0);
+            double mult = AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
             AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult)));
             AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult)));
-            Me.Fatigue = Math.Min(100, Me.Fatigue + TrainFatigue);
+            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
         }
 
         static (Stat Main, Stat Side) TrainingTargets(DailyAction action)
@@ -259,7 +272,24 @@ namespace BaseballSim.Career
             }
         }
 
-        static double AgeGrowth(int age) => age <= 22 ? 1.3 : age <= 27 ? 1.0 : age <= 31 ? 0.7 : 0.4;
+        double AgeGrowth()
+        {
+            int age = Me.Age;
+            double growth = age <= 22 ? 1.3 : age <= 27 ? 1.0 : age <= 31 ? 0.7 : 0.4;
+            return age >= 28 && Me.Traits.Contains(Traits.LateBloomer) ? growth * 1.6 : growth;
+        }
+
+        int Tiring(int fatigue) => Me.Traits.Contains(Traits.Iron) ? (int)Math.Round(fatigue * 0.7) : fatigue;
+
+        /// <summary>Three traits to pick one from, offered when a slot opens; waits until picked.</summary>
+        public List<Trait> PendingTraitOffer { get; private set; }
+
+        public void ChooseTrait(string id)
+        {
+            if (PendingTraitOffer == null || !PendingTraitOffer.Any(t => t.Id == id)) throw new InvalidOperationException("Not on offer.");
+            Me.Traits.Add(id);
+            PendingTraitOffer = null;
+        }
 
         static void AddPoints(DayResult result, Stat stat, int points)
         {
@@ -370,13 +400,13 @@ namespace BaseballSim.Career
             StintDays++;
             GainGameExp(result, result.MyLine);
             PayForGame(result);
-            Me.Fatigue = Math.Min(100, Me.Fatigue + GameFatigue);
+            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue));
         }
 
         // Every game gives some exp, even an 0-for-4, so a bad day never feels wasted.
         void GainGameExp(DayResult result, BattingLine l)
         {
-            double mult = AgeGrowth(Me.Age) * DayWeight;
+            double mult = AgeGrowth() * DayWeight;
             int extraBase = l.Doubles + l.Triples;
             int Exp(double raw) => (int)Math.Round(raw * mult);
 

@@ -172,7 +172,7 @@ namespace BaseballGame
             UiKit.Height(card, 180);
             UiKit.Column(card, 24, 12);
             _status = UiKit.Label(card, "", 32);
-            UiKit.Height(_status, 50);
+            UiKit.Height(_status, 90);
             var fatigueRow = UiKit.Empty(card, "Fatigue");
             UiKit.Height(fatigueRow, 66);
             UiKit.Row(fatigueRow, 16).childForceExpandWidth = false;
@@ -238,6 +238,10 @@ namespace BaseballGame
             {
                 ShowAllStar(result.AllStar);
             }
+            else if (result.TraitOffer != null)
+            {
+                ShowTraitOffer(result.TraitOffer);
+            }
             else if (result.Event != null)
             {
                 ShowEvent(result.Event);
@@ -279,6 +283,28 @@ namespace BaseballGame
             var result = _career.ChooseApproach(approach);
             if (result.AtBat != null) ShowAtBat(result);
             else AfterDay(result);
+        }
+
+        // ---------- Traits ----------
+
+        void ShowTraitOffer(List<Trait> offer)
+        {
+            var card = OpenOverlay("특성 선택");
+            UiKit.Height(UiKit.Label(card, $"능력치 총합 {Traits.RatingTotal(_career.Me)} 달성! 특성 하나를 골라요.\n훈련한 방향에 따라 후보가 달라져요.", 32, TextAnchor.MiddleCenter, UiKit.Muted), 140);
+            foreach (var trait in offer)
+            {
+                var t = trait;
+                UiKit.Height(UiKit.Button(card, $"{t.Name}\n<size=26>{t.Description}</size>", () =>
+                {
+                    _career.ChooseTrait(t.Id);
+                    Log($"<color=#FFD24D>특성 획득: {t.Name}</color> ({t.Description})");
+                    CloseOverlay();
+                    Save();
+                    Refresh();
+                }), 150);
+            }
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            Tip("trait", "능력치 총합이 늘 때마다 특성을 하나씩 골라요. 한계에 닿은 능력치를 계속 훈련하면 잠재력이 올라가요(한계 돌파).");
         }
 
         // ---------- Story events ----------
@@ -413,6 +439,8 @@ namespace BaseballGame
                     lines.Add($"  {Commentary.HalfInning(ev.Inning, ev.IsTopHalf)} {Commentary.Describe(ev)}");
             }
             foreach (var atBat in r.AtBatLog) lines.Add($"  찬스: {atBat}");
+            foreach (var stat in r.Breakthroughs)
+                lines.Add($"<color=#F28C40>한계 돌파! {StatNames[stat]} 잠재력 +{CareerPlayer.BreakthroughGain} → {_career.Me.Potential[stat]}</color>");
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
             if (r.AllStar != null)
             {
@@ -463,7 +491,7 @@ namespace BaseballGame
 
         // ---------- Settings ----------
 
-        static readonly string[] TipKeys = { "start", "watch", "fatigue", "shop", "records", "event", "season_end", "move", "atbat" };
+        static readonly string[] TipKeys = { "start", "watch", "fatigue", "shop", "records", "event", "season_end", "move", "atbat", "trait" };
 
         void ShowSettings()
         {
@@ -888,16 +916,24 @@ namespace BaseballGame
             string avg = l.AtBats == 0 ? ".000" : ((double)l.Hits / l.AtBats).ToString(".000");
             string injury = me.IsInjured ? $"  <color=#F28C40>부상 {me.InjuryDaysLeft}일</color>" : "";
             string morale = me.Morale > 0 ? $"  <color=#5FA8FF>사기 +{me.Morale}</color>" : me.Morale < 0 ? $"  <color=#F28C40>사기 {me.Morale}</color>" : "";
-            _status.text = $"타율 {avg}  {l.HomeRuns}홈런  ·  보유 {me.Money:N0}만원{injury}{morale}";
+            var next = Traits.NextMilestone(me);
+            string traits = me.Traits.Count == 0 ? "특성 없음" : "특성 " + string.Join(" · ", me.Traits.Select(id => Traits.Find(id)?.Name));
+            _status.text = $"타율 {avg}  {l.HomeRuns}홈런  ·  보유 {me.Money:N0}만원{injury}{morale}\n" +
+                $"<size=24><color=#9EABC2>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
 
             foreach (var stat in CareerPlayer.AllStats)
             {
-                int bonus = me.EquipmentBonus(stat);
+                int bonus = me.EffectiveRating(stat) - me.Ratings[stat];
                 string gear = bonus > 0 ? $"<color=#5FA8FF>+{bonus}</color>" : "";
-                _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear} <size=24><color=#9EABC2>/ {me.Potential[stat]}</color></size>";
                 bool maxed = me.Ratings[stat] >= me.Potential[stat];
-                UiKit.SetBar(_expFills[stat], maxed ? 1f : (float)me.Exp[stat] / CareerPlayer.ExpToNext(me.Ratings[stat]));
+                bool canBreak = maxed && me.BreakthroughCount(stat) < CareerPlayer.MaxBreakthroughs && me.Potential[stat] < 99;
+                string limit = canBreak ? $" <color=#F28C40>돌파 {me.BreakthroughCount(stat)}/{CareerPlayer.MaxBreakthroughs}</color>" : "";
+                _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear} <size=24><color=#9EABC2>/ {me.Potential[stat]}</color>{limit}</size>";
+                // At the limit the bar shows progress toward the next breakthrough instead.
+                UiKit.SetBar(_expFills[stat], canBreak
+                    ? (float)me.BreakthroughProgress(stat) / me.BreakthroughNeed(stat)
+                    : maxed ? 1f : (float)me.Exp[stat] / CareerPlayer.ExpToNext(me.Ratings[stat]));
             }
 
             foreach (var b in _actionButtons) b.interactable = !me.IsInjured || b == _actionButtons.Last();

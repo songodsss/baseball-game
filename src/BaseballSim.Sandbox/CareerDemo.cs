@@ -38,6 +38,8 @@ namespace BaseballSim.Sandbox
                             career.ResolveEvent((int)(random.NextDouble() * day.Event.Choices.Count));
                             events++;
                         }
+                        // Autopilot picks the first trait offered.
+                        if (day.TraitOffer != null) career.ChooseTrait(day.TraitOffer[0].Id);
                         // Autopilot takes half the trade offers.
                         if (day.Trade != null)
                         {

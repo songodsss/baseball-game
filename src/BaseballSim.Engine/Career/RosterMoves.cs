@@ -96,7 +96,7 @@ namespace BaseballSim.Career
             // 2군 pays the salary share but no hit bonuses.
             result.MoneyEarned = Me.Salary / League.GamesPerSeason;
             Me.Money += result.MoneyEarned;
-            Me.Fatigue = Math.Min(100, Me.Fatigue + GameFatigue);
+            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue));
         }
 
         void Tally(BattingLine line, Outcome outcome)

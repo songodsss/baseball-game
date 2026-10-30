@@ -42,6 +42,11 @@ namespace BaseballSim
 
     public static class AtBatChoice
     {
+        // Career traits that work in big at bats.
+        public const string Reader = "reader";
+        public const string Clutch = "clutch";
+        public const string Gambler = "gambler";
+
         /// <summary>Scoring position, or a close game late.</summary>
         public static bool IsBig(int inning, bool[] bases, int scoreGap) =>
             bases[1] || bases[2] || inning >= 7 && Math.Abs(scoreGap) <= 1;
@@ -60,7 +65,7 @@ namespace BaseballSim
         {
             double share = FastballShare(pitcher);
             var coming = random.NextDouble() < share ? Pitch.Fastball : Pitch.Breaking;
-            double accuracy = HunchAccuracy(batter.Batting.Eye);
+            double accuracy = Math.Min(0.95, HunchAccuracy(batter.Batting.Eye) + (batter.Traits.Contains(Reader) ? 0.15 : 0));
             var other = coming == Pitch.Fastball ? Pitch.Breaking : Pitch.Fastball;
             return new AtBatSituation
             {
@@ -79,13 +84,17 @@ namespace BaseballSim
         /// A right guess turns the at bat into a hitter's count; a wrong one leaves the batter fooled.
         /// Sitting on the likelier pitch pays on average, and a good eye pays more.
         /// </summary>
-        public static void Apply(OutcomeOdds odds, Approach approach, Pitch coming)
+        public static void Apply(OutcomeOdds odds, Approach approach, Pitch coming, Player batter = null)
         {
             if (approach == Approach.Normal) return;
+            bool clutch = batter != null && batter.Traits.Contains(Clutch);
+            bool gambler = batter != null && batter.Traits.Contains(Gambler);
             if (approach == Approach.Patient)
                 Scale(odds, strikeout: 1.15, walk: 1.7, homeRun: 0.7, single: 0.9, extra: 0.85);
             else if (GuessedRight(approach, coming))
-                Scale(odds, strikeout: 0.55, walk: 0.8, homeRun: 1.9, single: 1.25, extra: 1.5);
+                Scale(odds, strikeout: 0.55, walk: 0.8, homeRun: clutch ? 2.4 : 1.9, single: 1.25, extra: clutch ? 1.8 : 1.5);
+            else if (gambler)
+                Scale(odds, strikeout: 1.3, walk: 1.0, homeRun: 0.75, single: 0.9, extra: 0.85);
             else
                 Scale(odds, strikeout: 1.6, walk: 1.0, homeRun: 0.5, single: 0.8, extra: 0.7);
         }
