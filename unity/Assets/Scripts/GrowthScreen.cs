@@ -332,7 +332,7 @@ namespace BaseballGame
         void SituationBoard(RectTransform card, AtBatSituation s, string previous)
         {
             var board = UiKit.Panel(card, "Situation", UiKit.Background);
-            UiKit.Height(board, 330);
+            UiKit.Height(board, 300);
             var row = UiKit.Row(board, 24);
             row.padding = new RectOffset(28, 28, 20, 20);
             row.childForceExpandWidth = false;
@@ -384,8 +384,56 @@ namespace BaseballGame
             string matchup = s.Pitching ? $"투수 <b>{_career.Me.Name}</b>  vs  타자 {s.Batter.Name}" : $"타자 <b>{_career.Me.Name}</b>  vs  투수 {s.Pitcher.Name}";
             UiKit.Height(UiKit.Label(right, matchup, 28, TextAnchor.MiddleCenter, UiKit.Muted), 44);
 
+            if (s.Score != null) LineScoreTable(card, s, opponent);
             if (previous != null)
                 UiKit.Height(UiKit.Label(card, previous, 26, TextAnchor.MiddleCenter, UiKit.Muted), 44);
+        }
+
+        /// <summary>The inning-by-inning scoreboard; the half under way is lit in gold.</summary>
+        void LineScoreTable(RectTransform card, AtBatSituation s, string opponent)
+        {
+            var line = s.Score;
+            int first = Mathf.Max(1, line.Innings - 8);
+            int columns = Mathf.Max(9, line.Innings - first + 1);
+            var widths = new float[columns + 3];
+            widths[0] = 210;
+            for (int i = 1; i <= columns; i++) widths[i] = 0;
+            widths[columns + 1] = widths[columns + 2] = 70;
+
+            var table = UiKit.Panel(card, "Line Score", UiKit.Background);
+            UiKit.Height(table, 190);
+            UiKit.Column(table, 8, 0);
+            var header = new string[columns + 3];
+            header[0] = "";
+            for (int i = 0; i < columns; i++) header[i + 1] = (first + i).ToString();
+            header[columns + 1] = "R";
+            header[columns + 2] = "H";
+            UiKit.TableRow(table, widths, header, 24, UiKit.Muted);
+
+            string away = s.MineIsAway ? _career.MyTeam.Name : opponent;
+            string home = s.MineIsAway ? opponent : _career.MyTeam.Name;
+            ScoreRow(table, widths, away, line.Away, line.AwayRuns, line.AwayHits, first, columns, s.MineIsAway, s.IsTopHalf ? s.Inning : 0);
+            ScoreRow(table, widths, home, line.Home, line.HomeRuns, line.HomeHits, first, columns, !s.MineIsAway, s.IsTopHalf ? 0 : s.Inning);
+        }
+
+        static void ScoreRow(Transform table, float[] widths, string team, List<int?> innings, int runs, int hits,
+            int first, int columns, bool mine, int liveInning)
+        {
+            var cells = new string[columns + 3];
+            // Club names are long: the nickname alone fits the column ("서울 블루윙스" → "블루윙스").
+            int space = team.IndexOf(' ');
+            string shortName = space >= 0 ? team.Substring(space + 1) : team;
+            cells[0] = mine ? $"<b>{shortName}</b>" : shortName;
+            for (int i = 0; i < columns; i++)
+            {
+                int inning = first + i;
+                int? r = inning <= innings.Count ? innings[inning - 1] : null;
+                string text = r?.ToString() ?? "";
+                cells[i + 1] = inning == liveInning ? $"<color=#FFD24D><b>{text}</b></color>" : text;
+            }
+            cells[columns + 1] = $"<color=#FFD24D><b>{runs}</b></color>";
+            cells[columns + 2] = hits.ToString();
+            UiKit.TableRow(table, widths, cells, 32, mine ? Color.white : new Color(0.8f, 0.84f, 0.9f));
         }
 
         void ScoreLine(RectTransform parent, string team, int runs, bool leading)

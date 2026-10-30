@@ -42,6 +42,17 @@ public class AtBatChoiceTests
         Assert.InRange(s.FastballShare, 0.35, 0.75);
         Assert.Throws<InvalidOperationException>(() => career.PlayDay(DailyAction.Rest));
 
+        // The scoreboard so far adds up to the score and runs up to the inning under way.
+        var line = s.Score;
+        Assert.Equal(s.Inning, line.Innings);
+        Assert.Equal(line.AwayRuns, line.Away.Sum(r => r ?? 0));
+        Assert.Equal(line.HomeRuns, line.Home.Sum(r => r ?? 0));
+        Assert.Equal(s.MyRuns, s.MineIsAway ? line.AwayRuns : line.HomeRuns);
+        Assert.Equal(s.TheirRuns, s.MineIsAway ? line.HomeRuns : line.AwayRuns);
+        Assert.Equal(s.IsTopHalf, line.Home[s.Inning - 1] == null);
+        Assert.NotNull(career.MidGameOpponent);
+        Assert.NotEqual(career.MyTeam, career.MidGameOpponent);
+
         int answers = 0;
         while (day.AtBat != null)
         {
