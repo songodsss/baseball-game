@@ -3,7 +3,6 @@ using System.Linq;
 using BaseballSim;
 using BaseballSim.Career;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using CareerState = BaseballSim.Career.Career;
 
@@ -15,12 +14,11 @@ namespace BaseballGame
     /// </summary>
     public class GrowthScreen : MonoBehaviour
     {
-        // Press Play in any scene and the prototype starts.
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Boot()
+        /// <summary>Plays a save slot; the title screen calls this after a slot is picked.</summary>
+        public static void Open(int slot)
         {
-            if (FindAnyObjectByType<GrowthScreen>() == null)
-                new GameObject("GrowthScreen").AddComponent<GrowthScreen>();
+            SaveStore.CurrentSlot = slot;
+            new GameObject("GrowthScreen").AddComponent<GrowthScreen>();
         }
 
         static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
@@ -53,7 +51,8 @@ namespace BaseballGame
         readonly Dictionary<Stat, RectTransform> _expFills = new Dictionary<Stat, RectTransform>();
         readonly List<Button> _actionButtons = new List<Button>();
         readonly Dictionary<Stat, GameObject> _ratingRows = new Dictionary<Stat, GameObject>();
-        Button _seasonLengthButton, _watchButton, _adButton;
+        Button _seasonLengthButton, _watchButton, _adButton, _ticketButton, _missionButton, _fastButton;
+        bool _fast;
         GameObject _canvas;
         DayResult _lastDay;
         int _goalSkippedSeason;
@@ -64,12 +63,8 @@ namespace BaseballGame
         void Start()
         {
             _random = new SeededRandom(System.Environment.TickCount);
-            bool loaded = SaveStore.TryLoad(_random, out var club, out var career);
-            if (loaded)
-            {
-                _club = club;
-                _career = career;
-            }
+            _club = SaveStore.LoadClub(_random);
+            SaveStore.TryLoadCareer(SaveStore.CurrentSlot, _club, _random, out _career);
             BuildUi();
             Refresh();
 
@@ -77,13 +72,18 @@ namespace BaseballGame
             else if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
             else if (_career.Day == 0 && _career.PendingOffers.Count > 0) ShowOffers(); // closed the app mid-negotiation
             else if (_career.Day == 0 && _career.PendingSalary != null) ShowSalaryTalk();
-            else Log($"{_career.Me.Name} 선수, {_career.Year}년 {_career.Day + 1}일차부터 이어서 합니다.");
+            else
+            {
+                Log($"{_career.Me.Name} 선수, {_career.Year}년 {_career.Day + 1}일차부터 이어서 합니다.");
+                CheckIn();
+            }
         }
 
         // Phones kill backgrounded apps without warning, so save whenever the app is left too.
         void OnApplicationPause(bool paused)
         {
             if (paused) Save();
+            else if (_overlay == null) CheckIn(); // back the next morning: a new day's missions and check-in
         }
 
         void OnApplicationQuit() => Save();
@@ -111,8 +111,7 @@ namespace BaseballGame
 
         void BuildUi()
         {
-            if (FindAnyObjectByType<EventSystem>() == null)
-                new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+            UiKit.EnsureEventSystem();
 
             var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
@@ -142,16 +141,21 @@ namespace BaseballGame
             _header = UiKit.Label(top, "", 44);
             _header.rectTransform.sizeDelta = new Vector2(0, 120);
             UiKit.Width(_header, 0, 1);
-            var settings = UiKit.Button(top, "설정", ShowSettings, UiKit.Card);
-            settings.GetComponentInChildren<Text>().fontSize = 28;
-            UiKit.Width(settings, 150);
-            ((RectTransform)settings.transform).sizeDelta = new Vector2(150, 100);
+            _missionButton = HeaderButton(top, "미션", ShowMissions);
+            HeaderButton(top, "도감", () => CollectionScreen.Open(_career, _club));
+            HeaderButton(top, "설정", ShowSettings);
 
             BuildStatusCard(root);
             BuildRatingsCard(root);
 
-            _todayText = UiKit.Label(root, "", 30, TextAnchor.MiddleCenter, UiKit.Muted);
-            UiKit.Height(_todayText, 44);
+            var todayRow = UiKit.Empty(root, "Today");
+            UiKit.Height(todayRow, 64);
+            UiKit.Row(todayRow, 16).childForceExpandWidth = false;
+            _todayText = UiKit.Label(todayRow, "", 30, TextAnchor.MiddleCenter, UiKit.Muted);
+            UiKit.Width(_todayText, 0, 1);
+            _fastButton = UiKit.Button(todayRow, "", () => { _fast = !_fast; Refresh(); }, UiKit.Card);
+            _fastButton.GetComponentInChildren<Text>().fontSize = 26;
+            UiKit.Width(_fastButton, 260);
 
             var actions = UiKit.Empty(root, "Actions");
             UiKit.Height(actions, 260);
@@ -206,6 +210,18 @@ namespace BaseballGame
             _adButton = UiKit.Button(fatigueRow, "", WatchAdForRecovery, new Color(0.2f, 0.6f, 0.45f));
             _adButton.GetComponentInChildren<Text>().fontSize = 26;
             UiKit.Width(_adButton, 280);
+            _ticketButton = UiKit.Button(fatigueRow, "", UseRecoveryTicket, new Color(0.55f, 0.4f, 0.8f));
+            _ticketButton.GetComponentInChildren<Text>().fontSize = 26;
+            UiKit.Width(_ticketButton, 200);
+        }
+
+        Button HeaderButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick)
+        {
+            var button = UiKit.Button(parent, label, onClick, UiKit.Card);
+            button.GetComponentInChildren<Text>().fontSize = 28;
+            UiKit.Width(button, 130);
+            ((RectTransform)button.transform).sizeDelta = new Vector2(130, 100);
+            return button;
         }
 
         void BuildRatingsCard(RectTransform root)
@@ -239,14 +255,38 @@ namespace BaseballGame
                 ShowGoalOffer(action);
                 return;
             }
+            if (_fast && Premium.Owns(Premium.FastSkip)) { FastForward(action); return; }
             var result = _career.PlayDay(action);
             if (result.AtBat != null) ShowAtBat(result);
             else AfterDay(result);
         }
 
+        /// <summary>
+        /// Fast skip (a paid convenience): the same action several days running, big moments played
+        /// the usual way. It stops at the first day that needs a choice or a look, and when tired.
+        /// </summary>
+        void FastForward(DailyAction action)
+        {
+            for (int i = 0; i < Premium.FastSkipDays; i++)
+            {
+                var result = _career.PlayDay(action);
+                if (result.AtBat != null) _club.Daily.Count(MissionKind.BigMoment);
+                while (result.AtBat != null) result = _career.ChooseApproach(Approach.Normal);
+                bool stop = i == Premium.FastSkipDays - 1 || _career.IsSeasonOver || result.Move != null || result.Trade != null ||
+                    result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.TraitOffer != null ||
+                    result.Event != null || result.GotInjured || _career.GoalOffer != null ||
+                    (action != DailyAction.Rest && _career.Me.Fatigue >= 80) || !_career.TrainingChoices.Contains(action);
+                if (stop) { AfterDay(result); return; }
+                _lastDay = result;
+                _club.Daily.Record(result);
+                DescribeDay(result);
+            }
+        }
+
         void AfterDay(DayResult result)
         {
             _lastDay = result;
+            _club.Daily.Record(result);
             DescribeDay(result);
             if (_career.IsSeasonOver)
             {
@@ -296,6 +336,7 @@ namespace BaseballGame
         /// <summary>The game is paused at my big at bat: read the pitcher and pick an approach.</summary>
         void ShowAtBat(DayResult result)
         {
+            _club.Daily.Count(MissionKind.BigMoment);
             if (result.AtBat.Pitching) { ShowPitchChoice(result); return; }
             var s = result.AtBat;
             var card = OpenOverlay("찬스 타석!");
@@ -617,6 +658,9 @@ namespace BaseballGame
         void WatchGame()
         {
             if (_lastDay?.MyGame == null) return;
+            _club.Daily.Count(MissionKind.WatchGame);
+            Save();
+            Refresh();
             _canvas.SetActive(false);
             MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true));
         }
@@ -634,17 +678,107 @@ namespace BaseballGame
         /// <summary>A rewarded ad takes fatigue down, a few times a day. Never touches ratings.</summary>
         void WatchAdForRecovery()
         {
-            if (_overlay != null || Monetization.AdsLeftToday <= 0 || !Monetization.Ads.IsReady) return;
-            Monetization.Ads.Show(watched =>
+            if (_overlay != null || Monetization.AdsLeftToday <= 0) return;
+            void Reward(bool watched)
             {
                 if (!watched) return;
                 Monetization.CountAdWatched();
                 int before = _career.Me.Fatigue;
                 _career.RecoverFatigue(Monetization.AdFatigueRecovery);
-                Log($"광고 보상: 피로 {before} → {_career.Me.Fatigue}");
+                Log($"{(Premium.Owns(Premium.RemoveAds) ? "회복 보상" : "광고 보상")}: 피로 {before} → {_career.Me.Fatigue}");
                 Save();
                 Refresh();
-            });
+            }
+            // With ads removed the reward comes straight away; the daily limit stays.
+            if (Premium.Owns(Premium.RemoveAds)) Reward(true);
+            else if (Monetization.Ads.IsReady) Monetization.Ads.Show(Reward);
+        }
+
+        // ---------- Daily missions and check-in ----------
+
+        static string Today => DailyMissions.DateOf(System.DateTime.Now);
+
+        /// <summary>A new date brings new missions; the first visit of the day gets the check-in reward.</summary>
+        void CheckIn()
+        {
+            var daily = _club.Daily;
+            bool newDay = daily.Refresh(Today);
+            var reward = daily.CheckIn(Today, _club, _career);
+            if (reward == null)
+            {
+                if (newDay) { Save(); Refresh(); }
+                return;
+            }
+            Save();
+            Refresh();
+            var card = OpenOverlay("출석 체크");
+            var week = UiKit.Empty(card, "Week");
+            UiKit.Height(week, 170);
+            UiKit.Row(week, 10);
+            int dayOfWeek = (daily.Streak - 1) % 7;
+            for (int i = 0; i < 7; i++)
+            {
+                var r = DailyMissions.CheckInReward(i + 1);
+                var cell = UiKit.Panel(week, "Day", i < dayOfWeek ? UiKit.Background : i == dayOfWeek ? UiKit.Accent : UiKit.Shade(UiKit.Card, 1.3f));
+                var label = UiKit.Label(cell, $"{i + 1}일\n<size=20>{DailyMissions.DescribeReward(r.Kind, r.Amount)}</size>", 24, TextAnchor.MiddleCenter,
+                    i < dayOfWeek ? UiKit.Muted : Color.white);
+                UiKit.Stretch(label.rectTransform);
+                if (i == dayOfWeek) UiAnim.PopIn(cell);
+            }
+            string text = $"<color=#FFD24D><b>{daily.Streak}일 연속 출석!</b></color>\n\n오늘의 보상: <b>{DailyMissions.DescribeReward(reward.Value.Kind, reward.Value.Amount)}</b>\n\n" +
+                $"<size=26><color=#9EABC2>하루라도 빠지면 1일차부터 다시 시작해요. 총 출석 {daily.TotalCheckIns}일</color></size>";
+            UiKit.Height(UiKit.Label(card, text, 34, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "오늘의 미션 보기", ShowMissions), 110);
+            UiKit.Height(UiKit.Button(card, "확인", CloseOverlay, UiKit.Muted), 110);
+        }
+
+        void ShowMissions()
+        {
+            var daily = _club.Daily;
+            daily.Refresh(Today);
+            var card = OpenOverlay("오늘의 미션");
+            UiKit.Height(UiKit.Label(card, "매일 자정에 새 미션 3개가 나와요. 다 하면 보상을 받으세요.\n모든 슬롯이 함께 써요.", 28, TextAnchor.MiddleCenter, UiKit.Muted), 100);
+            for (int i = 0; i < daily.Today.Count; i++)
+            {
+                int index = i;
+                var m = daily.Today[i];
+                var row = UiKit.Panel(card, "Mission", UiKit.Shade(UiKit.Card, 1.3f));
+                UiKit.Height(row, 170);
+                var layout = UiKit.Row(row, 16);
+                layout.padding = new RectOffset(24, 24, 16, 16);
+                layout.childForceExpandWidth = false;
+                var info = UiKit.Empty(row, "Info");
+                UiKit.Width(info, 0, 1);
+                UiKit.Column(info, 0, 6);
+                UiKit.Height(UiKit.Label(info, $"<b>{m.Text}</b>", 30), 50);
+                UiKit.Height(UiKit.Label(info, $"보상 {m.RewardText}  ·  {m.Progress}/{m.Goal}", 26, TextAnchor.MiddleLeft, UiKit.Muted), 40);
+                var bar = UiKit.Bar(info, m.Done ? new Color(0.2f, 0.75f, 0.45f) : UiKit.Accent);
+                UiKit.Height(bar.parent, 22);
+                UiKit.SetBar(bar, (float)m.Progress / m.Goal);
+                var claim = UiKit.Button(row, m.Claimed ? "받음" : m.Done ? "받기" : "진행 중", () =>
+                {
+                    if (!daily.Claim(index, _club, _career)) return;
+                    Log($"<color=#5FA8FF>미션 보상</color> {m.RewardText}");
+                    Save();
+                    Refresh();
+                    ShowMissions();
+                }, m.Done && !m.Claimed ? new Color(0.2f, 0.75f, 0.45f) : UiKit.Background);
+                claim.interactable = m.Done && !m.Claimed;
+                UiKit.Width(claim, 200);
+            }
+            UiKit.Height(UiKit.Label(card, $"출석 {daily.Streak}일 연속 · 피로 회복권 {daily.RecoveryTickets}장", 28, TextAnchor.MiddleCenter, UiKit.Muted), 70);
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+        }
+
+        void UseRecoveryTicket()
+        {
+            if (_overlay != null) return;
+            int before = _career.Me.Fatigue;
+            if (!_club.Daily.UseTicket(_career)) return;
+            Log($"피로 회복권 사용: 피로 {before} → {_career.Me.Fatigue}");
+            Save();
+            Refresh();
         }
 
         static Color TeamColor(string teamName) => UiKit.TeamColor(teamName);
@@ -701,6 +835,11 @@ namespace BaseballGame
             }, UiKit.Background), 110);
 
             UiKit.Height(UiKit.Label(card, "데이터", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+            var data = UiKit.Empty(card, "Data");
+            UiKit.Height(data, 110);
+            UiKit.Row(data, 16);
+            UiKit.Button(data, "타이틀로", BackToTitle, UiKit.Accent);
+            UiKit.Button(data, "유료 상품 (테스트)", () => { CloseOverlay(); PremiumScreen.Open(Refresh); }, new Color(0.55f, 0.4f, 0.8f));
             UiKit.Height(UiKit.Button(card, "모든 데이터 지우고 처음부터", ConfirmReset, UiKit.Warning), 110);
 
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
@@ -713,20 +852,29 @@ namespace BaseballGame
         void ConfirmReset()
         {
             var card = OpenOverlay("정말 지울까요?");
-            UiKit.Height(UiKit.Label(card, "진행 중인 선수, 내 팀 은퇴 선수, 업적이 모두 사라져요.\n되돌릴 수 없어요.", 32, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Label(card, "모든 슬롯의 선수, 내 팀 은퇴 선수, 업적, 도감이 모두 사라져요.\n되돌릴 수 없어요.", 32, TextAnchor.MiddleCenter), 0, 1);
             UiKit.Height(UiKit.Button(card, "지우기", () =>
             {
-                SaveStore.Delete();
+                SaveStore.DeleteAll();
                 PlayerPrefs.DeleteAll();
                 PlayerPrefs.Save();
                 // Nothing of the old game may be saved on the way out.
                 _retired = true;
                 _club = new Club();
-                var fresh = new GameObject("GrowthScreen").AddComponent<GrowthScreen>();
-                fresh.name = "GrowthScreen";
+                TitleScreen.Show();
                 Destroy(gameObject);
             }, UiKit.Warning), 110);
             UiKit.Height(UiKit.Button(card, "취소", ShowSettings, UiKit.Muted), 110);
+        }
+
+        void BackToTitle()
+        {
+            Save();
+            // Nothing more may be saved from this screen once the title is up.
+            _retired = true;
+            _career = null;
+            TitleScreen.Show();
+            Destroy(gameObject);
         }
 
         void CycleSeasonLength()
@@ -1234,6 +1382,7 @@ namespace BaseballGame
                 Log($"{CareerState.StartYear}년, {_career.Me.Name} 선수 {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
                 Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 잠재력(/ 뒤 숫자)까지 키울 수 있어요.");
                 Refresh();
+                CheckIn();
             }), 120);
         }
 
@@ -1317,8 +1466,18 @@ namespace BaseballGame
             var today = _career.TodaysGame();
             _todayText.text = today == null ? "" : $"오늘 경기  vs {today.Value.Opponent.Name} ({(today.Value.Home ? "홈" : "원정")})";
             int adsLeft = Monetization.AdsLeftToday;
-            UiKit.SetButtonLabel(_adButton, $"광고 보고 회복 ({adsLeft})");
+            UiKit.SetButtonLabel(_adButton, $"{(Premium.Owns(Premium.RemoveAds) ? "바로 회복" : "광고 보고 회복")} ({adsLeft})");
             _adButton.interactable = adsLeft > 0 && me.Fatigue > 0;
+            int tickets = _club.Daily.RecoveryTickets;
+            UiKit.SetButtonLabel(_ticketButton, $"회복권 {tickets}장");
+            _ticketButton.interactable = tickets > 0 && me.Fatigue > 0;
+            int unclaimed = _club.Daily.Unclaimed;
+            UiKit.SetButtonLabel(_missionButton, unclaimed > 0 ? $"미션 <color=#FFD24D>●{unclaimed}</color>" : "미션");
+            bool canFast = Premium.Owns(Premium.FastSkip);
+            _fastButton.gameObject.SetActive(canFast);
+            if (!canFast) _fast = false;
+            UiKit.SetButtonLabel(_fastButton, _fast ? $"빠른 진행 {Premium.FastSkipDays}일: 켜짐" : "빠른 진행: 꺼짐");
+            _fastButton.GetComponent<Image>().color = _fast ? UiKit.Warning : UiKit.Card;
             _watchButton.interactable = _lastDay?.MyGame != null;
         }
     }
