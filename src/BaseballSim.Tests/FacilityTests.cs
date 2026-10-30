@@ -17,7 +17,7 @@ public class FacilityTests
     {
         var career = NewCareer(1);
         Assert.False(career.UpgradeFacility(Facility.TrainerRoom)); // broke
-        career.Me.Money = 200000;
+        career.Me.Money = 500000;
         for (int level = 1; level <= Facilities.MaxLevel; level++)
         {
             int before = career.Me.Money;

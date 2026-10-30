@@ -61,7 +61,7 @@ namespace BaseballSim.Career
             Add("salary_1", "억대 연봉", "연봉 1억 원 돌파", c => c.Me.Salary >= 10000);
             Add("salary_10", "10억 연봉", "연봉 10억 원 돌파", c => c.Me.Salary >= 100000);
             Add("full_gear", "명품 장비", "모든 장비를 최고 등급으로", c => c.Me.Equipped.Count == 5 && c.Me.Equipped.Values.All(e => e.Price == EquipmentCatalog.All.Max(x => x.Price)));
-            Add("facilities", "나만의 훈련 센터", "개인 시설을 모두 최고 단계로", c => Facilities.All.All(f => c.Me.FacilityLevel(f) == Facilities.MaxLevel));
+            Add("facilities", "나만의 훈련 센터", "개인 시설을 모두 3단계 이상으로", c => Facilities.All.All(f => c.Me.FacilityLevel(f) >= 3));
             Add("all_star", "올스타", "올스타전 출전", c => c.Me.AllStarSelections >= 1);
             Add("all_star_mvp", "별 중의 별", "올스타전 MVP", c => c.Me.AllStarMvps >= 1);
             Add("reads", "수싸움의 달인", "찬스 타석 노림수 30번 적중", c => c.Me.ReadsRight >= 30);
