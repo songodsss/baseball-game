@@ -43,6 +43,10 @@ namespace BaseballGame
         CareerState _career;
         Club _club = new Club();
 
+        Image _headerBand;
+        RectTransform _emblem;
+        string _emblemTeam;
+        readonly Dictionary<Stat, int> _shownRatings = new Dictionary<Stat, int>();
         Text _header, _status, _log, _seasonLengthLabel, _todayText;
         RectTransform _fatigueFill;
         readonly Dictionary<Stat, Text> _ratingTexts = new Dictionary<Stat, Text>();
@@ -97,6 +101,7 @@ namespace BaseballGame
             var league = new League(new RosterGenerator(_random), games);
             var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus, position, number, role);
             _career = new CareerState(me, league, league.Teams[team], _random) { DecideAtBats = true };
+            _shownRatings.Clear();
             _lastDay = null;
             _retired = false;
             Save();
@@ -121,15 +126,26 @@ namespace BaseballGame
             var root = UiKit.SafeRoot(canvasGo.transform, UiKit.Background);
             UiKit.Column(root, 40, 20);
 
-            var top = UiKit.Empty(root, "Top");
-            UiKit.Height(top, 120);
+            UiKit.Backdrop(root, ArtLibrary.Background("growth"));
+
+            // The header sits on a band in the club colour, with the club badge at the left.
+            var top = UiKit.Panel(root, "Top", UiKit.Card);
+            _headerBand = top.GetComponent<Image>();
+            UiKit.Height(top, 140);
             var topRow = UiKit.Row(top, 16);
             topRow.childForceExpandWidth = false;
+            topRow.childControlHeight = false;
+            topRow.childAlignment = TextAnchor.MiddleLeft;
+            topRow.padding = new RectOffset(16, 16, 10, 10);
+            _emblem = ArtLibrary.Emblem(top, "", 104);
+            _emblem.sizeDelta = new Vector2(104, 104);
             _header = UiKit.Label(top, "", 44);
+            _header.rectTransform.sizeDelta = new Vector2(0, 120);
             UiKit.Width(_header, 0, 1);
             var settings = UiKit.Button(top, "설정", ShowSettings, UiKit.Card);
             settings.GetComponentInChildren<Text>().fontSize = 28;
             UiKit.Width(settings, 150);
+            ((RectTransform)settings.transform).sizeDelta = new Vector2(150, 100);
 
             BuildStatusCard(root);
             BuildRatingsCard(root);
@@ -148,8 +164,10 @@ namespace BaseballGame
             foreach (var (action, label) in Actions)
             {
                 var a = action;
-                _actionButtons.Add(UiKit.Button(actions, label, () => PlayDay(a),
-                    a == DailyAction.Rest ? new Color(0.2f, 0.6f, 0.45f) : UiKit.Accent));
+                var button = UiKit.Button(actions, label, () => PlayDay(a),
+                    a == DailyAction.Rest ? new Color(0.2f, 0.6f, 0.45f) : UiKit.Accent);
+                UiKit.ButtonIcon(button, ArtLibrary.TrainingIcon(a));
+                _actionButtons.Add(button);
             }
 
             var logCard = UiKit.Panel(root, "Log", UiKit.Card);
@@ -163,8 +181,9 @@ namespace BaseballGame
             UiKit.Height(bottom, 110);
             UiKit.Row(bottom, 20);
             _watchButton = UiKit.Button(bottom, "오늘 경기 보기", WatchGame);
-            UiKit.Button(bottom, "상점", ShowShop, UiKit.Card);
-            UiKit.Button(bottom, "기록", () => RecordsScreen.Open(_career, _club), UiKit.Card);
+            UiKit.ButtonIcon(_watchButton, ArtLibrary.Get("Icons/UI/watch"), 50);
+            UiKit.ButtonIcon(UiKit.Button(bottom, "상점", ShowShop, UiKit.Card), ArtLibrary.Get("Icons/UI/shop"), 50);
+            UiKit.ButtonIcon(UiKit.Button(bottom, "기록", () => RecordsScreen.Open(_career, _club), UiKit.Card), ArtLibrary.Get("Icons/UI/records"), 50);
             _seasonLengthButton = UiKit.Button(bottom, "", CycleSeasonLength, UiKit.Card);
             _seasonLengthLabel = _seasonLengthButton.GetComponentInChildren<Text>();
             foreach (var label in bottom.GetComponentsInChildren<Text>()) label.fontSize = 30;
@@ -382,6 +401,7 @@ namespace BaseballGame
         void ShowEvent(StoryEvent ev)
         {
             var card = OpenOverlay(ev.Title);
+            ArtLibrary.Banner(card, ArtLibrary.LegendPortrait(ev.Id) ?? ArtLibrary.EventArt(ev.Id), 380);
             UiKit.Height(UiKit.Label(card, ev.TextFor(_career), 36, TextAnchor.MiddleCenter), 0, 1);
             for (int i = 0; i < ev.Choices.Count; i++)
             {
@@ -627,8 +647,7 @@ namespace BaseballGame
             });
         }
 
-        static Color TeamColor(string teamName) =>
-            ColorUtility.TryParseHtmlString(League.TeamColors.TryGetValue(teamName, out var hex) ? hex : "#888888", out var c) ? c : Color.gray;
+        static Color TeamColor(string teamName) => UiKit.TeamColor(teamName);
 
         // ---------- Settings ----------
 
@@ -679,6 +698,7 @@ namespace BaseballGame
 
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Label(card, "프로토타입 0.1 · 결제와 광고는 아직 테스트용이라 실제로 청구되지 않아요.", 24, TextAnchor.MiddleCenter, UiKit.Muted), 60);
+            UiKit.Height(UiKit.Label(card, "아이콘: game-icons.net (Delapouite, Lorc, Skoll · CC BY 3.0) · 글꼴: Jua (SIL OFL)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 40);
             UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
         }
 
@@ -715,15 +735,15 @@ namespace BaseballGame
 
         RectTransform OpenOverlay(string title)
         {
+            // Swapping one popup for the next (or redrawing it) shouldn't replay the entrance.
+            bool animate = _overlay == null;
             CloseOverlay();
-            _overlay = UiKit.Panel(GetComponentInChildren<Canvas>().transform, "Overlay", new Color(0, 0, 0, 0.75f));
-            UiKit.Stretch(_overlay);
-            var card = UiKit.Panel(_overlay, "Card", UiKit.Card);
-            card.anchorMin = new Vector2(0.05f, 0.1f);
-            card.anchorMax = new Vector2(0.95f, 0.9f);
-            card.offsetMin = card.offsetMax = Vector2.zero;
+            _overlay = UiKit.Dim(GetComponentInChildren<Canvas>().transform, animate: animate);
+            var card = UiKit.PopupCard(_overlay, new Vector2(0.05f, 0.1f), new Vector2(0.95f, 0.9f), animate);
             UiKit.Column(card, 40, 20);
-            UiKit.Height(UiKit.Label(card, title, 48, TextAnchor.MiddleCenter), 90);
+            var heading = UiKit.Label(card, title, 48, TextAnchor.MiddleCenter);
+            heading.fontStyle = FontStyle.Bold;
+            UiKit.Height(heading, 90);
             return card;
         }
 
@@ -1097,6 +1117,12 @@ namespace BaseballGame
                 int index = i;
                 var b = UiKit.Button(teams, League.DefaultTeamNames[i].Replace(" ", "\n"), () => { team = index; ShowTeam(); });
                 b.GetComponentInChildren<Text>().fontSize = 24;
+                var emblem = ArtLibrary.TeamEmblem(League.DefaultTeamNames[i]);
+                if (emblem != null)
+                {
+                    UiKit.ButtonIcon(b, emblem);
+                    UiKit.SetButtonLabel(b, "");
+                }
                 teamButtons.Add(b);
             }
             ShowTeam();
@@ -1224,6 +1250,12 @@ namespace BaseballGame
                 : $" · {CareerState.SlotName(_career.LineupSlot)} 타자";
             string number = me.Number > 0 ? $"#{me.Number} " : "";
             string position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position);
+            if (_emblemTeam != _career.MyTeam.Name)
+            {
+                _emblemTeam = _career.MyTeam.Name;
+                ArtLibrary.SetEmblem(_emblem, _emblemTeam);
+                _headerBand.color = UiKit.Shade(TeamColor(_emblemTeam), 0.55f) + new Color(0.05f, 0.05f, 0.08f, 0);
+            }
             _header.text = $"<b>{me.Name}</b>  {number}{position} · {me.Age}세 · {_career.MyTeam.Name}\n" +
                 $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InMilitary ? " · <color=#9EABC2>군 복무 중</color>" : _career.InFarm ? " · <color=#F28C40>2군</color>" : role) +
                 (_career.ContractSeasonsLeft > 0 ? $" · 계약 {_career.ContractSeasonsLeft}년" : "") + "</color></size>";
@@ -1253,6 +1285,9 @@ namespace BaseballGame
                 bool maxed = me.Ratings[stat] >= me.Potential[stat];
                 bool canBreak = maxed && me.BreakthroughCount(stat) < CareerPlayer.MaxBreakthroughs && me.Potential[stat] < 99;
                 string limit = canBreak ? $" <color=#F28C40>돌파 {me.BreakthroughCount(stat)}/{CareerPlayer.MaxBreakthroughs}</color>" : "";
+                // A rating that went up since the last refresh swells for a moment.
+                if (_shownRatings.TryGetValue(stat, out int shown) && me.Ratings[stat] > shown) UiAnim.Pulse(_ratingTexts[stat]);
+                _shownRatings[stat] = me.Ratings[stat];
                 _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear} <size=24><color=#9EABC2>/ {me.Potential[stat]}</color>{limit}</size>";
                 // At the limit the bar shows progress toward the next breakthrough instead.
                 UiKit.SetBar(_expFills[stat], canBreak

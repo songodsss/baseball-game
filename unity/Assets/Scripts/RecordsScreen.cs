@@ -48,6 +48,7 @@ namespace BaseballGame
 
             var root = UiKit.SafeRoot(canvasGo.transform, UiKit.Background);
             UiKit.Column(root, 40, 20);
+            UiKit.Backdrop(root, ArtLibrary.Background("records"));
 
             UiKit.Height(UiKit.Label(root, "기록", 48), 80);
 

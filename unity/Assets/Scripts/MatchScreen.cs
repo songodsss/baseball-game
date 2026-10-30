@@ -251,7 +251,7 @@ namespace BaseballGame
             var spots = new[] { new Vector2(30, 0), new Vector2(0, 30), new Vector2(-30, 0) };
             for (int b = 0; b < 3; b++)
             {
-                var light = UiKit.Panel(diamond, "Base " + (b + 1), UiKit.Card);
+                var light = UiKit.Panel(diamond, "Base " + (b + 1), UiKit.Card, rounded: false);
                 light.sizeDelta = new Vector2(34, 34);
                 light.anchorMin = light.anchorMax = new Vector2(0.5f, 0.5f);
                 light.anchoredPosition = spots[b];
@@ -262,7 +262,12 @@ namespace BaseballGame
             var outs = UiKit.Empty(card, "Outs");
             UiKit.Width(outs, 90);
             UiKit.Row(outs, 14).padding = new RectOffset(0, 0, 38, 38);
-            for (int i = 0; i < 2; i++) _outLights[i] = UiKit.Panel(outs, "Out " + (i + 1), UiKit.Card).GetComponent<Image>();
+            for (int i = 0; i < 2; i++)
+            {
+                _outLights[i] = UiKit.Panel(outs, "Out " + (i + 1), UiKit.Card, rounded: false).GetComponent<Image>();
+                _outLights[i].sprite = UiKit.CircleSprite;
+                _outLights[i].preserveAspect = true;
+            }
 
             var texts = UiKit.Empty(card, "Texts");
             UiKit.Width(texts, 0, 1);
@@ -367,12 +372,8 @@ namespace BaseballGame
 
         void ShowFinal()
         {
-            var overlay = UiKit.Panel(_canvas, "Final", new Color(0, 0, 0, 0.75f));
-            UiKit.Stretch(overlay);
-            var card = UiKit.Panel(overlay, "Card", UiKit.Card);
-            card.anchorMin = new Vector2(0.06f, 0.25f);
-            card.anchorMax = new Vector2(0.94f, 0.75f);
-            card.offsetMin = card.offsetMax = Vector2.zero;
+            var overlay = UiKit.Dim(_canvas, "Final");
+            var card = UiKit.PopupCard(overlay, new Vector2(0.06f, 0.25f), new Vector2(0.94f, 0.75f));
             UiKit.Column(card, 40, 20);
 
             string title = Game.IsTie ? "무승부" : $"{Game.Winner.Name} 승리";

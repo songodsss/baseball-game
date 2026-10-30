@@ -30,6 +30,9 @@ namespace BaseballGame
         };
 
         static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
+        static readonly Color Dirt = new Color(0.74f, 0.53f, 0.34f);
+        static readonly Color Skin = new Color(0.96f, 0.8f, 0.66f);
+        static readonly Vector3 BodyScale = new Vector3(0.9f, 0.8f, 0.9f);
 
         /// <summary>Playback speed multiplier.</summary>
         public float Speed = 1f;
@@ -75,8 +78,14 @@ namespace BaseballGame
             _camera.fieldOfView = 55;
             _camera.farClipPlane = 600;
             _camera.clearFlags = CameraClearFlags.SolidColor;
-            _camera.backgroundColor = new Color(0.55f, 0.75f, 0.95f);
+            _camera.backgroundColor = new Color(0.5f, 0.72f, 0.96f);
             ResetCamera();
+            // A light haze pushes the stands back and blends them into the sky.
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = new Color(0.68f, 0.8f, 0.95f);
+            RenderSettings.fogStartDistance = 90;
+            RenderSettings.fogEndDistance = 320;
 
             if (FindAnyObjectByType<Light>() == null)
             {
@@ -89,19 +98,28 @@ namespace BaseballGame
                 light.shadows = LightShadows.Soft;
             }
 
-            var grass = Shape(PrimitiveType.Plane, "Grass", new Color(0.3f, 0.62f, 0.3f));
+            var grass = Shape(PrimitiveType.Plane, "Grass", Color.white);
             grass.localScale = new Vector3(30, 1, 30);
             grass.localPosition = new Vector3(0, 0, 80);
+            grass.GetComponent<Renderer>().material.mainTexture = MowedGrass();
+
+            // The infield skin: an arc of dirt around the mound, and a circle round home plate.
+            var arc = Shape(PrimitiveType.Cylinder, "Infield Arc", Dirt);
+            arc.localScale = new Vector3(58, 0.005f, 58);
+            arc.localPosition = Mound + Vector3.up * 0.005f;
+            var homeCircle = Shape(PrimitiveType.Cylinder, "Home Circle", Dirt);
+            homeCircle.localScale = new Vector3(8, 0.005f, 8);
+            homeCircle.localPosition = Vector3.up * 0.025f;
 
             float side = BaseDistance + 6;
-            var dirt = Shape(PrimitiveType.Cube, "Infield Dirt", new Color(0.72f, 0.52f, 0.34f));
+            var dirt = Shape(PrimitiveType.Cube, "Infield Dirt", Dirt);
             dirt.localScale = new Vector3(side, 0.02f, side);
             dirt.SetPositionAndRotation(BasePosition(1) * 0.5f + Vector3.up * 0.01f, Quaternion.Euler(0, 45, 0));
             var infieldGrass = Shape(PrimitiveType.Cube, "Infield Grass", new Color(0.33f, 0.66f, 0.33f));
             infieldGrass.localScale = new Vector3(BaseDistance - 6, 0.02f, BaseDistance - 6);
             infieldGrass.SetPositionAndRotation(BasePosition(1) * 0.5f + Vector3.up * 0.02f, Quaternion.Euler(0, 45, 0));
 
-            var mound = Shape(PrimitiveType.Cylinder, "Mound", new Color(0.72f, 0.52f, 0.34f));
+            var mound = Shape(PrimitiveType.Cylinder, "Mound", Dirt);
             mound.localScale = new Vector3(5.5f, 0.15f, 5.5f);
             mound.localPosition = Mound;
 
@@ -132,12 +150,100 @@ namespace BaseballGame
                 fence.SetPositionAndRotation(Direction(angle) * FenceRadius + Vector3.up * 1.5f, Quaternion.Euler(0, angle, 0));
             }
 
+            BuildBallpark(segments, segLength);
+
             for (int i = 0; i < FielderSpots.Length; i++)
                 _fielders.Add(Person("Fielder " + i, Color.gray, FielderSpots[i]));
 
             _ball = Shape(PrimitiveType.Sphere, "Ball", Color.white);
             _ball.localScale = Vector3.one * 0.45f;
             _ball.gameObject.SetActive(false);
+        }
+
+        /// <summary>Warning track, bleachers with a crowd, foul poles and light towers.</summary>
+        void BuildBallpark(int segments, float segLength)
+        {
+            var crowd = Crowd();
+            for (int i = 0; i < segments; i++)
+            {
+                float angle = -45 + 90f * (i + 0.5f) / segments;
+                var track = Shape(PrimitiveType.Cube, "Warning Track", new Color(0.62f, 0.45f, 0.32f));
+                track.localScale = new Vector3(segLength, 0.02f, 5);
+                track.SetPositionAndRotation(Direction(angle) * (FenceRadius - 2.5f) + Vector3.up * 0.015f, Quaternion.Euler(0, angle, 0));
+            }
+
+            // Outfield bleachers rise in tiers behind the fence.
+            const int tiers = 5;
+            for (int i = 0; i < segments + 8; i++)
+            {
+                float angle = -55 + 110f * (i + 0.5f) / (segments + 8);
+                for (int t = 0; t < tiers; t++)
+                {
+                    float r = FenceRadius + 5 + t * 4.5f;
+                    var row = Shape(PrimitiveType.Cube, "Bleacher", Color.white);
+                    row.localScale = new Vector3(r * Mathf.Deg2Rad * 110f / (segments + 8) + 0.4f, 3 + t * 3f, 4.5f);
+                    row.SetPositionAndRotation(Direction(angle) * r + Vector3.up * row.localScale.y / 2, Quaternion.Euler(0, angle, 0));
+                    row.GetComponent<Renderer>().material.mainTexture = crowd;
+                }
+            }
+
+            // Stands down each foul line, set back in foul territory.
+            for (int sign = -1; sign <= 1; sign += 2)
+            {
+                var along = Direction(sign * 45);
+                var outward = Direction(sign * 135);
+                for (int t = 0; t < 3; t++)
+                {
+                    var stand = Shape(PrimitiveType.Cube, "Line Stand", Color.white);
+                    stand.localScale = new Vector3(4.5f, 2.5f + t * 2.5f, FenceRadius - 25);
+                    stand.SetPositionAndRotation(along * (FenceRadius / 2 + 8) + outward * (16 + t * 4.5f) + Vector3.up * stand.localScale.y / 2,
+                        Quaternion.Euler(0, sign * 45, 0));
+                    stand.GetComponent<Renderer>().material.mainTexture = crowd;
+                }
+
+                var pole = Shape(PrimitiveType.Cylinder, "Foul Pole", new Color(1f, 0.85f, 0.2f));
+                pole.localScale = new Vector3(0.4f, 9, 0.4f);
+                pole.localPosition = along * FenceRadius + Vector3.up * 9;
+            }
+
+            foreach (float angle in new[] { -62f, -22f, 22f, 62f })
+            {
+                var tower = Shape(PrimitiveType.Cylinder, "Light Tower", new Color(0.55f, 0.58f, 0.62f));
+                tower.localScale = new Vector3(0.8f, 20, 0.8f);
+                tower.localPosition = Direction(angle) * (FenceRadius + 30) + Vector3.up * 20;
+                var lamps = Shape(PrimitiveType.Cube, "Lamps", new Color(1f, 0.98f, 0.85f));
+                lamps.localScale = new Vector3(7, 4, 0.6f);
+                lamps.SetPositionAndRotation(Direction(angle) * (FenceRadius + 30) + Vector3.up * 41, Quaternion.Euler(-15, angle, 0));
+            }
+        }
+
+        /// <summary>Light and dark mowing stripes running out from home plate.</summary>
+        static Texture2D MowedGrass()
+        {
+            const int stripes = 24;
+            var tex = new Texture2D(stripes, 1, TextureFormat.RGB24, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            for (int x = 0; x < stripes; x++)
+                tex.SetPixel(x, 0, x % 2 == 0 ? new Color(0.29f, 0.6f, 0.29f) : new Color(0.34f, 0.67f, 0.33f));
+            tex.Apply();
+            return tex;
+        }
+
+        /// <summary>Speckles of shirt colours on grey seats, read from a distance as a crowd.</summary>
+        static Texture2D Crowd()
+        {
+            const int w = 64, h = 32;
+            var tex = new Texture2D(w, h, TextureFormat.RGB24, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+            var random = new System.Random(7);
+            Color[] shirts =
+            {
+                Color.white, new Color(0.85f, 0.2f, 0.2f), new Color(0.2f, 0.4f, 0.85f), new Color(1f, 0.8f, 0.2f),
+                new Color(0.15f, 0.15f, 0.18f), new Color(0.95f, 0.6f, 0.7f), new Color(0.3f, 0.7f, 0.4f),
+            };
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    tex.SetPixel(x, y, random.NextDouble() < 0.7 ? shirts[random.Next(shirts.Length)] : new Color(0.32f, 0.36f, 0.42f));
+            tex.Apply();
+            return tex;
         }
 
         Transform Shape(PrimitiveType type, string name, Color color)
@@ -151,18 +257,38 @@ namespace BaseballGame
             return go.transform;
         }
 
+        /// <summary>A uniformed figure: body in the team colour, a head, and a cap with a brim.</summary>
         Transform Person(string name, Color color, Vector3 position)
         {
             var body = Shape(PrimitiveType.Capsule, name, color);
-            body.localScale = new Vector3(0.9f, 1f, 0.9f);
+            body.localScale = BodyScale;
             body.localPosition = position + Vector3.up;
+
+            var head = Shape(PrimitiveType.Sphere, "Head", Skin);
+            head.SetParent(body, false);
+            head.localPosition = new Vector3(0, 1.2f, 0);
+            head.localScale = new Vector3(0.6f, 0.75f, 0.6f);
+            var cap = Shape(PrimitiveType.Cylinder, "Cap", color);
+            cap.SetParent(body, false);
+            cap.localPosition = new Vector3(0, 1.5f, 0);
+            cap.localScale = new Vector3(0.64f, 0.08f, 0.64f);
+            var brim = Shape(PrimitiveType.Cube, "Cap", color);
+            brim.SetParent(body, false);
+            brim.localPosition = new Vector3(0, 1.43f, 0.32f);
+            brim.localScale = new Vector3(0.5f, 0.03f, 0.35f);
             return body;
         }
 
         static Vector3 Direction(float degrees) =>
             new Vector3(Mathf.Sin(degrees * Mathf.Deg2Rad), 0, Mathf.Cos(degrees * Mathf.Deg2Rad));
 
-        static void Tint(Transform t, Color color) => t.GetComponent<Renderer>().material.color = color;
+        /// <summary>Recolours a figure's uniform; the cap is a shade darker.</summary>
+        static void Tint(Transform t, Color color)
+        {
+            t.GetComponent<Renderer>().material.color = color;
+            foreach (Transform part in t)
+                if (part.name == "Cap") part.GetComponent<Renderer>().material.color = new Color(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f);
+        }
 
         // ---------- State ----------
 
@@ -206,7 +332,7 @@ namespace BaseballGame
         {
             if (_runners.TryGetValue(p, out var t))
             {
-                t.localScale = new Vector3(0.9f, 1f, 0.9f);
+                t.localScale = BodyScale;
                 Tint(t, _battingColor);
                 return t;
             }
@@ -216,7 +342,7 @@ namespace BaseballGame
                 // My player wears the team uniform like everyone else; a gold marker overhead picks them out.
                 var marker = Shape(PrimitiveType.Sphere, "Mine Marker", Gold);
                 marker.SetParent(t, false);
-                marker.localPosition = new Vector3(0, 1.6f, 0);
+                marker.localPosition = new Vector3(0, 2.1f, 0);
                 marker.localScale = new Vector3(0.45f, 0.4f, 0.45f);
             }
             _runners[p] = t;
@@ -352,7 +478,7 @@ namespace BaseballGame
             if (move.To == RunnerMove.Out || move.To == RunnerMove.Scored)
                 for (float t = 0; t < 1 && !Skipping(); t += Step / 0.4f)
                 {
-                    runner.localScale = new Vector3(0.9f, 1f, 0.9f) * (1 - t);
+                    runner.localScale = BodyScale * (1 - t);
                     yield return null;
                 }
         }

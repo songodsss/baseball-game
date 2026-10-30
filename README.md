@@ -61,6 +61,23 @@
   - `Assets/Editor/AndroidBuild.cs` — 메뉴 Baseball → 안드로이드 설정 적용 / 안드로이드 APK 빌드. 세로 고정, 패키지명 `com.songodsss.baseballgame`, IL2CPP ARM64, 빈 씬 자동 생성
   - `Assets/Scripts/UiKit.cs` — 코드로 UI를 만드는 도우미. 아트 작업 때 디자인된 프리팹으로 교체 예정
 
+## 그림 넣기
+
+`unity/Assets/Resources/Art/` 아래에 정해진 이름으로 PNG를 넣으면 화면에 바로 나와요. 없는 그림은 코드로 그린 모양(둥근 카드, 구단 색 원형 엠블럼 등)으로 대신 보여요. 이 폴더의 그림은 자동으로 UI용(Sprite)으로 불러와요(`Assets/Editor/ArtImport.cs`).
+
+- `Teams/<구단 id>.png` 구단 엠블럼 (예: `seoul_bluewings`) → 육성 화면 상단, 입단 팀 고르기
+- `Backgrounds/growth.png`, `Backgrounds/records.png` 화면 배경 (자동으로 어둡게 깔림)
+- `Events/<이름>.png`, `Legends/<id>.png` 이벤트 팝업 그림
+- `Icons/Training/<훈련>.png`, `Icons/UI/<메뉴>.png` 버튼 아이콘
+- `App/app_icon.png` 앱 아이콘 (Baseball > 안드로이드 설정 적용 때 반영)
+
+파일 이름 전체 목록과 이미지 프롬프트는 프로젝트의 `art/gemini-image-prompts.md`에 있어요.
+
+### 사용한 무료 에셋
+
+- 글꼴 Jua (SIL Open Font License 1.1) — `Resources/Fonts/OFL.txt`
+- 아이콘 [game-icons.net](https://game-icons.net) Delapouite, Lorc, Skoll (CC BY 3.0, 게임 설정 화면에 출처 표시)
+
 ## Unity 설치 (처음 한 번)
 
 1. https://unity.com/download 에서 Unity Hub 설치 후 로그인 (개인은 무료 Personal 라이선스)

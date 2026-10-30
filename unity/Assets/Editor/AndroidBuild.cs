@@ -29,6 +29,10 @@ namespace BaseballGame.EditorTools
             if (string.IsNullOrEmpty(PlayerSettings.bundleVersion) || PlayerSettings.bundleVersion == "1.0")
                 PlayerSettings.bundleVersion = "0.1.0";
 
+            // The app icon, once Art/App/app_icon.png has been drawn.
+            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/App/app_icon.png");
+            if (icon != null) PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+
             // Portrait only: every screen is laid out for 1080x1920.
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.allowedAutorotateToPortrait = true;

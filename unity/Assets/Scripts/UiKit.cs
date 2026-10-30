@@ -17,14 +17,117 @@ namespace BaseballGame
         public static readonly Color Warning = new Color(0.95f, 0.55f, 0.25f);
 
         static Font _font;
-        public static Font Font => _font != null ? _font : (_font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        /// <summary>The bundled Korean game font (Jua, SIL OFL), or Unity's built-in font without it.</summary>
+        public static Font Font
+        {
+            get
+            {
+                if (_font == null) _font = Resources.Load<Font>("Fonts/Jua-Regular");
+                if (_font == null) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                return _font;
+            }
+        }
 
-        public static RectTransform Panel(Transform parent, string name, Color color)
+        // ---------- Generated sprites ----------
+
+        const int CornerRadius = 24;
+        static Sprite _rounded, _circle;
+
+        /// <summary>A white rounded rectangle, nine-sliced so it stretches to any size.</summary>
+        public static Sprite RoundedSprite => _rounded != null ? _rounded : (_rounded = MakeRounded(CornerRadius * 2 + 4, CornerRadius));
+
+        /// <summary>A white disc.</summary>
+        public static Sprite CircleSprite => _circle != null ? _circle : (_circle = MakeRounded(128, 64, sliced: false));
+
+        static Sprite MakeRounded(int size, int radius, bool sliced = true)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    // Distance outside the rounded shape, antialiased over one pixel.
+                    float cx = Mathf.Clamp(x + 0.5f, radius, size - radius);
+                    float cy = Mathf.Clamp(y + 0.5f, radius, size - radius);
+                    float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(cx, cy)) - radius;
+                    byte a = (byte)(255 * Mathf.Clamp01(0.5f - d));
+                    pixels[y * size + x] = new Color32(255, 255, 255, a);
+                }
+            tex.SetPixels32(pixels);
+            tex.Apply();
+            var border = sliced ? new Vector4(radius, radius, radius, radius) : Vector4.zero;
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect, border);
+        }
+
+        /// <summary>A vertical gradient from top to bottom.</summary>
+        public static Sprite GradientSprite(Color top, Color bottom)
+        {
+            const int h = 128;
+            var tex = new Texture2D(1, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            for (int y = 0; y < h; y++) tex.SetPixel(0, y, Color.Lerp(bottom, top, y / (h - 1f)));
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, 1, h), new Vector2(0.5f, 0.5f));
+        }
+
+        public static Color Shade(Color c, float k) => new Color(c.r * k, c.g * k, c.b * k, c.a);
+
+        public static Color TeamColor(string teamName) =>
+            ColorUtility.TryParseHtmlString(BaseballSim.Career.League.TeamColors.TryGetValue(teamName, out var hex) ? hex : "#888888", out var c) ? c : Color.gray;
+
+        // ---------- Elements ----------
+
+        /// <summary>
+        /// A coloured box with rounded corners. Cards get a soft drop shadow; pass rounded: false
+        /// for things that fill the screen.
+        /// </summary>
+        public static RectTransform Panel(Transform parent, string name, Color color, bool rounded = true)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image));
             go.transform.SetParent(parent, false);
-            go.GetComponent<Image>().color = color;
+            var image = go.GetComponent<Image>();
+            image.color = color;
+            if (rounded)
+            {
+                image.sprite = RoundedSprite;
+                image.type = Image.Type.Sliced;
+            }
+            if (rounded && color == Card) AddShadow(image, 8, 0.35f);
             return (RectTransform)go.transform;
+        }
+
+        static void AddShadow(Graphic g, float distance, float alpha)
+        {
+            if (g.GetComponent<Shadow>() != null) return;
+            var shadow = g.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0, 0, 0, alpha);
+            shadow.effectDistance = new Vector2(0, -distance);
+        }
+
+        /// <summary>The dimmed full-screen layer behind a popup; it fades in.</summary>
+        public static RectTransform Dim(Transform parent, string name = "Overlay", bool animate = true)
+        {
+            var dim = Panel(parent, name, new Color(0, 0, 0, 0.75f), rounded: false);
+            Stretch(dim);
+            if (animate) UiAnim.FadeIn(dim);
+            return dim;
+        }
+
+        /// <summary>A popup card on a Dim layer; it pops in.</summary>
+        public static RectTransform PopupCard(RectTransform dim, Vector2 anchorMin, Vector2 anchorMax, bool animate = true)
+        {
+            var card = Panel(dim, "Card", Card);
+            card.anchorMin = anchorMin;
+            card.anchorMax = anchorMax;
+            card.offsetMin = card.offsetMax = Vector2.zero;
+            // A thin accent strip along the top edge.
+            var strip = Panel(card, "Accent", Accent);
+            strip.anchorMin = new Vector2(0.3f, 1);
+            strip.anchorMax = new Vector2(0.7f, 1);
+            strip.offsetMin = new Vector2(0, -8);
+            strip.offsetMax = new Vector2(0, -2);
+            strip.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            if (animate) UiAnim.PopIn(card);
+            return card;
         }
 
         public static RectTransform Empty(Transform parent, string name)
@@ -40,12 +143,41 @@ namespace BaseballGame
         /// </summary>
         public static RectTransform SafeRoot(Transform canvas, Color? background = null)
         {
-            var back = background.HasValue ? Panel(canvas, "Background", background.Value) : Empty(canvas, "Background");
+            RectTransform back;
+            if (background.HasValue)
+            {
+                back = Panel(canvas, "Background", Color.white, rounded: false);
+                var c = background.Value;
+                back.GetComponent<Image>().sprite = GradientSprite(Shade(c, 1.9f) + new Color(0, 0.02f, 0.06f), Shade(c, 0.6f));
+            }
+            else back = Empty(canvas, "Background");
             Stretch(back);
             var root = Empty(back, "Root");
             Stretch(root);
             root.gameObject.AddComponent<SafeArea>();
             return root;
+        }
+
+        /// <summary>
+        /// Puts a picture behind a SafeRoot's layout, cropped to fill the screen and darkened so
+        /// text stays readable. Does nothing when there's no picture.
+        /// </summary>
+        public static void Backdrop(RectTransform safeRoot, Sprite art, float darken = 0.6f)
+        {
+            if (art == null) return;
+            var back = safeRoot.parent;
+            var pic = Empty(back, "Backdrop");
+            pic.SetAsFirstSibling();
+            var image = pic.gameObject.AddComponent<Image>();
+            image.sprite = art;
+            image.raycastTarget = false;
+            var fit = pic.gameObject.AddComponent<AspectRatioFitter>();
+            fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            fit.aspectRatio = art.rect.width / art.rect.height;
+            var shade = Panel(back, "Shade", new Color(0, 0, 0, darken), rounded: false);
+            Stretch(shade);
+            shade.GetComponent<Image>().raycastTarget = false;
+            shade.SetSiblingIndex(1);
         }
 
         public static void Stretch(RectTransform rt)
@@ -77,13 +209,42 @@ namespace BaseballGame
             var button = rt.gameObject.AddComponent<Button>();
             button.targetGraphic = rt.GetComponent<Image>();
             button.onClick.AddListener(onClick);
+            var colors = button.colors;
+            colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f);
+            colors.pressedColor = new Color(0.8f, 0.8f, 0.8f);
+            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.6f);
+            colors.colorMultiplier = 1.2f;
+            colors.fadeDuration = 0.08f;
+            button.colors = colors;
+            AddShadow(rt.GetComponent<Image>(), 6, 0.3f);
+            rt.gameObject.AddComponent<PressScale>();
             var text = Label(rt, label, 34, TextAnchor.MiddleCenter);
+            text.fontStyle = FontStyle.Bold;
+            AddShadow(text, 2, 0.4f);
             Stretch(text.rectTransform);
             return button;
         }
 
         public static void SetButtonLabel(Button button, string label) =>
             button.GetComponentInChildren<Text>().text = label;
+
+        /// <summary>Puts an icon at the left of a button, when there's a picture for it.</summary>
+        public static void ButtonIcon(Button button, Sprite icon, float size = 80)
+        {
+            if (icon == null) return;
+            var rt = Empty(button.transform, "Icon");
+            var image = rt.gameObject.AddComponent<Image>();
+            image.sprite = icon;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            rt.anchorMin = new Vector2(0, 0.15f);
+            rt.anchorMax = new Vector2(0, 0.85f);
+            rt.pivot = new Vector2(0, 0.5f);
+            rt.anchoredPosition = new Vector2(14, 0);
+            rt.sizeDelta = new Vector2(size, 0);
+            var text = button.GetComponentInChildren<Text>().rectTransform;
+            text.offsetMin = new Vector2(size, text.offsetMin.y);
+        }
 
         public static VerticalLayoutGroup Column(RectTransform rt, int padding, int spacing)
         {
@@ -131,6 +292,11 @@ namespace BaseballGame
         {
             var back = Panel(parent, "Bar", new Color(1, 1, 1, 0.08f));
             var fill = Panel(back, "Fill", fillColor);
+            // A bright top half reads as a lit tube instead of a flat block.
+            var gloss = Panel(fill, "Gloss", new Color(1, 1, 1, 0.18f));
+            gloss.anchorMin = new Vector2(0, 0.5f);
+            gloss.anchorMax = Vector2.one;
+            gloss.offsetMin = gloss.offsetMax = Vector2.zero;
             fill.anchorMin = Vector2.zero;
             fill.anchorMax = new Vector2(0, 1);
             fill.offsetMin = Vector2.zero;
