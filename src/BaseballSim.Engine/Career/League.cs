@@ -38,6 +38,18 @@ namespace BaseballSim.Career
             ResetStandings();
         }
 
+        /// <summary>Rebuilds a saved league; SaveGame restores standings and rotations afterwards.</summary>
+        internal League(List<Team> teams, int gamesPerSeason)
+        {
+            SetSeasonLength(gamesPerSeason);
+            Teams = teams;
+            ResetStandings();
+        }
+
+        /// <summary>Starts handed out so far this season; SaveGame keeps rotations where they were.</summary>
+        internal int StartsMade(Team team) => _nextStarter[team];
+        internal void SetStartsMade(Team team, int starts) => _nextStarter[team] = starts;
+
         /// <summary>Only between seasons; Career.ChangeSeasonLength checks that.</summary>
         public void SetSeasonLength(int games)
         {

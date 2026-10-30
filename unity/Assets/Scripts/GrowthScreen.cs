@@ -48,17 +48,38 @@ namespace BaseballGame
         Button _seasonLengthButton, _watchButton;
         GameObject _canvas;
         DayResult _lastDay;
+        bool _retired;
         RectTransform _overlay;
         readonly List<string> _logLines = new List<string>();
 
         void Start()
         {
             _random = new SeededRandom(System.Environment.TickCount);
-            StartNewCareer();
+            bool loaded = SaveStore.TryLoad(_random, out var club, out var career);
+            if (loaded)
+            {
+                _club = club;
+                _career = career;
+            }
+            if (_career == null) StartNewCareer();
             BuildUi();
             Refresh();
-            Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
+
+            if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
+            else if (loaded && career != null) Log($"{_career.Me.Name} 선수, {_career.Season}시즌 {_career.Day + 1}일차부터 이어서 합니다.");
+            else Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
         }
+
+        // Phones kill backgrounded apps without warning, so save whenever the app is left too.
+        void OnApplicationPause(bool paused)
+        {
+            if (paused) Save();
+        }
+
+        void OnApplicationQuit() => Save();
+
+        /// <summary>Between retiring and starting the next player there's no career to save.</summary>
+        void Save() => SaveStore.Save(_club, _retired ? null : _career);
 
         void StartNewCareer()
         {
@@ -67,6 +88,8 @@ namespace BaseballGame
             var me = CareerState.NewPlayer(_club.Roster.Count == 0 ? "강하늘" : $"강하늘 {_club.Roster.Count + 1}세", _random, _club.PotentialBonus);
             _career = new CareerState(me, league, league.Teams[0], _random);
             _lastDay = null;
+            _retired = false;
+            Save();
         }
 
         // ---------- UI construction ----------
@@ -171,6 +194,7 @@ namespace BaseballGame
             _lastDay = result;
             DescribeDay(result);
             if (_career.IsSeasonOver) ShowSeasonEnd();
+            Save();
             Refresh();
         }
 
@@ -214,6 +238,7 @@ namespace BaseballGame
             var lengths = League.SeasonLengths;
             int next = lengths[(System.Array.IndexOf(lengths, _career.League.GamesPerSeason) + 1) % lengths.Length];
             _career.ChangeSeasonLength(next);
+            Save();
             Refresh();
         }
 
@@ -264,7 +289,11 @@ namespace BaseballGame
                 var item = next;
                 var buy = UiKit.Button(row, $"{item.Name}\n{bonus} · {item.Price:N0}만원", () =>
                 {
-                    if (_career.Buy(item.Id)) Log($"{item.Name} 구입!");
+                    if (_career.Buy(item.Id))
+                    {
+                        Log($"{item.Name} 구입!");
+                        Save();
+                    }
                     ShowShop();
                     Refresh();
                 }, _career.Me.Money >= item.Price ? UiKit.Accent : new Color(0.3f, 0.3f, 0.35f));
@@ -304,6 +333,8 @@ namespace BaseballGame
         void Retire()
         {
             var retired = _club.Retire(_career);
+            _retired = true;
+            Save();
             var card = OpenOverlay("은퇴");
             var t = retired.CareerLine;
             string text =
