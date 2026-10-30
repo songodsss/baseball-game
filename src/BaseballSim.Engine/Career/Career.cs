@@ -30,6 +30,13 @@ namespace BaseballSim.Career
         /// <summary>A story event to answer before the next day, or null.</summary>
         public StoryEvent Event;
         public List<Achievement> NewAchievements = new List<Achievement>();
+        /// <summary>Played in 2군 today; FarmLine is my batting there (null if hurt).</summary>
+        public bool InFarm;
+        public BattingLine FarmLine;
+        /// <summary>Sent down, called up or traded today, or null.</summary>
+        public RosterMove Move;
+        /// <summary>A trade offer to answer before the next day, or null.</summary>
+        public TradeOffer Trade;
     }
 
     public class SeasonSummary
@@ -43,6 +50,8 @@ namespace BaseballSim.Career
         public PostseasonResult Postseason;
         /// <summary>Free-agency offers, my club's first. Empty unless the player is a free agent this winter.</summary>
         public List<ContractOffer> Offers = new List<ContractOffer>();
+        /// <summary>Let go by the club; Offers are tryouts, and none means the career is over.</summary>
+        public bool Released;
         public List<Achievement> NewAchievements = new List<Achievement>();
     }
 
@@ -52,13 +61,15 @@ namespace BaseballSim.Career
         public Team Team;
         public int Salary;
         public int Years;
+        /// <summary>A 1-year chance after a release: starts in 2군, salary renegotiated as usual.</summary>
+        public bool Tryout;
     }
 
     /// <summary>
     /// One player's career, a game day at a time: pick a daily action, then the league plays
     /// its games. All tuning numbers for growth live in this class.
     /// </summary>
-    public class Career
+    public partial class Career
     {
         public const int MinSalary = 3000;
         public const int MaxSalary = 250000;
@@ -124,7 +135,7 @@ namespace BaseballSim.Career
         /// so a player peaks around age 26 whichever length is picked.
         /// </summary>
         int DayWeight => League.FullSeason / League.GamesPerSeason;
-        public bool MustRetire => Me.Age >= RetirementAge;
+        public bool MustRetire => Me.Age >= RetirementAge || Released && PendingOffers.Count == 0;
 
         /// <summary>Creates a fresh 18-year-old with random starting ratings and potential.</summary>
         public static CareerPlayer NewPlayer(string name, IRandom random, int potentialBonus = 0)
@@ -146,6 +157,9 @@ namespace BaseballSim.Career
         public DayResult PlayDay(DailyAction action)
         {
             if (IsSeasonOver) throw new InvalidOperationException("Season is over; call EndSeason first.");
+            if (Released) throw new InvalidOperationException("Released; sign a tryout offer or retire.");
+            PendingOffers.Clear(); // free-agency offers left unanswered: stays on a yearly deal
+            PendingTrade = null;
 
             var result = new DayResult { Season = Season, Day = Day, Action = action };
             if (Me.IsInjured) result.Action = action = DailyAction.Rest;
@@ -155,7 +169,8 @@ namespace BaseballSim.Career
 
             foreach (var (away, home) in League.Matchups(Day))
             {
-                if (away == MyTeam || home == MyTeam) PlayMyGame(away, home, result);
+                if ((away == MyTeam || home == MyTeam) && InFarm) PlayFarmGame(away, home, result);
+                else if (away == MyTeam || home == MyTeam) PlayMyGame(away, home, result);
                 else League.Record(_sim.Play(away, home, League.NextStarter(away), League.NextStarter(home)));
             }
 
@@ -163,8 +178,9 @@ namespace BaseballSim.Career
             if (Me.InjuryDaysLeft > 0) Me.InjuryDaysLeft--;
             Me.Morale -= Math.Sign(Me.Morale);
             Day++;
+            ReviewRoster(result);
 
-            if (_random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
+            if (PendingTrade == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
                 PendingEvent = StoryEvents.Pick(this, result, _random);
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
@@ -258,15 +274,16 @@ namespace BaseballSim.Career
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
             if (result.MyLine.AtBats > 0) HitlessStreak = result.MyLine.Hits == 0 ? HitlessStreak + 1 : 0;
             Accumulate(SeasonLine, result.MyLine);
-            GainGameExp(result);
+            Accumulate(StintLine, result.MyLine);
+            StintDays++;
+            GainGameExp(result, result.MyLine);
             PayForGame(result);
             Me.Fatigue = Math.Min(100, Me.Fatigue + GameFatigue);
         }
 
         // Every game gives some exp, even an 0-for-4, so a bad day never feels wasted.
-        void GainGameExp(DayResult result)
+        void GainGameExp(DayResult result, BattingLine l)
         {
-            var l = result.MyLine;
             double mult = AgeGrowth(Me.Age) * DayWeight;
             int extraBase = l.Doubles + l.Triples;
             int Exp(double raw) => (int)Math.Round(raw * mult);
@@ -312,6 +329,8 @@ namespace BaseballSim.Career
                 Titles = summary.Awards.Where(a => a.Mine).Select(a => a.Title).ToList(),
                 InjuryFree = !InjuredThisSeason,
                 Club = MyTeam.Name,
+                Notes = SeasonNotes,
+                FarmDays = FarmDays,
             };
             if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
             Me.History.Add(summary.Record);
@@ -321,6 +340,10 @@ namespace BaseballSim.Career
             // A signed deal holds the salary until it runs out.
             double ops = Ops(SeasonLine);
             double worth = MinSalary * Math.Exp((ops - 0.650) * 7);
+            bool underContract = ContractSeasonsLeft > 0;
+            Released = ShouldRelease(underContract);
+            summary.Released = Released;
+            if (Released) summary.Record.Notes.Add("시즌 후 방출");
             if (ContractSeasonsLeft > 0) ContractSeasonsLeft--;
             else
             {
@@ -351,8 +374,10 @@ namespace BaseballSim.Career
             Day = 0;
             InjuredThisSeason = false;
             SeasonLine = new BattingLine();
+            ResetSeasonMoves();
             League.ResetStandings();
-            summary.Offers = FreeAgencyOffers(worth);
+            PendingOffers = Released ? TryoutOffers() : FreeAgencyOffers(worth);
+            summary.Offers = new List<ContractOffer>(PendingOffers);
             return summary;
         }
 
@@ -387,14 +412,18 @@ namespace BaseballSim.Career
             Years = years,
         };
 
-        /// <summary>Takes a free-agency offer between seasons: moves club and fixes the salary for the deal.</summary>
+        /// <summary>Takes a free-agency or tryout offer between seasons: moves club and fixes the salary for the deal.</summary>
         public void Sign(ContractOffer offer)
         {
             if (Day != 0) throw new InvalidOperationException("Contracts are signed between seasons.");
-            if (offer.Team != MyTeam) Me.Clubs.Add(offer.Team.Name);
-            MyTeam = offer.Team;
+            MoveTo(offer.Team);
             Me.Salary = offer.Salary;
-            ContractSeasonsLeft = offer.Years;
+            ContractSeasonsLeft = offer.Tryout ? 0 : offer.Years;
+            InFarm = offer.Tryout;
+            Released = false;
+            PendingOffers.Clear();
+            StintLine = new BattingLine();
+            StintDays = 0;
         }
 
         /// <summary>The player can switch between 144, 72 and 36 games before any season starts.</summary>

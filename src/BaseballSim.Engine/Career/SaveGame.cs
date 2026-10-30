@@ -19,7 +19,7 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        public const int Version = 8;
+        public const int Version = 9;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -167,6 +167,28 @@ namespace BaseballSim.Career
             w.Write(career.ContractSeasonsLeft);
             WriteList(w, career.Me.Clubs, w.Write);
             WriteList(w, career.Me.History, h => w.Write(h.Club ?? ""));
+
+            // Added in version 9.
+            w.Write(career.InFarm);
+            WriteLine(w, career.FarmLine);
+            w.Write(career.FarmDays);
+            WriteLine(w, career.StintLine);
+            w.Write(career.StintDays);
+            w.Write(career.TradedThisSeason);
+            WriteList(w, career.SeasonNotes, w.Write);
+            w.Write(career.Released);
+            WriteList(w, career.PendingOffers, o =>
+            {
+                w.Write(league.Teams.IndexOf(o.Team));
+                w.Write(o.Salary);
+                w.Write(o.Years);
+                w.Write(o.Tryout);
+            });
+            WriteList(w, career.Me.History, h =>
+            {
+                WriteList(w, h.Notes, w.Write);
+                w.Write(h.FarmDays);
+            });
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -236,6 +258,26 @@ namespace BaseballSim.Career
                     var club = r.ReadString();
                     me.History[i++].Club = club.Length == 0 ? null : club;
                     return club;
+                });
+            }
+            if (version >= 9)
+            {
+                career.InFarm = r.ReadBoolean();
+                career.FarmLine = ReadLine(r);
+                career.FarmDays = r.ReadInt32();
+                career.StintLine = ReadLine(r);
+                career.StintDays = r.ReadInt32();
+                career.TradedThisSeason = r.ReadBoolean();
+                career.SeasonNotes = ReadList(r, r.ReadString);
+                career.Released = r.ReadBoolean();
+                career.PendingOffers = ReadList(r, () => new ContractOffer { Team = teams[r.ReadInt32()], Salary = r.ReadInt32(), Years = r.ReadInt32(), Tryout = r.ReadBoolean() });
+                int j = 0;
+                ReadList(r, () =>
+                {
+                    var h = me.History[j++];
+                    h.Notes = ReadList(r, r.ReadString);
+                    h.FarmDays = r.ReadInt32();
+                    return h;
                 });
             }
             return career;

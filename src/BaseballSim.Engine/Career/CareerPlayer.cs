@@ -18,6 +18,10 @@ namespace BaseballSim.Career
         public bool InjuryFree;
         /// <summary>Club played for this season; null in saves from before free agency.</summary>
         public string Club;
+        /// <summary>Moves this season: "5월 2군 강등", trades, a release.</summary>
+        public List<string> Notes = new List<string>();
+        /// <summary>Days spent in 2군.</summary>
+        public int FarmDays;
     }
 
     /// <summary>The one player the user is raising, with everything that persists between days.</summary>
@@ -55,7 +59,7 @@ namespace BaseballSim.Career
         public List<string> MetLegends = new List<string>();
         /// <summary>Achievement ids unlocked in this career, in the order reached.</summary>
         public List<string> Achievements = new List<string>();
-        /// <summary>Clubs moved to in free agency, in order. Empty means a one-club career.</summary>
+        /// <summary>Clubs moved to by trade, free agency or tryout, in order. Empty means a one-club career.</summary>
         public List<string> Clubs = new List<string>();
 
         public int FacilityLevel(Facility f) => Facilities.TryGetValue(f, out var level) ? level : 0;

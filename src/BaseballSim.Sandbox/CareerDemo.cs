@@ -38,6 +38,12 @@ namespace BaseballSim.Sandbox
                             career.ResolveEvent((int)(random.NextDouble() * day.Event.Choices.Count));
                             events++;
                         }
+                        // Autopilot takes half the trade offers.
+                        if (day.Trade != null)
+                        {
+                            if (random.NextDouble() < 0.5) day.Move = career.AcceptTrade();
+                            else career.DeclineTrade();
+                        }
                         BuyUpgrades(career);
                     }
 
@@ -51,6 +57,8 @@ namespace BaseballSim.Sandbox
                         $"{avg}  {l.HomeRuns,3}  {Career.Career.Ops(l):F3} | {me.Salary,8}  {me.Money,6}  {injuredDays,4}  {events,4} | {gear}";
                     var summary = career.EndSeason();
                     Console.WriteLine(row + (summary.Record.Titles.Count > 0 ? "  " + string.Join(", ", summary.Record.Titles) : ""));
+                    if (summary.Record.Notes.Count > 0 || summary.Record.FarmDays > 0)
+                        Console.WriteLine($"  2군 {summary.Record.FarmDays}일  " + string.Join(" / ", summary.Record.Notes));
 
                     // Free agency: the autopilot takes the richest offer.
                     if (summary.Offers.Count > 0)
@@ -58,7 +66,7 @@ namespace BaseballSim.Sandbox
                         var best = summary.Offers.OrderByDescending(o => o.Salary).First();
                         bool moved = best.Team != career.MyTeam;
                         career.Sign(best);
-                        Console.WriteLine($"  FA {(moved ? "이적" : "잔류")}: {best.Team.Name} {best.Years}년 연 {best.Salary:N0}만원");
+                        Console.WriteLine($"  {(best.Tryout ? "입단 테스트" : "FA")} {(moved ? "이적" : "잔류")}: {best.Team.Name} {best.Years}년 연 {best.Salary:N0}만원");
                     }
 
                     // Retire at 37 to keep the demo short, or when forced.

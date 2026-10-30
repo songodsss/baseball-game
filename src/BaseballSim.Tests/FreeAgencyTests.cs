@@ -43,7 +43,7 @@ public class FreeAgencyTests
         career.Sign(offer);
         Assert.Same(offer.Team, career.MyTeam);
         Assert.Equal(offer.Salary, career.Me.Salary);
-        Assert.Equal(new[] { offer.Team.Name }, career.Me.Clubs);
+        Assert.Equal(offer.Team.Name, career.Me.Clubs.Last());
 
         // Salary holds for the deal; no offers until it runs out.
         for (int season = 0; season < offer.Years - 1; season++)
@@ -55,9 +55,9 @@ public class FreeAgencyTests
         var last = PlaySeason(career);
         Assert.Equal(offer.Salary, last.NewSalary);
         Assert.Equal(career.MustRetire ? 0 : 4, last.Offers.Count);
-        // My new club's games now include my player.
+        // My club's games include my player (a deadline trade may have moved me since).
         var day = career.PlayDay(DailyAction.Rest);
-        Assert.True(day.MyGame.Home == offer.Team || day.MyGame.Away == offer.Team);
+        Assert.True(day.MyGame.Home == career.MyTeam || day.MyGame.Away == career.MyTeam);
     }
 
     [Fact]

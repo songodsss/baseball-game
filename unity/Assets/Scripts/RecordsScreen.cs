@@ -110,6 +110,9 @@ namespace BaseballGame
             Header(statWidths, "타석", "안타", "2루타", "3루타", "볼넷", "삼진");
             Row(statWidths, 0, false, l.PlateAppearances.ToString(), l.Hits.ToString(), l.Doubles.ToString(),
                 l.Triples.ToString(), l.Walks.ToString(), l.Strikeouts.ToString());
+            var f = _career.FarmLine;
+            if (f.PlateAppearances > 0)
+                Note($"2군 {_career.FarmDays}경기  타율 {Stats.Rate(Stats.Avg(f))}  {f.HomeRuns}홈런  OPS {Stats.Rate(Stats.Ops(f))}" + (_career.InFarm ? "  · 지금 2군" : ""), TextAnchor.MiddleLeft, 60);
 
             Section("시즌별 기록");
             float[] widths = { 0, 100, 110, 110, 100, 100, 130, 170 };
@@ -129,6 +132,17 @@ namespace BaseballGame
                 foreach (var h in titled) Note($"{CareerState.YearOf(h.Season)}  {string.Join(", ", h.Titles)}", TextAnchor.MiddleLeft, 60);
             }
 
+            var moved = me.History.Where(h => h.Notes.Count > 0 || h.FarmDays > 0).ToList();
+            if (moved.Count > 0)
+            {
+                Section("강등·이적 기록");
+                foreach (var h in moved)
+                {
+                    string farm = h.FarmDays > 0 ? $"2군 {h.FarmDays}일" : "";
+                    Note($"{CareerState.YearOf(h.Season)}  {string.Join(", ", h.Notes.Concat(new[] { farm }).Where(x => x.Length > 0))}", TextAnchor.MiddleLeft, 60);
+                }
+            }
+
             // Consecutive seasons at one club, oldest first; seasons saved before free agency count as the current club.
             var stints = new List<(string Club, int From, int To)>();
             foreach (var h in me.History)
@@ -138,7 +152,10 @@ namespace BaseballGame
                     stints[stints.Count - 1] = (club, stints[stints.Count - 1].From, h.Season);
                 else stints.Add((club, h.Season, h.Season));
             }
-            if (stints.Count > 1 || _career.ContractSeasonsLeft > 0)
+            if (stints.Count == 0 || stints[stints.Count - 1].Club != _career.MyTeam.Name)
+                stints.Add((_career.MyTeam.Name, _career.Season, _career.Season));
+            else stints[stints.Count - 1] = (_career.MyTeam.Name, stints[stints.Count - 1].From, _career.Season);
+            if (stints.Count > 1 || _career.ContractSeasonsLeft > 0 || _career.Me.Clubs.Count > 0)
             {
                 Section("소속 구단");
                 foreach (var st in stints)
