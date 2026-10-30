@@ -297,6 +297,7 @@ namespace BaseballGame
         {
             if (result.AtBat.Pitching) { ShowPitchChoice(result); return; }
             var s = result.AtBat;
+            if (s.Stealing) { ShowSteal(result); return; }
             var card = OpenOverlay("찬스 타석!");
             SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 찬스: " + result.AtBatLog.Last() : null);
             PitchMix(card, $"투수 {s.Pitcher.Name}의 승부구", s.FastballShare);
@@ -304,6 +305,11 @@ namespace BaseballGame
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             ChoiceRow(card, ("직구 노리기", Approach.SitFastball, UiKit.Accent), ("변화구 노리기", Approach.SitBreaking, UiKit.Accent));
             ChoiceRow(card, ("신중하게 (볼넷 노림)", Approach.Patient, UiKit.Muted), ("평소대로", Approach.Normal, UiKit.Background));
+            // Tactics only when the bases allow them.
+            if (s.CanBunt && s.CanHitAndRun)
+                ChoiceRow(card, ($"번트 (성공 {s.BuntOdds:P0})", Approach.Bunt, Tactic), ("히트앤런", Approach.HitAndRun, Tactic));
+            else if (s.CanBunt)
+                ChoiceRow(card, ($"번트로 주자 보내기 (성공 {s.BuntOdds:P0} · 번트 안타 {s.BuntHitOdds:P0})", Approach.Bunt, Tactic));
             Tip("atbat", "찬스 타석에선 노림수를 골라요. 노린 공이 오면 장타 확률이 크게 오르고, 틀리면 삼진이 늘어요. 선구안이 높을수록 '느낌'이 정확해요.");
         }
 
@@ -319,6 +325,27 @@ namespace BaseballGame
             ChoiceRow(card, ("직구로 승부", Approach.ThrowFastball, UiKit.Accent), ("변화구로 승부", Approach.ThrowBreaking, UiKit.Accent));
             ChoiceRow(card, ("어렵게 승부 (볼넷 각오)", Approach.PitchAround, UiKit.Muted), ("평소대로", Approach.Normal, UiKit.Background));
             Tip("pitch", "위기에선 승부구를 골라요. 타자가 노리지 않는 공을 던지면 삼진이 늘고, 노리는 공을 던지면 장타를 맞기 쉬워요. 제구가 높을수록 포수의 느낌이 정확해요.");
+        }
+
+        static readonly Color Tactic = new Color(0.45f, 0.35f, 0.8f);
+
+        /// <summary>My player on first with second open: run or stay.</summary>
+        void ShowSteal(DayResult result)
+        {
+            var s = result.AtBat;
+            var card = OpenOverlay("도루 찬스!");
+            SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 작전: " + result.AtBatLog.Last() : null);
+            UiKit.Height(UiKit.Label(card, $"투수 {s.Pitcher.Name}의 견제를 뚫고 2루로?", 30, TextAnchor.LowerLeft, UiKit.Muted), 48);
+            var bar = UiKit.Bar(card, s.StealOdds >= 0.7 ? new Color(0.3f, 0.75f, 0.45f) : UiKit.Warning);
+            UiKit.Height(bar.parent, 64);
+            UiKit.SetBar(bar, (float)s.StealOdds);
+            var odds = UiKit.Label(bar.parent, $"성공 확률 {s.StealOdds:P0}  (주력 {_career.Me.EffectiveRating(Stat.Speed)})", 30, TextAnchor.MiddleCenter);
+            odds.fontStyle = FontStyle.Bold;
+            UiKit.Stretch(odds.rectTransform);
+            UiKit.Height(UiKit.Label(card, "성공하면 득점권, 실패하면 아웃이에요. 빠를수록 성공률이 올라가요.", 26, TextAnchor.MiddleCenter, UiKit.Muted), 60);
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            ChoiceRow(card, ("뛴다!", Approach.Steal, Gold), ("멈춘다", Approach.Normal, UiKit.Background));
+            Tip("steal", "1루에 나가면 도루를 시도할 수 있어요. 주루 훈련으로 주력을 올리면 성공률이 높아져요.");
         }
 
         static readonly Color BaseOff = new Color(1, 1, 1, 0.15f);
@@ -381,7 +408,8 @@ namespace BaseballGame
             string opponent = _career.MidGameOpponent?.Name ?? "상대";
             ScoreLine(right, _career.MyTeam.Name, s.MyRuns, s.MyRuns >= s.TheirRuns);
             ScoreLine(right, opponent, s.TheirRuns, s.TheirRuns >= s.MyRuns);
-            string matchup = s.Pitching ? $"투수 <b>{_career.Me.Name}</b>  vs  타자 {s.Batter.Name}" : $"타자 <b>{_career.Me.Name}</b>  vs  투수 {s.Pitcher.Name}";
+            string matchup = s.Stealing ? $"1루 주자 <b>{_career.Me.Name}</b>  ·  타자 {s.Batter.Name}"
+                : s.Pitching ? $"투수 <b>{_career.Me.Name}</b>  vs  타자 {s.Batter.Name}" : $"타자 <b>{_career.Me.Name}</b>  vs  투수 {s.Pitcher.Name}";
             UiKit.Height(UiKit.Label(right, matchup, 28, TextAnchor.MiddleCenter, UiKit.Muted), 44);
 
             if (s.Score != null) LineScoreTable(card, s, opponent);
@@ -401,7 +429,7 @@ namespace BaseballGame
             widths[columns + 1] = widths[columns + 2] = 70;
 
             var table = UiKit.Panel(card, "Line Score", UiKit.Background);
-            UiKit.Height(table, 190);
+            UiKit.Height(table, 176);
             UiKit.Column(table, 8, 0);
             var header = new string[columns + 3];
             header[0] = "";
@@ -479,8 +507,8 @@ namespace BaseballGame
         void Hunch(RectTransform card, string text, string accuracy)
         {
             var box = UiKit.Panel(card, "Hunch", new Color(1f, 0.82f, 0.3f, 0.16f));
-            UiKit.Height(box, 120);
-            UiKit.Column(box, 16, 2).childAlignment = TextAnchor.MiddleCenter;
+            UiKit.Height(box, 104);
+            UiKit.Column(box, 10, 0).childAlignment = TextAnchor.MiddleCenter;
             UiKit.Height(UiKit.Label(box, text, 36, TextAnchor.MiddleCenter, Gold), 56);
             UiKit.Height(UiKit.Label(box, accuracy, 26, TextAnchor.MiddleCenter, UiKit.Muted), 36);
         }
@@ -1430,7 +1458,7 @@ namespace BaseballGame
             string traits = me.Traits.Count == 0 ? "특성 없음" : "특성 " + string.Join(" · ", me.Traits.Select(id => Traits.Find(id)?.Name));
             if (_career.Goal != null) traits = $"목표 {_career.Goal.Text} ({_career.Goal.Progress(_career)})  ·  " + traits;
             var p = _career.SeasonPitching;
-            string season = !me.IsPitcher ? $"타율 {avg}  {l.HomeRuns}홈런"
+            string season = !me.IsPitcher ? $"타율 {avg}  {l.HomeRuns}홈런" + (l.StolenBases > 0 ? $"  {l.StolenBases}도루" : "")
                 : me.Role == PitcherRole.Closer ? $"{p.Saves}세이브 평균자책 {p.EraText}"
                 : me.Role == PitcherRole.Setup ? $"{p.Holds}홀드 평균자책 {p.EraText}"
                 : $"{p.Wins}승 {p.Losses}패 평균자책 {p.EraText}";
