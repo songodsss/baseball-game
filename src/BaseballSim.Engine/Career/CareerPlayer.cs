@@ -16,6 +16,8 @@ namespace BaseballSim.Career
         /// <summary>My titles this season, e.g. "홈런왕", and the championship if won.</summary>
         public List<string> Titles = new List<string>();
         public bool InjuryFree;
+        /// <summary>Club played for this season; null in saves from before free agency.</summary>
+        public string Club;
     }
 
     /// <summary>The one player the user is raising, with everything that persists between days.</summary>
@@ -53,6 +55,8 @@ namespace BaseballSim.Career
         public List<string> MetLegends = new List<string>();
         /// <summary>Achievement ids unlocked in this career, in the order reached.</summary>
         public List<string> Achievements = new List<string>();
+        /// <summary>Clubs moved to in free agency, in order. Empty means a one-club career.</summary>
+        public List<string> Clubs = new List<string>();
 
         public int FacilityLevel(Facility f) => Facilities.TryGetValue(f, out var level) ? level : 0;
 

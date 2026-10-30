@@ -129,6 +129,24 @@ namespace BaseballGame
                 foreach (var h in titled) Note($"{CareerState.YearOf(h.Season)}  {string.Join(", ", h.Titles)}", TextAnchor.MiddleLeft, 60);
             }
 
+            // Consecutive seasons at one club, oldest first; seasons saved before free agency count as the current club.
+            var stints = new List<(string Club, int From, int To)>();
+            foreach (var h in me.History)
+            {
+                string club = h.Club ?? _career.MyTeam.Name;
+                if (stints.Count > 0 && stints[stints.Count - 1].Club == club)
+                    stints[stints.Count - 1] = (club, stints[stints.Count - 1].From, h.Season);
+                else stints.Add((club, h.Season, h.Season));
+            }
+            if (stints.Count > 1 || _career.ContractSeasonsLeft > 0)
+            {
+                Section("소속 구단");
+                foreach (var st in stints)
+                    Note($"{CareerState.YearOf(st.From)}–{CareerState.YearOf(st.To)}  {st.Club}", TextAnchor.MiddleLeft, 60);
+                if (_career.ContractSeasonsLeft > 0)
+                    Note($"현재 {_career.MyTeam.Name} 계약 {_career.ContractSeasonsLeft}시즌 남음 · 연 {me.Salary:N0}만원", TextAnchor.MiddleLeft, 60);
+            }
+
             var t = Stats.CareerTotal(_career);
             Section("통산 (이번 시즌 포함)");
             Header(statWidths, "타율", "안타", "홈런", "타점", "OPS", "볼넷");

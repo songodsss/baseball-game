@@ -41,7 +41,17 @@ namespace BaseballSim.Career
         public Dictionary<Stat, int> Decline = new Dictionary<Stat, int>();
         public List<SeasonAward> Awards = new List<SeasonAward>();
         public PostseasonResult Postseason;
+        /// <summary>Free-agency offers, my club's first. Empty unless the player is a free agent this winter.</summary>
+        public List<ContractOffer> Offers = new List<ContractOffer>();
         public List<Achievement> NewAchievements = new List<Achievement>();
+    }
+
+    /// <summary>A club's offer to a free agent: salary for each season of the deal.</summary>
+    public class ContractOffer
+    {
+        public Team Team;
+        public int Salary;
+        public int Years;
     }
 
     /// <summary>
@@ -51,6 +61,9 @@ namespace BaseballSim.Career
     public class Career
     {
         public const int MinSalary = 3000;
+        public const int MaxSalary = 250000;
+        /// <summary>Seasons played before the player becomes a free agent.</summary>
+        public const int FreeAgencySeasons = 8;
         public const int RetirementAge = 40;
 
         // Training and fatigue, per day of a full 144-game season.
@@ -85,6 +98,9 @@ namespace BaseballSim.Career
 
         /// <summary>Missed at least one game hurt this season.</summary>
         public bool InjuredThisSeason;
+
+        /// <summary>Seasons left on a signed deal; salary is fixed until it runs out.</summary>
+        public int ContractSeasonsLeft;
 
         /// <summary>Set by PlayDay now and then; answer it with ResolveEvent. The next PlayDay drops it.</summary>
         public StoryEvent PendingEvent { get; private set; }
@@ -295,16 +311,22 @@ namespace BaseballSim.Career
                 Salary = Me.Salary,
                 Titles = summary.Awards.Where(a => a.Mine).Select(a => a.Title).ToList(),
                 InjuryFree = !InjuredThisSeason,
+                Club = MyTeam.Name,
             };
             if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
             Me.History.Add(summary.Record);
 
             // Salary moves halfway toward what this season's OPS is worth, so one fluke year
             // doesn't make or break a contract. OPS .800 is worth about 8,500, .950 about 24,000.
+            // A signed deal holds the salary until it runs out.
             double ops = Ops(SeasonLine);
             double worth = MinSalary * Math.Exp((ops - 0.650) * 7);
-            int next = (int)((Me.Salary + worth) / 2 / 100) * 100;
-            Me.Salary = Math.Max(MinSalary, Math.Min(250000, next));
+            if (ContractSeasonsLeft > 0) ContractSeasonsLeft--;
+            else
+            {
+                int next = (int)((Me.Salary + worth) / 2 / 100) * 100;
+                Me.Salary = Math.Max(MinSalary, Math.Min(MaxSalary, next));
+            }
             summary.NewSalary = Me.Salary;
 
             Me.Age++;
@@ -330,7 +352,49 @@ namespace BaseballSim.Career
             InjuredThisSeason = false;
             SeasonLine = new BattingLine();
             League.ResetStandings();
+            summary.Offers = FreeAgencyOffers(worth);
             return summary;
+        }
+
+        /// <summary>
+        /// After eight seasons, and whenever a deal runs out after that, my club and three rivals
+        /// bid. Rivals pay a little more to pry the player away; younger players get longer deals.
+        /// </summary>
+        List<ContractOffer> FreeAgencyOffers(double worth)
+        {
+            var offers = new List<ContractOffer>();
+            if (ContractSeasonsLeft > 0 || Me.History.Count < FreeAgencySeasons || MustRetire) return offers;
+
+            int years = Me.Age <= 30 ? 4 : Me.Age <= 34 ? 2 : 1;
+            // Same midpoint as a yearly renegotiation, so free agency rewards form rather than compounding.
+            double baseline = (Me.Salary + worth) / 2;
+            offers.Add(Offer(MyTeam, baseline * (0.95 + 0.1 * _random.NextDouble()), years));
+            var rivals = League.Teams.Where(t => t != MyTeam).ToList();
+            for (int i = 0; i < 3 && rivals.Count > 0; i++)
+            {
+                var team = rivals[(int)(_random.NextDouble() * rivals.Count)];
+                rivals.Remove(team);
+                int length = Math.Max(1, years - (_random.NextDouble() < 0.5 ? 1 : 0));
+                offers.Add(Offer(team, baseline * (1.05 + 0.25 * _random.NextDouble()), length));
+            }
+            return offers;
+        }
+
+        static ContractOffer Offer(Team team, double salary, int years) => new ContractOffer
+        {
+            Team = team,
+            Salary = Math.Max(MinSalary, Math.Min(MaxSalary, (int)(salary / 100) * 100)),
+            Years = years,
+        };
+
+        /// <summary>Takes a free-agency offer between seasons: moves club and fixes the salary for the deal.</summary>
+        public void Sign(ContractOffer offer)
+        {
+            if (Day != 0) throw new InvalidOperationException("Contracts are signed between seasons.");
+            if (offer.Team != MyTeam) Me.Clubs.Add(offer.Team.Name);
+            MyTeam = offer.Team;
+            Me.Salary = offer.Salary;
+            ContractSeasonsLeft = offer.Years;
         }
 
         /// <summary>The player can switch between 144, 72 and 36 games before any season starts.</summary>

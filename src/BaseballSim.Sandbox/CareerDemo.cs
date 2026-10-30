@@ -52,6 +52,15 @@ namespace BaseballSim.Sandbox
                     var summary = career.EndSeason();
                     Console.WriteLine(row + (summary.Record.Titles.Count > 0 ? "  " + string.Join(", ", summary.Record.Titles) : ""));
 
+                    // Free agency: the autopilot takes the richest offer.
+                    if (summary.Offers.Count > 0)
+                    {
+                        var best = summary.Offers.OrderByDescending(o => o.Salary).First();
+                        bool moved = best.Team != career.MyTeam;
+                        career.Sign(best);
+                        Console.WriteLine($"  FA {(moved ? "이적" : "잔류")}: {best.Team.Name} {best.Years}년 연 {best.Salary:N0}만원");
+                    }
+
                     // Retire at 37 to keep the demo short, or when forced.
                     if (me.Age >= 38 || career.MustRetire) break;
                 }

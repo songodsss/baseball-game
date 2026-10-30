@@ -210,7 +210,7 @@ namespace BaseballGame
             if (_career.IsSeasonOver)
             {
                 ShowSeasonEnd();
-                Tip("season_end", "시즌이 끝나면 성적(OPS)에 따라 연봉이 재계약돼요. 30세부터는 은퇴해서 내 팀에 영입할 수 있어요.");
+                Tip("season_end", "시즌이 끝나면 성적(OPS)에 따라 연봉이 재계약돼요. 8시즌을 뛰면 FA가 되어 다른 구단으로 옮길 수 있어요. 30세부터는 은퇴해서 내 팀에 영입할 수 있어요.");
             }
             else if (result.Event != null)
             {
@@ -543,13 +543,40 @@ namespace BaseballGame
                 foreach (var a in summary.NewAchievements) Line($"<color=#5FA8FF>{a.Name}</color>  {a.Description}");
             }
 
+            // Free agency: pick one offer (staying is the first) instead of "다음 시즌".
+            bool freeAgent = summary.Offers.Count > 0;
+            if (freeAgent)
+            {
+                Section("FA 협상");
+                Line("자유계약 선수가 되었어요. 계약 기간 동안 연봉이 고정돼요.", 50);
+                foreach (var offer in summary.Offers)
+                {
+                    var o = offer;
+                    bool stay = o.Team == _career.MyTeam;
+                    string label = $"{(stay ? "잔류  " : "")}{o.Team.Name}  {o.Years}년  연 {o.Salary:N0}만원";
+                    UiKit.Height(UiKit.Button(body, label, () => SignOffer(o), TeamColor(o.Team.Name)), 100);
+                }
+            }
+
             var finalGame = post.Series.Last().Games.LastOrDefault();
             if (finalGame != null)
                 UiKit.Height(UiKit.Button(card, "결정전 마지막 경기 보기", () => Watch(finalGame), UiKit.Muted), 100);
             if (_career.Me.Age >= 30)
                 UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 100);
-            if (!_career.MustRetire)
+            if (!_career.MustRetire && !freeAgent)
                 UiKit.Height(UiKit.Button(card, "다음 시즌", CloseOverlay), 100);
+        }
+
+        void SignOffer(ContractOffer offer)
+        {
+            bool moved = offer.Team != _career.MyTeam;
+            _career.Sign(offer);
+            Log(moved
+                ? $"FA 이적! {offer.Team.Name}와 {offer.Years}년 연 {offer.Salary:N0}만원 계약"
+                : $"{offer.Team.Name} 잔류, {offer.Years}년 연 {offer.Salary:N0}만원 계약");
+            Save();
+            CloseOverlay();
+            Refresh();
         }
 
         string MyPostLine(PostseasonResult post)
@@ -681,7 +708,8 @@ namespace BaseballGame
             var me = _career.Me;
             var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
             _header.text = $"<b>{me.Name}</b>  {me.Age}세 · {_career.MyTeam.Name}\n" +
-                $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위</color></size>";
+                $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" +
+                (_career.ContractSeasonsLeft > 0 ? $" · 계약 {_career.ContractSeasonsLeft}년" : "") + "</color></size>";
 
             var l = _career.SeasonLine;
             string avg = l.AtBats == 0 ? ".000" : ((double)l.Hits / l.AtBats).ToString(".000");
