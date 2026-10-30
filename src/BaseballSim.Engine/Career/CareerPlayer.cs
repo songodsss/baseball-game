@@ -22,6 +22,8 @@ namespace BaseballSim.Career
         public List<string> Notes = new List<string>();
         /// <summary>Days spent in 2군.</summary>
         public int FarmDays;
+        /// <summary>The rival's batting that season; null before rivals existed.</summary>
+        public BattingLine RivalLine;
     }
 
     /// <summary>The one player the user is raising, with everything that persists between days.</summary>

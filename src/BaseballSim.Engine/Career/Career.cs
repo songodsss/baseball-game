@@ -39,6 +39,8 @@ namespace BaseballSim.Career
         public TradeOffer Trade;
         /// <summary>A big at bat waiting for <see cref="Career.ChooseApproach"/>; null once the day is done.</summary>
         public AtBatSituation AtBat;
+        /// <summary>The rival's line in today's game when my club played his; null otherwise.</summary>
+        public BattingLine RivalLine;
         /// <summary>Stats whose potential went up today through training past the limit.</summary>
         public List<Stat> Breakthroughs = new List<Stat>();
         /// <summary>A trait slot opened: pick one with ChooseTrait. Stays on offer until picked.</summary>
@@ -70,6 +72,10 @@ namespace BaseballSim.Career
         public SalaryTalk SalaryTalk;
         public SeasonGoal Goal;
         public bool GoalMet;
+        /// <summary>The rival's season, club and titles; null without a rival.</summary>
+        public BattingLine RivalLine;
+        public Team RivalTeam;
+        public List<string> RivalTitles = new List<string>();
         public int GoalMoney;
         public List<Achievement> NewAchievements = new List<Achievement>();
     }
@@ -186,6 +192,7 @@ namespace BaseballSim.Career
             if (Me.IsInjured) result.Action = action = DailyAction.Rest;
             PendingEvent = null;
 
+            if (Rival == null && Day == 0) CreateRival();
             ApplyAction(action, result);
 
             (Team Away, Team Home)? myGame = null;
@@ -396,6 +403,7 @@ namespace BaseballSim.Career
 
             _game = null;
             result.MyGame = game;
+            result.RivalLine = game.Batting.FirstOrDefault(b => b.Key.Id == RivalState.PlayerId).Value;
             Me.ReadsRight += game.Events.Count(e => e.Batter == g.Player && e.Note != null && e.Note.EndsWith("적중!"));
             FinishMyGame(result, g.Player);
             return true;
@@ -509,6 +517,14 @@ namespace BaseballSim.Career
             InjuredThisSeason = false;
             SeasonLine = new BattingLine();
             ResetSeasonMoves();
+            if (Rival != null)
+            {
+                summary.RivalLine = RivalLine;
+                summary.RivalTeam = RivalTeam;
+                summary.RivalTitles = summary.Awards.Where(a => a.Winner == Rival.Name).Select(a => a.Title).ToList();
+                summary.Record.RivalLine = RivalLine;
+                AgeRival();
+            }
             League.ResetStandings();
             PendingOffers = Released ? TryoutOffers() : FreeAgencyOffers(worth);
             summary.Offers = new List<ContractOffer>(PendingOffers);

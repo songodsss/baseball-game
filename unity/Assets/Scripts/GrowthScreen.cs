@@ -493,6 +493,8 @@ namespace BaseballGame
                 lines.Add($"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}");
                 var l = r.MyLine;
                 lines.Add($"오늘 성적 {l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런 {l.RunsBattedIn}타점 {l.Walks}볼넷  (+{r.MoneyEarned}만원)");
+                if (r.RivalLine != null)
+                    lines.Add($"<color=#E0475B>라이벌 맞대결</color> {_career.Rival.Name} {r.RivalLine.AtBats}타수 {r.RivalLine.Hits}안타 {r.RivalLine.HomeRuns}홈런");
                 foreach (var ev in g.Events.Where(e => e.Batter == r.MyGamePlayer && IsHighlight(e)))
                     lines.Add($"  {Commentary.HalfInning(ev.Inning, ev.IsTopHalf)} {Commentary.Describe(ev)}");
             }
@@ -750,6 +752,15 @@ namespace BaseballGame
             if (post.MyTeamWon) Line("<color=#FFD24D><b>우승!</b></color>  " + MyPostLine(post), 60);
             else if (post.MyTeamIn) Line($"{post.Champion.Name} 우승  ·  " + MyPostLine(post));
             else Line($"{post.Champion.Name} 우승  ·  {_career.MyTeam.Name}은 진출하지 못했습니다.");
+
+            if (summary.RivalLine != null)
+            {
+                var rl = summary.RivalLine;
+                Section($"라이벌 {_career.Rival.Name} ({summary.RivalTeam?.Name})");
+                Line($"나     타율 {Stats.Rate(Stats.Avg(line))}  {line.HomeRuns}홈런  OPS {Stats.Rate(Stats.Ops(line))}");
+                Line($"라이벌 타율 {Stats.Rate(Stats.Avg(rl))}  {rl.HomeRuns}홈런  OPS {Stats.Rate(Stats.Ops(rl))}" + (summary.RivalTitles.Count > 0 ? $"  ·  <color=#E0475B>{string.Join(", ", summary.RivalTitles)}</color>" : ""));
+                Line(Stats.Ops(line) >= Stats.Ops(rl) ? "<color=#5FA8FF>이번 시즌은 내가 이겼어요!</color>" : "<color=#F28C40>이번 시즌은 라이벌이 앞섰어요.</color>");
+            }
 
             Section("시즌 타이틀");
             foreach (var a in summary.Awards)

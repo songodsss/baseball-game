@@ -164,6 +164,17 @@ namespace BaseballGame
                     Note($"현재 {_career.MyTeam.Name} 계약 {_career.ContractSeasonsLeft}시즌 남음 · 연 {me.Salary:N0}만원", TextAnchor.MiddleLeft, 60);
             }
 
+            if (_career.Rival != null)
+            {
+                var rivalYears = me.History.Where(h => h.RivalLine != null).ToList();
+                int wins = rivalYears.Count(h => Stats.Ops(h.Line) >= Stats.Ops(h.RivalLine));
+                var rl = _career.RivalLine;
+                Section($"라이벌 {_career.Rival.Name} ({_career.RivalTeam?.Name})");
+                Note($"이번 시즌 타율 {Stats.Rate(Stats.Avg(rl))}  {rl.HomeRuns}홈런  OPS {Stats.Rate(Stats.Ops(rl))}", TextAnchor.MiddleLeft, 60);
+                if (rivalYears.Count > 0)
+                    Note($"시즌 OPS 대결 {wins}승 {rivalYears.Count - wins}패", TextAnchor.MiddleLeft, 60);
+            }
+
             var t = Stats.CareerTotal(_career);
             Section("통산 (이번 시즌 포함)");
             Header(statWidths, "타율", "안타", "홈런", "타점", "OPS", "볼넷");

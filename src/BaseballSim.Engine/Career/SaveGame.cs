@@ -19,7 +19,7 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        public const int Version = 15;
+        public const int Version = 16;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -250,6 +250,20 @@ namespace BaseballSim.Career
                 w.Write((int)career.Goal.Tier);
                 w.Write(career.Goal.Target);
             }
+
+            // Added in version 16.
+            w.Write(career.Rival != null);
+            if (career.Rival != null)
+            {
+                w.Write(career.Rival.Name);
+                w.Write(career.Rival.Age);
+                WriteStats(w, career.Rival.Potential);
+            }
+            WriteList(w, career.Me.History, h =>
+            {
+                w.Write(h.RivalLine != null);
+                if (h.RivalLine != null) WriteLine(w, h.RivalLine);
+            });
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -362,6 +376,17 @@ namespace BaseballSim.Career
             if (version >= 14) me.GoldMedals = r.ReadInt32();
             if (version >= 15 && r.ReadBoolean())
                 career.Goal = new SeasonGoal { Kind = (GoalKind)r.ReadInt32(), Tier = (GoalTier)r.ReadInt32(), Target = r.ReadDouble() };
+            if (version >= 16)
+            {
+                if (r.ReadBoolean()) career.Rival = new RivalState { Name = r.ReadString(), Age = r.ReadInt32(), Potential = ReadStats(r) };
+                int k = 0;
+                ReadList(r, () =>
+                {
+                    var h = me.History[k++];
+                    if (r.ReadBoolean()) h.RivalLine = ReadLine(r);
+                    return h;
+                });
+            }
             return career;
         }
 
