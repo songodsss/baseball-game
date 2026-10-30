@@ -17,7 +17,7 @@ namespace BaseballGame
         public static void Open(CareerState career)
         {
             var screen = new GameObject("StoryScreen").AddComponent<StoryScreen>();
-            screen.Build("메인 스토리");
+            screen.Build("메인 스토리 · " + MainStory.RouteName(career.Story.Route));
             screen.ShowProgress(career);
         }
 
@@ -68,6 +68,7 @@ namespace BaseballGame
         void ShowProgress(CareerState career)
         {
             var story = career.Story;
+            Line(MainStory.RouteBlurb(story.Route));
             Section($"{MainStory.ChapterName(career)}  ({story.Seen.Count}/{MainStory.SceneCount} 장면)");
 
             Section("사람들");
@@ -77,7 +78,7 @@ namespace BaseballGame
                 var row = UiKit.Empty(_content, "Bond");
                 UiKit.Height(row, 70);
                 UiKit.Row(row, 16);
-                UiKit.Width(UiKit.Label(row, $"<b>{MainStory.BondName(bond)}</b> <size=24>{MainStory.BondRole(bond)}</size>", 30), 430);
+                UiKit.Width(UiKit.Label(row, $"<b>{MainStory.BondName(career, bond)}</b> <size=24>{MainStory.BondRole(career, bond)}</size>", 30), 430);
                 var fill = UiKit.Bar(row, value >= 70 ? Gold : UiKit.Accent);
                 UiKit.Height(fill.parent, 26);
                 UiKit.Width(fill.parent, 0, 1);

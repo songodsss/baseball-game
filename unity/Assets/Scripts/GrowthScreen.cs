@@ -101,6 +101,7 @@ namespace BaseballGame
             var league = new League(new RosterGenerator(_random), games);
             var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus, position, number, role);
             _career = new CareerState(me, league, league.Teams[team], _random) { DecideAtBats = true };
+            _career.Story.Route = MainStory.NextRoute(_club);
             _shownRatings.Clear();
             _lastDay = null;
             _retired = false;

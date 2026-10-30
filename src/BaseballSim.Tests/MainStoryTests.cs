@@ -5,11 +5,14 @@ using CareerState = BaseballSim.Career.Career;
 
 public class MainStoryTests
 {
-    static CareerState NewCareer(int seed, Position position = Position.Outfield, PitcherRole role = PitcherRole.Starter, int games = 36)
+    static CareerState NewCareer(int seed, Position position = Position.Outfield, PitcherRole role = PitcherRole.Starter, int games = 36,
+        StoryRoute route = StoryRoute.LastPick)
     {
         var random = new SeededRandom(seed);
         var league = new League(new RosterGenerator(random), games);
-        return new CareerState(CareerState.NewPlayer("테스트", random, 0, position, 7, role), league, league.Teams[0], random);
+        var career = new CareerState(CareerState.NewPlayer("테스트", random, 0, position, 7, role), league, league.Teams[0], random);
+        career.Story.Route = route;
+        return career;
     }
 
     /// <summary>Plays until the career must end, answering every event with a rotating choice. Returns the main scenes in the order they came.</summary>
@@ -38,14 +41,15 @@ public class MainStoryTests
     }
 
     [Theory]
-    [InlineData(Position.Outfield, PitcherRole.Starter)]
-    [InlineData(Position.Pitcher, PitcherRole.Starter)]
-    [InlineData(Position.Pitcher, PitcherRole.Closer)]
-    public void ScenesComeOnceEachInOrder(Position position, PitcherRole role)
+    [InlineData(Position.Outfield, PitcherRole.Starter, StoryRoute.LastPick)]
+    [InlineData(Position.Pitcher, PitcherRole.Starter, StoryRoute.Prodigy)]
+    [InlineData(Position.Pitcher, PitcherRole.Closer, StoryRoute.Walkon)]
+    [InlineData(Position.Outfield, PitcherRole.Starter, StoryRoute.Walkon)]
+    public void ScenesComeOnceEachInOrder(Position position, PitcherRole role, StoryRoute route)
     {
         for (int seed = 1; seed <= 3; seed++)
         {
-            var career = NewCareer(seed, position, role);
+            var career = NewCareer(seed, position, role, route: route);
             var scenes = PlayToRetirement(career);
             var expected = MainStory.SceneIds.Select(id => MainStory.IdPrefix + id).Take(scenes.Count).ToList();
             Assert.Equal(expected, scenes);
@@ -66,7 +70,7 @@ public class MainStoryTests
         Assert.StartsWith("프롤로그", day.Event.Title);
         career.ResolveEvent(0);
         Assert.Equal(new[] { "draft" }, career.Story.Seen);
-        Assert.True(career.Story.BondOf(Bond.Coach) > MainStoryState.StartBond);
+        Assert.True(career.Story.BondOf(Bond.Mentor) > MainStoryState.StartBond);
     }
 
     [Fact]
@@ -90,23 +94,25 @@ public class MainStoryTests
     [InlineData(Position.Pitcher, PitcherRole.Setup)]
     public void EveryChoiceOfEverySceneAppliesWithNoBlanks(Position position, PitcherRole role)
     {
+        foreach (var route in MainStory.AllRoutes)
         foreach (var id in MainStory.SceneIds)
             foreach (bool flags in new[] { false, true })
             {
-                var preview = NewCareer(3, position, role);
+                var preview = NewCareer(3, position, role, route: route);
                 preview.PlayDay(DailyAction.Rest); // creates the rival
                 if (flags) preview.Story.Flags.AddRange(new[] { "dawn", "visited", "manager", "bet", "rival_respect" });
                 var ev = MainStory.Preview(preview, id);
                 Assert.DoesNotContain("{", ev.Title + ev.TextFor(preview));
                 for (int choice = 0; choice < ev.Choices.Count; choice++)
                 {
-                    var career = NewCareer(3, position, role);
+                    var career = NewCareer(3, position, role, route: route);
                     career.PlayDay(DailyAction.Rest);
                     if (flags) career.Story.Flags.AddRange(new[] { "dawn", "visited", "manager", "bet", "rival_respect" });
                     var card = MainStory.Preview(career, id);
                     Assert.DoesNotContain("{", card.Choices[choice].Label + card.Choices[choice].Result);
                     card.Choices[choice].Apply(EffectsFor(career, out var outcome));
                     Assert.Contains(id, career.Story.Seen);
+                    Assert.NotEmpty(card.Choices[choice].Result);
                     foreach (var b in MainStory.AllBonds) Assert.InRange(career.Story.BondOf(b), 0, 100);
                     Assert.InRange(career.Me.Fatigue, 0, 100);
                     Assert.True(career.Me.Money >= 0);
@@ -119,10 +125,10 @@ public class MainStoryTests
     {
         var career = NewCareer(4);
         career.PlayDay(DailyAction.Rest);
-        career.Story.Bonds[Bond.Roommate] = 95;
+        career.Story.Bonds[Bond.Friend] = 95;
         var card = MainStory.Preview(career, "injury");
         card.Choices[0].Apply(EffectsFor(career, out var outcome));
-        Assert.Equal(100, career.Story.BondOf(Bond.Roommate));
+        Assert.Equal(100, career.Story.BondOf(Bond.Friend));
         Assert.Contains("윤도현 유대 +5", outcome.Changes);
     }
 
@@ -144,9 +150,9 @@ public class MainStoryTests
     public void TheCoachBecomesManagerInChapterThree()
     {
         var career = NewCareer(6);
-        Assert.Contains("최강훈 코치", MainStory.Fill("{coach}", career));
+        Assert.Contains("최강훈 코치", MainStory.Fill("{mentor}", career));
         MainStory.Preview(career, "spot").Choices[0].Apply(EffectsFor(career, out _));
-        Assert.Contains("최강훈 감독", MainStory.Fill("{coach}", career));
+        Assert.Contains("최강훈 감독", MainStory.Fill("{mentor}", career));
         Assert.Equal(3, MainStory.Chapter(career));
     }
 
@@ -164,11 +170,50 @@ public class MainStoryTests
         career.Me.Clubs.Add("다른 구단");
         Assert.Equal(StoryEnding.BaseballSchool, MainStory.EndingFor(career, loyal));
 
-        career.Story.Bonds[Bond.Coach] = 90;
+        career.Story.Bonds[Bond.Mentor] = 90;
         var lines = MainStory.EndingLines(career, plain);
         Assert.Contains(lines, l => l.Contains("내 눈은 틀리지 않았다"));
         Assert.Contains(lines, l => l.Contains(career.Rival.Name));
         Assert.DoesNotContain(lines, l => l.Contains("{"));
+
+        foreach (var route in MainStory.AllRoutes)
+            foreach (var r in new[] { legend, loyal, plain })
+            {
+                career.Story.Route = route;
+                r.MainClub = "테스트 구단";
+                r.Ending = StoryEnding.None;
+                var told = MainStory.EndingLines(career, r);
+                Assert.True(told.Count >= 7);
+                Assert.DoesNotContain(told, l => l.Contains("{") || string.IsNullOrEmpty(l));
+            }
+    }
+
+    [Fact]
+    public void EachStoryHasItsOwnPeople()
+    {
+        var names = MainStory.AllRoutes.Select(r =>
+        {
+            var c = NewCareer(1, route: r);
+            return string.Join(",", MainStory.AllBonds.Select(b => MainStory.BondName(c, b)));
+        }).ToList();
+        Assert.Equal(names.Count, names.Distinct().Count());
+        Assert.Equal(MainStory.AllRoutes.Length, MainStory.AllRoutes.Select(MainStory.RouteName).Distinct().Count());
+    }
+
+    [Fact]
+    public void NewPlayersGetTheStoryTheClubHasSeenLeast()
+    {
+        var club = new Club();
+        Assert.Equal(StoryRoute.LastPick, MainStory.NextRoute(club));
+        club.Roster.Add(new RetiredPlayer { Route = StoryRoute.LastPick, Ending = StoryEnding.BaseballSchool });
+        Assert.Equal(StoryRoute.Prodigy, MainStory.NextRoute(club));
+        club.Roster.Add(new RetiredPlayer { Route = StoryRoute.Prodigy, Ending = StoryEnding.Legend });
+        Assert.Equal(StoryRoute.Walkon, MainStory.NextRoute(club));
+        club.Roster.Add(new RetiredPlayer { Route = StoryRoute.Walkon, Ending = StoryEnding.OneClub });
+        Assert.Equal(StoryRoute.LastPick, MainStory.NextRoute(club));
+        // Players retired before the story existed don't count.
+        club.Roster.Add(new RetiredPlayer());
+        Assert.Equal(StoryRoute.LastPick, MainStory.NextRoute(club));
     }
 
     [Fact]
@@ -193,7 +238,7 @@ public class MainStoryTests
             if (day.Event != null) first.ResolveEvent(0);
         }
         club.Retire(first);
-        var career = NewCareer(10);
+        var career = NewCareer(10, route: StoryRoute.Walkon);
         for (int i = 0; i < 25; i++)
         {
             var day = career.PlayDay(DailyAction.TrainPower);
@@ -204,6 +249,7 @@ public class MainStoryTests
 
         var (loadedClub, loaded) = SaveGame.FromBytes(SaveGame.ToBytes(club, career), new SeededRandom(1));
         Assert.Equal(club.Roster[0].Ending, loadedClub.Roster[0].Ending);
+        Assert.Equal(StoryRoute.Walkon, loaded.Story.Route);
         Assert.Equal(career.Story.Seen, loaded.Story.Seen);
         Assert.Equal(career.Story.Flags, loaded.Story.Flags);
         Assert.Equal(career.Story.Log, loaded.Story.Log);

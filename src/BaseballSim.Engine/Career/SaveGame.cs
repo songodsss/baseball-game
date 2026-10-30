@@ -169,7 +169,7 @@ namespace BaseballSim.Career
             w.Write(d.RecoveryTickets);
             WriteList(w, club.LegendsMet.ToList(), w.Write);
             WriteList(w, club.RivalsMet, w.Write);
-            WriteList(w, club.Roster, p => w.Write((int)p.Ending));
+            WriteList(w, club.Roster, p => { w.Write((int)p.Ending); w.Write((int)p.Route); });
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -257,7 +257,13 @@ namespace BaseballSim.Career
                 club.LegendsMet = new HashSet<string>(ReadList(r, r.ReadString));
                 club.RivalsMet = ReadList(r, r.ReadString);
                 int e = 0;
-                ReadList(r, () => club.Roster[e++].Ending = (StoryEnding)r.ReadInt32());
+                ReadList(r, () =>
+                {
+                    var p = club.Roster[e++];
+                    p.Ending = (StoryEnding)r.ReadInt32();
+                    p.Route = (StoryRoute)r.ReadInt32();
+                    return p;
+                });
             }
             return club;
         }
@@ -415,6 +421,7 @@ namespace BaseballSim.Career
 
             // Added in version 20.
             var story = career.Story;
+            w.Write((int)story.Route);
             WriteList(w, story.Seen, w.Write);
             foreach (var b in MainStory.AllBonds) w.Write(story.BondOf(b));
             WriteList(w, story.Flags, w.Write);
@@ -571,6 +578,7 @@ namespace BaseballSim.Career
             if (version >= 20)
             {
                 var story = career.Story;
+                story.Route = (StoryRoute)r.ReadInt32();
                 story.Seen = ReadList(r, r.ReadString);
                 foreach (var b in MainStory.AllBonds) story.Bonds[b] = r.ReadInt32();
                 story.Flags = ReadList(r, r.ReadString);
