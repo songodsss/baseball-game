@@ -47,6 +47,9 @@ namespace BaseballSim
         /// <summary>My player's hunch for this pitch; right more often with a better eye.</summary>
         public Pitch Hunch;
         public double HunchAccuracy;
+        /// <summary>The scoreboard so far, inning by inning, and which side is my club.</summary>
+        public LineScore Score;
+        public bool MineIsAway;
         internal Pitch Coming;
     }
 

@@ -252,6 +252,8 @@ namespace BaseballSim
             situation.Bases = bases;
             situation.MyRuns = lead + (fielding == _home ? _result.AwayScore : _result.HomeScore);
             situation.TheirRuns = fielding == _home ? _result.AwayScore : _result.HomeScore;
+            situation.Score = ScoreSoFar();
+            situation.MineIsAway = fielding == _away;
             var approach = Decide(situation);
             if (approach == null)
             {
@@ -277,6 +279,8 @@ namespace BaseballSim
             situation.Bases = bases;
             situation.MyRuns = mine;
             situation.TheirRuns = theirs;
+            situation.Score = ScoreSoFar();
+            situation.MineIsAway = _top;
             var approach = Decide(situation);
             if (approach == null)
             {
@@ -285,6 +289,36 @@ namespace BaseballSim
             }
             AtBatChoice.Apply(odds, approach.Value, situation.Coming, batter);
             return AtBatChoice.Note(approach.Value, situation.Coming);
+        }
+
+        /// <summary>The line score up to this plate appearance; the half under way counts its runs so far.</summary>
+        LineScore ScoreSoFar()
+        {
+            var score = new LineScore();
+            for (int i = 1; i <= _inning; i++)
+            {
+                score.Away.Add(0);
+                score.Home.Add(i < _inning || !_top ? 0 : (int?)null);
+            }
+            foreach (var ev in _result.Events)
+            {
+                if (ev.Inning < 1 || ev.Inning > _inning) continue;
+                int runs = ev.RunnersScored.Count;
+                bool hit = ev.Kind == EventKind.PlateAppearance && MatchReplay.IsHit(ev.Outcome);
+                if (ev.IsTopHalf)
+                {
+                    score.Away[ev.Inning - 1] += runs;
+                    if (hit) score.AwayHits++;
+                }
+                else if (score.Home[ev.Inning - 1] != null)
+                {
+                    score.Home[ev.Inning - 1] += runs;
+                    if (hit) score.HomeHits++;
+                }
+            }
+            score.AwayRuns = _result.AwayScore;
+            score.HomeRuns = _result.HomeScore;
+            return score;
         }
 
         int PitchesFor(Outcome outcome)
