@@ -184,6 +184,7 @@ namespace BaseballGame
             UiKit.ButtonIcon(_watchButton, ArtLibrary.Get("Icons/UI/watch"), 50);
             UiKit.ButtonIcon(UiKit.Button(bottom, "상점", ShowShop, UiKit.Card), ArtLibrary.Get("Icons/UI/shop"), 50);
             UiKit.ButtonIcon(UiKit.Button(bottom, "기록", () => RecordsScreen.Open(_career, _club), UiKit.Card), ArtLibrary.Get("Icons/UI/records"), 50);
+            UiKit.Button(bottom, "스토리", () => StoryScreen.Open(_career), UiKit.Card);
             _seasonLengthButton = UiKit.Button(bottom, "", CycleSeasonLength, UiKit.Card);
             _seasonLengthLabel = _seasonLengthButton.GetComponentInChildren<Text>();
             foreach (var label in bottom.GetComponentsInChildren<Text>()) label.fontSize = 30;
@@ -1070,6 +1071,9 @@ namespace BaseballGame
                 $"명예 포인트 +{retired.LegacyPoints + retired.DonationPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n\n" +
                 $"내 팀 선수 {_club.Roster.Count}명";
             UiKit.Height(UiKit.Label(card, text, 30, TextAnchor.UpperCenter), 0, 1);
+            var career = _career;
+            UiKit.Height(UiKit.Button(card, MainStory.EndingTitle(retired.Ending) + " 보기",
+                () => StoryScreen.OpenEnding(MainStory.EndingTitle(retired.Ending), MainStory.EndingLines(career, retired)), UiKit.Accent), 110);
             UiKit.Height(UiKit.Button(card, "새 선수 육성 시작", ShowNewPlayer), 110);
         }
 

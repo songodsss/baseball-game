@@ -252,8 +252,13 @@ namespace BaseballSim.Career
             if (Day == AllStarDay) PlayAllStar(result);
             if (Day == TournamentDay && NationalTeam.IsTournamentYear(Year)) PlayTournament(result);
 
-            if (PendingTrade == null && result.AllStar == null && result.Tournament == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
-                PendingEvent = StoryEvents.Pick(this, result, _random);
+            // A main story scene, when its moment has come, takes the place of the day's random event.
+            if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
+            {
+                PendingEvent = MainStory.Next(this, result);
+                if (PendingEvent == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
+                    PendingEvent = StoryEvents.Pick(this, result, _random);
+            }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
             result.Breakthroughs = new List<Stat>(Me.NewBreakthroughs);

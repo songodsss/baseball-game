@@ -19,7 +19,8 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
+        /// 20: daily missions and the album on the club; club and career can be saved apart (player slots);
+        /// main story progress on the career and each retired player's ending on the club.
         public const int Version = 20;
 
         public static byte[] ToBytes(Club club, Career career)
@@ -168,6 +169,7 @@ namespace BaseballSim.Career
             w.Write(d.RecoveryTickets);
             WriteList(w, club.LegendsMet.ToList(), w.Write);
             WriteList(w, club.RivalsMet, w.Write);
+            WriteList(w, club.Roster, p => w.Write((int)p.Ending));
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -254,6 +256,8 @@ namespace BaseballSim.Career
                 d.RecoveryTickets = r.ReadInt32();
                 club.LegendsMet = new HashSet<string>(ReadList(r, r.ReadString));
                 club.RivalsMet = ReadList(r, r.ReadString);
+                int e = 0;
+                ReadList(r, () => club.Roster[e++].Ending = (StoryEnding)r.ReadInt32());
             }
             return club;
         }
@@ -408,6 +412,15 @@ namespace BaseballSim.Career
 
             // Added in version 19.
             w.Write((int)me.Role);
+
+            // Added in version 20.
+            var story = career.Story;
+            WriteList(w, story.Seen, w.Write);
+            foreach (var b in MainStory.AllBonds) w.Write(story.BondOf(b));
+            WriteList(w, story.Flags, w.Write);
+            WriteList(w, story.Log, w.Write);
+            w.Write(story.LastSeason);
+            w.Write(story.LastDay);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -555,6 +568,16 @@ namespace BaseballSim.Career
                     career.League.Pitching[p.Id] = p;
             }
             if (version >= 19) me.Role = (PitcherRole)r.ReadInt32();
+            if (version >= 20)
+            {
+                var story = career.Story;
+                story.Seen = ReadList(r, r.ReadString);
+                foreach (var b in MainStory.AllBonds) story.Bonds[b] = r.ReadInt32();
+                story.Flags = ReadList(r, r.ReadString);
+                story.Log = ReadList(r, r.ReadString);
+                story.LastSeason = r.ReadInt32();
+                story.LastDay = r.ReadInt32();
+            }
             return career;
         }
 

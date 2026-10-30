@@ -36,6 +36,8 @@ namespace BaseballSim.Career
         public PitcherLine CareerPitching;
 
         public PitcherRole Role = PitcherRole.Starter;
+        /// <summary>Main story ending this career reached; None for players retired before the story existed.</summary>
+        public StoryEnding Ending;
         public bool IsPitcher => Position == Position.Pitcher;
         public int Overall => (int)Math.Round(PeakRatings.Values.Average());
 
@@ -148,6 +150,7 @@ namespace BaseballSim.Career
             LegendsMet.UnionWith(me.MetLegends);
             if (career.Rival != null && !RivalsMet.Contains(career.Rival.Name)) RivalsMet.Add(career.Rival.Name);
 
+            retired.Ending = MainStory.EndingFor(career, retired);
             Roster.Add(retired);
             LegacyPoints += retired.LegacyPoints + retired.DonationPoints;
             return retired;
