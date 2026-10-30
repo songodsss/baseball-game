@@ -17,12 +17,14 @@
   - `Equipment` — 슬롯 5개 × 4단계 장비. 인게임 연봉으로만 구매
   - `League` — 가상 10개 구단, 일정과 순위. 시즌 길이 144/72/36경기는 시즌 사이에 바꿀 수 있고, 짧은 시즌일수록 하루 성장과 보상이 커져 커리어 흐름은 같다
   - `Club` — 은퇴 선수가 들어가는 내 팀, 다음 선수 잠재력을 올려주는 명예 포인트
+  - `Stats` — 타율, 출루율, 장타율, OPS, 통산 기록. `League.GamesBehind`는 승차
   - `SaveGame` — 내 팀과 진행 중인 커리어(리그, 순위 포함)를 저장/불러오기. 버전 번호가 붙은 바이너리라 Unity에 JSON 라이브러리가 필요 없고, 나중 버전도 옛 저장을 읽을 수 있다
 - `src/BaseballSim.Sandbox` — 시즌을 통째로 돌려 리그 기록과 능력치 영향을 확인하는 콘솔 프로그램
 - `src/BaseballSim.Tests` — 엔진 테스트 (xUnit)
 
 - `unity/` — Unity 프로젝트 (Unity 6). 엔진 폴더를 로컬 패키지로 불러온다 (`unity/Packages/manifest.json`)
-  - `Assets/Scripts/GrowthScreen.cs` — 육성 화면 프로토타입. 씬 설정 없이 Play만 누르면 화면이 코드로 만들어진다
+  - `Assets/Scripts/GrowthScreen.cs` — 육성 화면 프로토타입. 씬 설정 없이 Play만 누르면 화면이 코드로 만들어진다. 처음 켜거나 은퇴하면 선수 이름과 시즌 길이를 정하는 등록 화면이 뜬다
+  - `Assets/Scripts/RecordsScreen.cs` — 기록 화면: 리그 순위(승률, 승차), 내 이번 시즌·시즌별·통산 기록, 내 팀 은퇴 선수
   - `Assets/Scripts/MatchScreen.cs` — 경기 화면. 육성 화면의 "오늘 경기 보기"로 연다. 점수판, 아웃·주자 표시, 중계, 일시정지 / 속도 x1·x2·x4 / 내 타석으로 / 결과 보기
   - `Assets/Scripts/MatchField.cs` — 경기 화면의 3D 구장. 기본 도형(캡슐 선수, 공, 베이스, 펜스)으로 투구, 타구, 수비수 쫓아가기, 주루를 연출. 내 선수는 금색. 아트 작업 때 3D 애니풍 캐릭터 모델로 교체 예정
   - `Assets/Scripts/SaveStore.cs` — 폰 내부 저장소에 저장 파일을 쓴다. 하루 진행, 장비 구입, 시즌 길이 변경, 은퇴 때마다, 그리고 앱을 내리거나 끌 때 자동 저장

@@ -103,5 +103,12 @@ namespace BaseballSim.Career
         }
 
         public List<Standing> Ranked() => Standings.Values.OrderByDescending(s => s.WinPct).ToList();
+
+        /// <summary>Games behind the leader: half the difference in wins plus half the difference in losses.</summary>
+        public double GamesBehind(Standing standing)
+        {
+            var leader = Ranked()[0];
+            return ((leader.Wins - standing.Wins) + (standing.Losses - leader.Losses)) / 2.0;
+        }
     }
 }

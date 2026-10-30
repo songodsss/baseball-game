@@ -61,13 +61,12 @@ namespace BaseballGame
                 _club = club;
                 _career = career;
             }
-            if (_career == null) StartNewCareer();
             BuildUi();
             Refresh();
 
-            if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
-            else if (loaded && career != null) Log($"{_career.Me.Name} 선수, {_career.Season}시즌 {_career.Day + 1}일차부터 이어서 합니다.");
-            else Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
+            if (_career == null) ShowNewPlayer();
+            else if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
+            else Log($"{_career.Me.Name} 선수, {_career.Season}시즌 {_career.Day + 1}일차부터 이어서 합니다.");
         }
 
         // Phones kill backgrounded apps without warning, so save whenever the app is left too.
@@ -81,11 +80,10 @@ namespace BaseballGame
         /// <summary>Between retiring and starting the next player there's no career to save.</summary>
         void Save() => SaveStore.Save(_club, _retired ? null : _career);
 
-        void StartNewCareer()
+        void StartNewCareer(string name, int games)
         {
-            int games = _career != null ? _career.League.GamesPerSeason : 36;
             var league = new League(new RosterGenerator(_random), games);
-            var me = CareerState.NewPlayer(_club.Roster.Count == 0 ? "강하늘" : $"강하늘 {_club.Roster.Count + 1}세", _random, _club.PotentialBonus);
+            var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus);
             _career = new CareerState(me, league, league.Teams[0], _random);
             _lastDay = null;
             _retired = false;
@@ -145,8 +143,10 @@ namespace BaseballGame
             UiKit.Row(bottom, 20);
             _watchButton = UiKit.Button(bottom, "오늘 경기 보기", WatchGame);
             UiKit.Button(bottom, "장비 상점", ShowShop, UiKit.Card);
+            UiKit.Button(bottom, "기록", () => RecordsScreen.Open(_career, _club), UiKit.Card);
             _seasonLengthButton = UiKit.Button(bottom, "", CycleSeasonLength, UiKit.Card);
             _seasonLengthLabel = _seasonLengthButton.GetComponentInChildren<Text>();
+            foreach (var label in bottom.GetComponentsInChildren<Text>()) label.fontSize = 30;
         }
 
         void BuildStatusCard(RectTransform root)
@@ -343,14 +343,66 @@ namespace BaseballGame
                 $"명예 포인트 +{retired.LegacyPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n\n" +
                 $"내 팀 선수 {_club.Roster.Count}명";
             UiKit.Height(UiKit.Label(card, text, 34, TextAnchor.UpperCenter), 0, 1);
-            UiKit.Height(UiKit.Button(card, "새 선수 육성 시작", () =>
+            UiKit.Height(UiKit.Button(card, "새 선수 육성 시작", ShowNewPlayer), 110);
+        }
+
+        /// <summary>Name the next player and pick a season length. Shown on first launch and after each retirement.</summary>
+        void ShowNewPlayer()
+        {
+            bool first = _club.Roster.Count == 0;
+            var card = OpenOverlay(first ? "프로야구 선수 키우기" : "새 선수 등록");
+
+            string intro = first
+                ? "18세 신인을 프로 1군에 입단시켜 은퇴할 때까지 키워 보세요.\n은퇴한 선수는 내 팀에 남습니다."
+                : $"내 팀 선수 {_club.Roster.Count}명 · 명예 포인트 덕분에 새 선수 잠재력 +{_club.PotentialBonus}";
+            UiKit.Height(UiKit.Label(card, intro, 32, TextAnchor.MiddleCenter, UiKit.Muted), 160);
+
+            UiKit.Height(UiKit.Label(card, "선수 이름", 30, TextAnchor.LowerLeft), 60);
+            var box = UiKit.Panel(card, "Name", UiKit.Background);
+            UiKit.Height(box, 120);
+            var text = UiKit.Label(box, "", 44, TextAnchor.MiddleCenter);
+            text.supportRichText = false;
+            UiKit.Stretch(text.rectTransform);
+            var placeholder = UiKit.Label(box, "이름을 입력하세요", 44, TextAnchor.MiddleCenter, UiKit.Muted);
+            UiKit.Stretch(placeholder.rectTransform);
+            var input = box.gameObject.AddComponent<InputField>();
+            input.textComponent = text;
+            input.placeholder = placeholder;
+            input.characterLimit = 8;
+            input.text = first ? "강하늘" : "";
+
+            UiKit.Height(UiKit.Label(card, "시즌 길이 (짧을수록 하루 성장이 커요. 시즌 사이에 바꿀 수 있어요)", 30, TextAnchor.LowerLeft), 80);
+            var lengths = UiKit.Empty(card, "Lengths");
+            UiKit.Height(lengths, 110);
+            UiKit.Row(lengths, 16);
+            int games = _career != null ? _career.League.GamesPerSeason : 36;
+            var buttons = new List<(int Games, Button Button)>();
+            void Highlight()
             {
-                StartNewCareer();
+                foreach (var (g, b) in buttons) b.GetComponent<Image>().color = g == games ? UiKit.Accent : UiKit.Background;
+            }
+            foreach (int length in League.SeasonLengths)
+            {
+                int l = length;
+                buttons.Add((l, UiKit.Button(lengths, $"{l}경기", () => { games = l; Highlight(); })));
+            }
+            Highlight();
+
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Button(card, "육성 시작", () =>
+            {
+                string name = input.text.Trim();
+                if (name.Length == 0)
+                {
+                    placeholder.color = UiKit.Warning;
+                    return;
+                }
+                StartNewCareer(name, games);
                 CloseOverlay();
                 _logLines.Clear();
-                Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단!");
+                Log($"{_career.Me.Name} 선수, {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
                 Refresh();
-            }), 110);
+            }), 120);
         }
 
         // ---------- Refresh ----------
@@ -364,6 +416,7 @@ namespace BaseballGame
 
         void Refresh()
         {
+            if (_career == null) return; // first launch, still on the new-player card
             var me = _career.Me;
             var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
             _header.text = $"<b>{me.Name}</b>  {me.Age}세 · {_career.MyTeam.Name}\n" +
@@ -386,8 +439,8 @@ namespace BaseballGame
 
             foreach (var b in _actionButtons) b.interactable = !me.IsInjured || b == _actionButtons.Last();
             _seasonLengthLabel.text = _career.Day == 0
-                ? $"시즌 {_career.League.GamesPerSeason}경기 (변경)"
-                : $"시즌 {_career.League.GamesPerSeason}경기";
+                ? $"{_career.League.GamesPerSeason}경기 (변경)"
+                : $"{_career.League.GamesPerSeason}경기 시즌";
             _seasonLengthButton.interactable = _career.Day == 0;
             _watchButton.interactable = _lastDay?.MyGame != null;
         }

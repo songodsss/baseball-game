@@ -126,5 +126,46 @@ namespace BaseballGame
 
         public static void SetBar(RectTransform fill, float fraction) =>
             fill.anchorMax = new Vector2(Mathf.Clamp01(fraction), 1);
+
+        /// <summary>A vertical scroll area; returns the content, which grows with what's added to it.</summary>
+        public static RectTransform ScrollList(Transform parent, int spacing)
+        {
+            var viewport = Empty(parent, "Scroll");
+            viewport.gameObject.AddComponent<RectMask2D>();
+            // Something has to catch drags in the gaps between rows.
+            viewport.gameObject.AddComponent<Image>().color = Color.clear;
+
+            var content = Empty(viewport, "Content");
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.offsetMin = content.offsetMax = Vector2.zero;
+            var layout = Column(content, 0, spacing);
+            layout.childForceExpandHeight = false;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
+            scroll.viewport = viewport;
+            scroll.content = content;
+            scroll.horizontal = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            return content;
+        }
+
+        /// <summary>One table row of fixed-width cells; a width of 0 takes the remaining space.</summary>
+        public static RectTransform TableRow(Transform parent, float[] widths, string[] cells, int size, Color color, Color? background = null)
+        {
+            var row = background.HasValue ? Panel(parent, "Row", background.Value) : Empty(parent, "Row");
+            Height(row, size + 30);
+            var layout = Row(row, 6);
+            layout.padding = new RectOffset(12, 12, 0, 0);
+            layout.childForceExpandWidth = false;
+            for (int i = 0; i < cells.Length; i++)
+            {
+                var cell = Label(row, cells[i], size, i == 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter, color);
+                Width(cell, widths[i], widths[i] == 0 ? 1 : 0);
+            }
+            return row;
+        }
     }
 }
