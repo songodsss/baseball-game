@@ -37,7 +37,7 @@ namespace BaseballSim.Career
         const double DemoteOps = 0.580;
         const double PromoteOps = 0.780;
         const double ReleaseOps = 0.600;
-        const int FarmPitching = 42;
+        const int FarmArm = 42;
         const int FarmDefense = 45;
 
         /// <summary>Playing in 2군: no 1군 games, but still trains and plays farm games.</summary>
@@ -66,7 +66,7 @@ namespace BaseballSim.Career
 
         static readonly Player FarmPitcher = new Player("farm", "2군 투수")
         {
-            Pitching = new PitchingRatings { Velocity = FarmPitching, Control = FarmPitching, Breaking = FarmPitching, Stamina = FarmPitching },
+            Pitching = new PitchingRatings { Velocity = FarmArm, Control = FarmArm, Breaking = FarmArm, Stamina = FarmArm },
         };
 
         /// <summary>The 1군 plays without me while I bat a few times against weaker 2군 pitching.</summary>
@@ -80,6 +80,15 @@ namespace BaseballSim.Career
             {
                 result.SatOut = true;
                 InjuredThisSeason = true;
+                return;
+            }
+            if (Me.IsPitcher)
+            {
+                // A 2군 starter pitches every fifth day too; the 2군 pays the salary share either way.
+                if (IsStartDay) { DaysSinceStart = 0; PlayFarmStart(result); }
+                else { DaysSinceStart++; result.BetweenStarts = true; }
+                result.MoneyEarned = InMilitary ? 20 : Me.Salary / League.GamesPerSeason;
+                Me.Money += result.MoneyEarned;
                 return;
             }
 
@@ -96,7 +105,7 @@ namespace BaseballSim.Career
             // 2군 pays the salary share but no hit bonuses; the army pays a token allowance.
             result.MoneyEarned = InMilitary ? 20 : Me.Salary / League.GamesPerSeason;
             Me.Money += result.MoneyEarned;
-            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue));
+            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue + Positions.ExtraGameFatigue(Me.Position)));
         }
 
         void Tally(BattingLine line, Outcome outcome)
@@ -145,27 +154,33 @@ namespace BaseballSim.Career
 
             int games = League.GamesPerSeason;
             // A regular coming off a good year gets a longer leash before a cold spell sends him down.
-            bool established = Me.History.Count > 0 && Ops(Me.History[Me.History.Count - 1].Line) >= 0.800;
+            var last = Me.History.Count > 0 ? Me.History[Me.History.Count - 1] : null;
+            bool established = last != null && Form(last.Line, last.Pitching) >= 0.800;
             int needPa = established ? games * 3 / 2 : games / 2;
             double demoteBelow = established ? 0.500 : DemoteOps;
-            if (!InFarm && StintLine.PlateAppearances >= needPa && Ops(StintLine) < demoteBelow)
+            double form = Form(StintLine, StintPitching);
+            int sample = Sample(StintLine, StintPitching);
+            if (!InFarm && sample >= needPa && form < demoteBelow)
             {
                 InFarm = true;
                 result.Move = Note(RosterMoveKind.Demoted, MyTeam, MyTeam, $"{MonthText} 2군 강등",
-                    $"부진 끝에 2군으로 내려갔어요. (OPS {Stats.Rate(Ops(StintLine))})");
+                    $"부진 끝에 2군으로 내려갔어요. ({StintText()})");
             }
-            else if (InFarm && (StintLine.PlateAppearances >= games / 3 && Ops(StintLine) >= PromoteOps || StintDays >= games / 3))
+            else if (InFarm && (sample >= games / 3 && form >= PromoteOps || StintDays >= games / 3))
             {
                 InFarm = false;
                 result.Move = Note(RosterMoveKind.Promoted, MyTeam, MyTeam, $"{MonthText} 1군 복귀",
-                    Ops(StintLine) >= PromoteOps ? $"2군 활약(OPS {Stats.Rate(Ops(StintLine))})으로 1군에 올라왔어요!" : "1군에서 다시 기회를 받았어요.");
+                    form >= PromoteOps && sample >= games / 3 ? $"2군 활약({StintText()})으로 1군에 올라왔어요!" : "1군에서 다시 기회를 받았어요.");
             }
         }
+
+        string StintText() => Me.IsPitcher ? $"평균자책 {StintPitching.EraText}" : $"OPS {Stats.Rate(Ops(StintLine))}";
 
         RosterMove Note(RosterMoveKind kind, Team from, Team to, string note, string text)
         {
             SeasonNotes.Add(note);
             StintLine = new BattingLine();
+            StintPitching = new PitcherLine();
             StintDays = 0;
             return new RosterMove { Kind = kind, From = from, To = to, Text = text };
         }
@@ -178,9 +193,10 @@ namespace BaseballSim.Career
         {
             var ranked = League.Ranked().Select(s => s.Team).ToList();
             bool losing = ranked.IndexOf(MyTeam) >= ranked.Count / 2;
-            double ops = Ops(SeasonLine);
-            bool star = !InFarm && SeasonLine.PlateAppearances >= League.GamesPerSeason && ops >= 0.850;
-            bool struggling = InFarm || SeasonLine.PlateAppearances >= League.GamesPerSeason && ops < 0.650;
+            double ops = Form(SeasonLine, SeasonPitching);
+            int sample = Sample(SeasonLine, SeasonPitching);
+            bool star = !InFarm && sample >= League.GamesPerSeason && ops >= 0.850;
+            bool struggling = InFarm || sample >= League.GamesPerSeason && ops < 0.650;
 
             double forced = 0.05;
             if (star && losing && Me.Age >= 25) forced += 0.12;
@@ -227,6 +243,7 @@ namespace BaseballSim.Career
             Me.Clubs.Add(to.Name);
             MyTeam = to;
             if (League.Batting.TryGetValue(Me.Id, out var season)) season.Team = to;
+            if (League.Pitching.TryGetValue(Me.Id, out var arm)) arm.Team = to;
         }
 
         public RosterMove AcceptTrade()
@@ -252,8 +269,8 @@ namespace BaseballSim.Career
         {
             if (underContract || Me.History.Count < 3 || Me.Age >= RetirementAge) return false;
             int games = League.GamesPerSeason;
-            bool fullYear = SeasonLine.PlateAppearances >= games * 2;
-            double ops = Ops(SeasonLine);
+            bool fullYear = Sample(SeasonLine, SeasonPitching) >= games * 2;
+            double ops = Form(SeasonLine, SeasonPitching);
             return FarmDays >= games / 2 && Me.Age >= 22
                 || fullYear && ops < ReleaseOps && Me.Age >= 24
                 || fullYear && ops < 0.680 && Me.Age >= 34;
@@ -262,7 +279,7 @@ namespace BaseballSim.Career
         /// <summary>Clubs willing to give a released player a 1-year tryout in 2군; fewer for older, weaker players.</summary>
         List<ContractOffer> TryoutOffers()
         {
-            double overall = CareerPlayer.AllStats.Average(s => Me.Ratings[s]);
+            double overall = Me.MyStats.Average(s => Me.Ratings[s]);
             double chance = Math.Max(0.03, Math.Min(0.5, (overall - 40) / 50 - Math.Max(0, Me.Age - 30) * 0.06));
             int salary = Math.Max(MinSalary, (int)(Me.Salary * 0.6 / 100) * 100);
             return League.Teams
@@ -278,7 +295,8 @@ namespace BaseballSim.Career
         {
             result.AllStar = AllStar.Play(this, _sim);
             if (!result.AllStar.Selected) return;
-            SeasonNotes.Add(result.AllStar.MyMvp ? $"{MonthText} 올스타전 MVP" : $"{MonthText} 올스타 선정");
+            SeasonNotes.Add(result.AllStar.MyMvp ? $"{MonthText} 올스타전 MVP" : result.AllStar.FanVote ? $"{MonthText} 팬 투표 올스타" : $"{MonthText} 올스타 선정");
+            AddFans(result.AllStar.MyMvp ? 200 : 100);
             Me.Morale = Math.Min(CareerPlayer.MaxMorale, Me.Morale + 2);
         }
 
@@ -287,7 +305,7 @@ namespace BaseballSim.Career
         void PlayTournament(DayResult result)
         {
             result.Tournament = NationalTeam.Play(this, _random);
-            if (result.Tournament.Selected && result.Tournament.Medal == NationalTeam.Gold) ExemptByGold();
+            if (result.Tournament.Selected && result.Tournament.Medal == NationalTeam.Gold) { ExemptByGold(); AddFans(300); }
             if (result.Tournament.Selected)
                 SeasonNotes.Add($"{MonthText} {NationalTeam.Name} " + (result.Tournament.Medal ?? "대표 출전"));
         }
@@ -295,6 +313,8 @@ namespace BaseballSim.Career
         void ResetSeasonMoves()
         {
             FarmLine = new BattingLine();
+            FarmPitching = new PitcherLine();
+            StintPitching = new PitcherLine();
             FarmDays = 0;
             TradedThisSeason = false;
             StintLine = new BattingLine();

@@ -12,6 +12,11 @@ namespace BaseballSim.Career
         TrainSpeed,   // 주루 훈련
         TrainDefense, // 수비 훈련
         Rest,         // 휴식
+        // A pitcher's
+        TrainVelocity, // 구속 훈련 (러닝·웨이트)
+        TrainControl,  // 제구 훈련 (불펜 피칭)
+        TrainBreaking, // 변화구 연마
+        TrainStamina,  // 체력 훈련 (장거리 러닝)
     }
 
     public class DayResult
@@ -22,10 +27,17 @@ namespace BaseballSim.Career
         /// <summary>Rating points gained today, from training and from the game.</summary>
         public Dictionary<Stat, int> PointsGained = new Dictionary<Stat, int>();
         public bool GotInjured;
+        public InjuryKind Injury;
         public bool SatOut;
         public GameResult MyGame;
         public Player MyGamePlayer;
         public BattingLine MyLine;
+        /// <summary>A pitcher's start today (1군 or 2군); null on other days and for hitters.</summary>
+        public PitcherLine MyPitching;
+        /// <summary>Career milestones reached today, e.g. "통산 100안타".</summary>
+        public List<string> Milestones = new List<string>();
+        /// <summary>A pitcher resting between starts while his club played.</summary>
+        public bool BetweenStarts;
         public int MoneyEarned;
         /// <summary>A story event to answer before the next day, or null.</summary>
         public StoryEvent Event;
@@ -33,6 +45,7 @@ namespace BaseballSim.Career
         /// <summary>Played in 2군 today; FarmLine is my batting there (null if hurt).</summary>
         public bool InFarm;
         public BattingLine FarmLine;
+        public PitcherLine FarmPitching;
         /// <summary>Sent down, called up or traded today, or null.</summary>
         public RosterMove Move;
         /// <summary>A trade offer to answer before the next day, or null.</summary>
@@ -58,6 +71,9 @@ namespace BaseballSim.Career
     public class SeasonSummary
     {
         public SeasonRecord Record;
+        /// <summary>Popularity before the winter drift, and the sponsor money it brought.</summary>
+        public int Popularity;
+        public int Sponsor;
         public int Rank;
         public int OldSalary;
         public int NewSalary;
@@ -167,10 +183,10 @@ namespace BaseballSim.Career
         public bool MustRetire => Me.Age >= RetirementAge || Released && PendingOffers.Count == 0;
 
         /// <summary>Creates a fresh 18-year-old with random starting ratings and potential.</summary>
-        public static CareerPlayer NewPlayer(string name, IRandom random, int potentialBonus = 0)
+        public static CareerPlayer NewPlayer(string name, IRandom random, int potentialBonus = 0, Position position = Position.Outfield, int number = 0)
         {
-            var me = new CareerPlayer { Id = "me", Name = name, Age = 18 };
-            foreach (var stat in CareerPlayer.AllStats)
+            var me = new CareerPlayer { Id = "me", Name = name, Age = 18, Position = position, Number = number };
+            foreach (var stat in me.MyStats)
             {
                 int start = 30 + (int)(random.NextDouble() * 16);
                 int potential = (int)Math.Round(Normal(random, 68, 10)) + potentialBonus;
@@ -188,6 +204,8 @@ namespace BaseballSim.Career
             if (IsSeasonOver) throw new InvalidOperationException("Season is over; call EndSeason first.");
             if (Released) throw new InvalidOperationException("Released; sign a tryout offer or retire.");
             if (IsMidGame) throw new InvalidOperationException("Answer the big at bat first.");
+            if (action != DailyAction.Rest && IsPitcherAction(action) != Me.IsPitcher)
+                throw new ArgumentException(Me.IsPitcher ? "Pitchers train pitching." : "Hitters train hitting.");
             PendingOffers.Clear(); // free-agency offers left unanswered: stays on a yearly deal
             PendingSalary = null;  // salary offer left unanswered: accepted
             PendingTrade = null;
@@ -225,8 +243,10 @@ namespace BaseballSim.Career
             result.AtBat = null;
             Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery - Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom)));
             if (Me.InjuryDaysLeft > 0) Me.InjuryDaysLeft--;
+            else if (Me.LingerDays > 0) Me.LingerDays--;
             Me.Morale -= Math.Sign(Me.Morale);
             Day++;
+            result.Milestones = CheckMilestones(result);
             ReviewRoster(result);
             if (Day == AllStarDay) PlayAllStar(result);
             if (Day == TournamentDay && NationalTeam.IsTournamentYear(Year)) PlayTournament(result);
@@ -269,9 +289,10 @@ namespace BaseballSim.Career
             double rehab = 1 - Facilities.InjuryReduction(Me.FacilityLevel(Facility.RehabCenter));
             if (tired && _random.NextDouble() < InjuryChanceWhenTired * rehab)
             {
-                double quick = Me.Traits.Contains(Traits.Recovery) ? 0.6 : 1.0;
-                Me.InjuryDaysLeft = (int)Math.Ceiling((5 + _random.NextDouble() * 10) * rehab * quick / DayWeight);
+                var kind = Injuries.Roll(_random);
+                Injure(kind, (int)Math.Ceiling(Injuries.Days(kind, _random) * rehab / DayWeight));
                 result.GotInjured = true;
+                result.Injury = kind;
                 return;
             }
 
@@ -282,7 +303,14 @@ namespace BaseballSim.Career
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
         }
 
-        static (Stat Main, Stat Side) TrainingTargets(DailyAction action)
+        public static bool IsPitcherAction(DailyAction action) => action >= DailyAction.TrainVelocity;
+
+        /// <summary>The training choices for this player, rest last.</summary>
+        public List<DailyAction> TrainingChoices => (Me.IsPitcher
+            ? new[] { DailyAction.TrainVelocity, DailyAction.TrainControl, DailyAction.TrainBreaking, DailyAction.TrainStamina, DailyAction.Rest }
+            : new[] { DailyAction.TrainContact, DailyAction.TrainPower, DailyAction.TrainEye, DailyAction.TrainSpeed, DailyAction.TrainDefense, DailyAction.Rest }).ToList();
+
+        public static (Stat Main, Stat Side) TrainingTargets(DailyAction action)
         {
             switch (action)
             {
@@ -290,6 +318,10 @@ namespace BaseballSim.Career
                 case DailyAction.TrainPower: return (Stat.Power, Stat.Contact);
                 case DailyAction.TrainEye: return (Stat.Eye, Stat.Contact);
                 case DailyAction.TrainSpeed: return (Stat.Speed, Stat.Defense);
+                case DailyAction.TrainVelocity: return (Stat.Velocity, Stat.Stamina);
+                case DailyAction.TrainControl: return (Stat.Control, Stat.Breaking);
+                case DailyAction.TrainBreaking: return (Stat.Breaking, Stat.Control);
+                case DailyAction.TrainStamina: return (Stat.Stamina, Stat.Velocity);
                 default: return (Stat.Defense, Stat.Speed);
             }
         }
@@ -299,6 +331,19 @@ namespace BaseballSim.Career
             int age = Me.Age;
             double growth = age <= 22 ? 1.3 : age <= 27 ? 1.0 : age <= 31 ? 0.7 : 0.4;
             return age >= 28 && Me.Traits.Contains(Traits.LateBloomer) ? growth * 1.6 : growth;
+        }
+
+        /// <summary>Puts the player out for some days (fewer with the quick-recovery trait); the injury lingers as long again.</summary>
+        internal int Injure(InjuryKind kind, int days)
+        {
+            if (Me.Traits.Contains(Traits.Recovery)) days = (int)Math.Ceiling(days * 0.6);
+            days = Math.Max(1, days);
+            Me.Injury = kind;
+            Me.InjuryDaysLeft = days;
+            Me.LingerDays = days;
+            InjuredThisSeason = true;
+            SeasonNotes.Add($"{MonthText} {Injuries.Name(kind)} ({days}일)");
+            return days;
         }
 
         int Tiring(int fatigue) => Me.Traits.Contains(Traits.Iron) ? (int)Math.Round(fatigue * 0.7) : fatigue;
@@ -343,6 +388,7 @@ namespace BaseballSim.Career
         {
             var awayStarter = League.NextStarter(away);
             var homeStarter = League.NextStarter(home);
+            if (Me.IsPitcher) return PlayPitcherDay(away, home, awayStarter, homeStarter, result);
 
             if (Me.IsInjured)
             {
@@ -423,7 +469,8 @@ namespace BaseballSim.Career
             StintDays++;
             GainGameExp(result, result.MyLine);
             PayForGame(result);
-            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue));
+            FansForGame(result.MyLine, null);
+            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue + Positions.ExtraGameFatigue(Me.Position)));
         }
 
         // Every game gives some exp, even an 0-for-4, so a bad day never feels wasted.
@@ -442,8 +489,11 @@ namespace BaseballSim.Career
 
         void PayForGame(DayResult result)
         {
+            int pay = Me.Salary / League.GamesPerSeason;
             var l = result.MyLine;
-            int pay = Me.Salary / League.GamesPerSeason + DayWeight * (5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn);
+            var p = result.MyPitching;
+            if (l != null) pay += DayWeight * (5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn);
+            if (p != null) pay += DayWeight * (60 * p.Wins + 5 * p.Strikeouts);
             Me.Money += pay;
             result.MoneyEarned = pay;
         }
@@ -461,7 +511,7 @@ namespace BaseballSim.Career
                 OldSalary = Me.Salary,
                 Postseason = BaseballSim.Career.Postseason.Play(this, _sim, _random),
                 Awards = BaseballSim.Career.Awards.For(League, Me.Id,
-                    Me.History.Count == 0 ? new[] { Me.Id, RivalState.PlayerId } : new string[0], DefenseOf),
+                    Me.History.Count == 0 ? new[] { Me.Id, RivalState.PlayerId } : new string[0], FieldingOf),
             };
 
             summary.Record = new SeasonRecord
@@ -470,6 +520,7 @@ namespace BaseballSim.Career
                 Age = Me.Age,
                 Games = League.GamesPerSeason,
                 Line = SeasonLine,
+                Pitching = Me.IsPitcher ? SeasonPitching : null,
                 Ratings = Me.Snapshot(),
                 Salary = Me.Salary,
                 Titles = summary.Awards.Where(a => a.Mine).Select(a => a.Title).ToList(),
@@ -481,11 +532,12 @@ namespace BaseballSim.Career
             if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
             Me.History.Add(summary.Record);
             summary.GoalMet = SettleGoal(summary);
+            SettleFans(summary);
 
             // Salary moves halfway toward what this season's OPS is worth, so one fluke year
             // doesn't make or break a contract. OPS .800 is worth about 8,500, .950 about 24,000.
             // A signed deal holds the salary until it runs out.
-            double ops = Ops(SeasonLine);
+            double ops = Form(SeasonLine, SeasonPitching);
             double worth = MinSalary * Math.Exp((ops - 0.650) * 7);
             bool underContract = ContractSeasonsLeft > 0;
             bool served = InMilitary;
@@ -504,10 +556,10 @@ namespace BaseballSim.Career
             Me.Age++;
             if (Me.Age >= 32)
             {
-                foreach (var stat in CareerPlayer.AllStats)
+                foreach (var stat in Me.MyStats)
                 {
                     int drop = (int)(_random.NextDouble() * (Me.Age - 30));
-                    if (stat == Stat.Speed) drop += 1; // legs go first
+                    if (stat == Stat.Speed || stat == Stat.Velocity) drop += 1; // legs and fastball go first
                     drop = (int)Math.Round(drop * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
                     int before = Me.Ratings[stat];
                     // The ceiling drops too, or training would simply win the points back.
@@ -523,6 +575,8 @@ namespace BaseballSim.Career
             Day = 0;
             InjuredThisSeason = false;
             SeasonLine = new BattingLine();
+            SeasonPitching = new PitcherLine();
+            DaysSinceStart = StartEvery - 1;
             ResetSeasonMoves();
             if (Rival != null)
             {

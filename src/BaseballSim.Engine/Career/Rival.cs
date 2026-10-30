@@ -24,10 +24,6 @@ namespace BaseballSim.Career
         /// <summary>The rival's game player, wherever he is in the league; null if there's no rival.</summary>
         public Player RivalPlayer => Rival == null ? null : League.Teams.SelectMany(t => t.Lineup).FirstOrDefault(p => p.Id == RivalState.PlayerId);
         public Team RivalTeam => Rival == null ? null : League.Teams.FirstOrDefault(t => t.Lineup.Any(p => p.Id == RivalState.PlayerId));
-        int DefenseOf(string id) => id == Me.Id
-            ? Me.EffectiveRating(Stat.Defense)
-            : League.Teams.SelectMany(t => t.Lineup).FirstOrDefault(p => p.Id == id)?.Batting.Defense ?? 50;
-
         public BattingLine RivalLine => League.Batting.TryGetValue(RivalState.PlayerId, out var s) ? s.Line : new BattingLine();
 
         /// <summary>Signs the rival to a random other club, in place of one of its regulars. Called before a season's first game.</summary>

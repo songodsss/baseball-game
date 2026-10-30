@@ -140,14 +140,28 @@ public class GoldenGloveTests
             var day = career.PlayDay(DailyAction.Rest);
             if (day.Trade != null) career.DeclineTrade();
         }
-        var awards = Awards.For(league, "me", new string[0], id => 50);
+        // Spread the league over positions as league lineups are: C, 1B, 2B, 3B, SS, OF x3, DH.
+        (Position, int) Fielding(string id)
+        {
+            foreach (var team in league.Teams)
+            {
+                int i = team.Lineup.FindIndex(p => p.Id == id);
+                if (i >= 0) return (Positions.OfLineupIndex(i), 50);
+            }
+            return (Position.DesignatedHitter, 50);
+        }
+        var awards = Awards.For(league, "me", new string[0], Fielding);
         var gloves = awards.Where(a => a.Title == Awards.GoldenGlove).ToList();
-        Assert.Equal(Awards.GoldenGloves, gloves.Count);
-        Assert.Equal(Awards.GoldenGloves, gloves.Select(g => g.Winner + g.Team).Distinct().Count());
+        // Nine fielders and a pitcher.
+        Assert.Equal(10, gloves.Count);
+        Assert.Equal(10, gloves.Select(g => g.Winner + g.Team).Distinct().Count());
+        Assert.Single(gloves, g => g.Position == Position.Pitcher);
+        Assert.Equal(3, gloves.Count(g => g.Position == Position.Outfield));
+        Assert.Single(gloves, g => g.Position == Position.Catcher);
 
         // A great glove can tip it.
-        var bestDefense = Awards.For(league, "me", new string[0], id => id == "p1" ? 99 : 50);
-        Assert.Contains(bestDefense, a => a.Title == Awards.GoldenGlove);
+        var bestDefense = Awards.For(league, "me", new string[0], id => (Position.Shortstop, id == "p1" ? 99 : 50));
+        Assert.Equal(2, bestDefense.Count(a => a.Title == Awards.GoldenGlove)); // the shortstop and the pitcher
         Assert.DoesNotContain(Awards.For(league, "me", new string[0]), a => a.Title == Awards.GoldenGlove);
     }
 

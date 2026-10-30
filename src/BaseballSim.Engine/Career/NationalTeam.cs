@@ -20,6 +20,7 @@ namespace BaseballSim.Career
         /// <summary>"금메달", "은메달", "동메달" or null.</summary>
         public string Medal;
         public BattingLine MyLine = new BattingLine();
+        public PitcherLine MyPitching = new PitcherLine();
         public int Bonus;
     }
 
@@ -60,6 +61,12 @@ namespace BaseballSim.Career
                 bool won = game.Winner == result.Korea || game.IsTie && stage.StartsWith("조별");
                 result.Games.Add(new TournamentGame { Stage = stage, Game = game, Won = won });
                 if (mine != null && game.Batting.TryGetValue(mine, out var line)) Career.Accumulate(result.MyLine, line);
+                if (mine != null && game.Pitching.TryGetValue(mine, out var arm))
+                {
+                    var g = new PitcherLine();
+                    g.Add(arm, true, false, false);
+                    result.MyPitching.Add(g);
+                }
                 return won;
             }
 
@@ -81,27 +88,8 @@ namespace BaseballSim.Career
         /// <summary>The nine best hitters in the league by OPS, the best arms, and my player if he makes the cut.</summary>
         static Team KoreaSquad(Career career, IRandom random, out Player mine)
         {
-            var league = career.League;
-            int minPa = career.Day * 2;
-            double Ops(string id) => league.Batting.TryGetValue(id, out var s) && s.Line.PlateAppearances >= minPa ? Career.Ops(s.Line) : 0;
-
-            var candidates = league.Teams.SelectMany(t => t.Lineup).Select(p => (Player: p, Ops: Ops(p.Id))).ToList();
-            mine = null;
-            if (!career.InFarm && !career.Me.IsInjured)
-            {
-                mine = career.Me.ForGame(random);
-                candidates.Add((mine, Ops(career.Me.Id)));
-            }
-            var lineup = candidates.OrderByDescending(c => c.Ops).Take(9).Select(c => c.Player).ToList();
-            if (!lineup.Contains(mine)) mine = null;
-
-            int Stuff(Player p) => p.Pitching.Velocity + p.Pitching.Control + p.Pitching.Breaking;
-            return new Team("대한민국")
-            {
-                Lineup = lineup,
-                Rotation = league.Teams.SelectMany(t => t.Rotation).OrderByDescending(Stuff).Take(4).ToList(),
-                Bullpen = league.Teams.SelectMany(t => t.Bullpen).OrderByDescending(Stuff).Take(7).ToList(),
-            };
+            var me = !career.InFarm && !career.Me.IsInjured ? career.Me.ForGame(random) : null;
+            return career.PickSquad("대한민국", career.League.Teams, me, 9, 4, 7, out mine);
         }
 
         static Team RivalTeam((string Country, int Strength, string[] Family, string[] Given) rival, IRandom random)

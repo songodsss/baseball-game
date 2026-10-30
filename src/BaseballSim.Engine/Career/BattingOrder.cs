@@ -31,6 +31,7 @@ namespace BaseballSim.Career
         /// <summary>Re-sets the batting order; returns the old slot if it changed.</summary>
         int? UpdateBattingOrder()
         {
+            if (Me.IsPitcher) return null;
             var me = Me.ForGame(new SeededRandom(0));
             double mine = Rating(Me.Id, me.Batting);
             var others = MyTeam.Lineup.Where((p, i) => i != LineupSlot).Select(p => Rating(p.Id, p.Batting));

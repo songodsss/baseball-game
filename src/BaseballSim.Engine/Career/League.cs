@@ -58,6 +58,8 @@ namespace BaseballSim.Career
         public Dictionary<Team, Standing> Standings = new Dictionary<Team, Standing>();
         /// <summary>Every batter's season line, by player id. Reset with the standings.</summary>
         public Dictionary<string, BatterSeason> Batting = new Dictionary<string, BatterSeason>();
+        /// <summary>Every pitcher's season line, by player id. Reset with the standings.</summary>
+        public Dictionary<string, PitcherSeason> Pitching = new Dictionary<string, PitcherSeason>();
         readonly Dictionary<Team, int> _nextStarter = new Dictionary<Team, int>();
 
         public League(RosterGenerator generator, int gamesPerSeason = 36)
@@ -91,6 +93,7 @@ namespace BaseballSim.Career
         {
             Standings = Teams.ToDictionary(t => t, t => new Standing { Team = t });
             Batting = new Dictionary<string, BatterSeason>();
+            Pitching = new Dictionary<string, PitcherSeason>();
             foreach (var t in Teams) _nextStarter[t] = 0;
         }
 
@@ -139,7 +142,21 @@ namespace BaseballSim.Career
                     Batting[pair.Key.Id] = season = new BatterSeason { Id = pair.Key.Id, Name = pair.Key.Name, Team = team };
                 Career.Accumulate(season.Line, pair.Value);
             }
+            foreach (var pair in result.Pitching)
+            {
+                bool awayArm = result.Away.Rotation.Contains(pair.Key) || result.Away.Bullpen.Contains(pair.Key);
+                var team = awayArm ? result.Away : result.Home;
+                bool start = team.Rotation.Contains(pair.Key);
+                int ours = awayArm ? result.AwayScore : result.HomeScore, theirs = awayArm ? result.HomeScore : result.AwayScore;
+                var (win, loss) = start ? PitcherLine.Decision(pair.Value, ours, theirs) : (false, false);
+                if (!Pitching.TryGetValue(pair.Key.Id, out var season))
+                    Pitching[pair.Key.Id] = season = new PitcherSeason { Id = pair.Key.Id, Name = pair.Key.Name, Team = team };
+                season.Line.Add(pair.Value, start, win, loss);
+            }
         }
+
+        /// <summary>Innings needed to qualify for the ERA title: one per team game, as in pro leagues.</summary>
+        public int QualifyingOuts => 3 * GamesPerSeason;
 
         /// <summary>Plate appearances needed to qualify for rate titles: 3.1 per team game, as in pro leagues.</summary>
         public int QualifyingPa => (int)Math.Ceiling(3.1 * GamesPerSeason);

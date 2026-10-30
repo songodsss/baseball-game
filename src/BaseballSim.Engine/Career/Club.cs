@@ -24,8 +24,38 @@ namespace BaseballSim.Career
         /// <summary>Money left at retirement, given to youth baseball for legacy points.</summary>
         public int Donation;
         public int DonationPoints;
+        public Position Position = Position.Outfield;
+        /// <summary>Number worn in the career; 0 if none was picked.</summary>
+        public int Number;
+        /// <summary>Number on my own team, set freely there; 0 = the career number.</summary>
+        public int TeamNumber;
+        public int ShownNumber => TeamNumber > 0 ? TeamNumber : Number;
+        /// <summary>The club he played the most seasons for.</summary>
+        public string MainClub;
+        /// <summary>A pitcher's career line; null for hitters.</summary>
+        public PitcherLine CareerPitching;
 
+        public bool IsPitcher => Position == Position.Pitcher;
         public int Overall => (int)Math.Round(PeakRatings.Values.Average());
+
+        /// <summary>The farewell at his last game, longer for a bigger career.</summary>
+        public List<string> Ceremony
+        {
+            get
+            {
+                var lines = new List<string>();
+                string number = Number > 0 ? $"등번호 {Number}번 " : "";
+                lines.Add($"{MainClub ?? "구단"} 홈구장. {number}{Name}의 은퇴식이 열렸다.");
+                lines.Add(IsPitcher
+                    ? $"{Seasons}시즌, 통산 {CareerPitching?.Wins ?? 0}승 {CareerPitching?.Strikeouts ?? 0}탈삼진. 마지막으로 마운드에 올라 시구를 했다."
+                    : $"{Seasons}시즌, 통산 {CareerLine.Hits}안타 {CareerLine.HomeRuns}홈런. 마지막 타석에 들어서자 관중이 이름을 연호했다.");
+                if (Titles.Count > 0) lines.Add($"타이틀 {Titles.Count}개의 기억이 전광판을 채웠다.");
+                if (NumberRetiredBy != null) lines.Add($"{NumberRetiredBy}이(가) 그의 {(Number > 0 ? Number + "번" : "등번호")}을 영구결번으로 지정했다. 유니폼이 외야 펜스 위에 걸렸다.");
+                if (HallOfFame) lines.Add("그리고 명예의 전당 헌액 소식이 전해졌다.");
+                lines.Add(Donation > 0 ? $"그는 남은 {Donation:N0}만원을 유소년 야구에 기부하며 그라운드를 떠났다." : "그는 모자를 벗어 인사하고 그라운드를 떠났다.");
+                return lines;
+            }
+        }
     }
 
     /// <summary>
@@ -36,6 +66,9 @@ namespace BaseballSim.Career
     {
         public List<RetiredPlayer> Roster = new List<RetiredPlayer>();
         public int LegacyPoints;
+        /// <summary>Levels my team has beaten at least once, and wins overall.</summary>
+        public HashSet<ChallengeTier> ChallengesWon = new HashSet<ChallengeTier>();
+        public int ChallengeWins;
 
         /// <summary>Added to every potential of the next new player, at most +8.</summary>
         public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
@@ -62,15 +95,26 @@ namespace BaseballSim.Career
                 PeakRatings = new Dictionary<Stat, int>(me.PeakRatings),
                 Achievements = new List<string>(me.Achievements),
                 Titles = me.History.SelectMany(h => h.Titles).ToList(),
-                // Each season scaled to a full 144 games, so a short-season career earns the same.
-                LegacyPoints = (int)me.History.Sum(r => (r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0) * League.FullSeason / r.Games + 5),
+                Position = me.Position,
+                Number = me.Number,
+                MainClub = me.History.GroupBy(h => h.Club ?? career.MyTeam.Name).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key ?? career.MyTeam.Name,
             };
+            if (me.IsPitcher)
+            {
+                retired.CareerPitching = new PitcherLine();
+                foreach (var season in me.History) if (season.Pitching != null) retired.CareerPitching.Add(season.Pitching);
+            }
 
-            double Scaled(Func<BattingLine, int> stat) => me.History.Sum(r => stat(r.Line) * (double)League.FullSeason / r.Games);
+            // A season's worth: hits and homers, or wins and strikeouts, scaled to a full 144 games so a
+            // short-season career earns the same.
+            double Worth(SeasonRecord r) => (r.Pitching != null
+                ? r.Pitching.Wins + r.Pitching.Strikeouts / 10.0
+                : r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0) * League.FullSeason / r.Games;
+            retired.LegacyPoints = (int)me.History.Sum(r => Worth(r) + 5);
             int titles = retired.Titles.Count(t => t != Postseason.ChampionTitle);
             int rings = retired.Titles.Count(t => t == Postseason.ChampionTitle);
             retired.AllStars = me.AllStarSelections;
-            retired.HallOfFameScore = (int)(Scaled(l => l.Hits) / 10 + Scaled(l => l.HomeRuns) / 2 + 20 * titles + 10 * rings + 10 * retired.AllStars);
+            retired.HallOfFameScore = (int)(me.History.Sum(Worth) + 20 * titles + 10 * rings + 10 * retired.AllStars);
             retired.HallOfFame = retired.HallOfFameScore >= HallOfFameLine;
             if (retired.HallOfFame)
             {

@@ -69,7 +69,7 @@ namespace BaseballSim
                     Text = Commentary.Describe(ev) + (ev.Note != null ? $" ({ev.Note})" : ""),
                     HalfLabel = Commentary.HalfInning(ev.Inning, ev.IsTopHalf),
                     StartsHalf = prev == null || prev.Inning != ev.Inning || prev.IsTopHalf != ev.IsTopHalf,
-                    IsMine = mine != null && ev.Kind == EventKind.PlateAppearance && ev.Batter == mine,
+                    IsMine = mine != null && ev.Kind == EventKind.PlateAppearance && (ev.Batter == mine || ev.Pitcher == mine),
                     IsHighlight = IsHighlight(ev),
                     Moves = MovesFor(ev),
                 });

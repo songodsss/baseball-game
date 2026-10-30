@@ -45,7 +45,8 @@ public class SeasonGoalTests
         // Same kind across tiers: re-roll offers until a kind repeats is overkill; check through the public target maths instead.
         var a = new SeasonGoal { Kind = GoalKind.HomeRuns, Target = 10 };
         Assert.Equal("홈런 10개", a.Text);
-        Assert.Equal("3/10", a.Progress(new BattingLine { HomeRuns = 3 }));
+        career.SeasonLine.HomeRuns = 3;
+        Assert.Equal("3/10", a.Progress(career));
         Assert.NotEmpty(goals);
     }
 

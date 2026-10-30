@@ -22,6 +22,10 @@ namespace BaseballSim.Career
         public bool MyTeamWon;
         /// <summary>My player's games in the postseason (not counted in season stats).</summary>
         public BattingLine MyLine = new BattingLine();
+        /// <summary>My pitcher's postseason starts.</summary>
+        public PitcherLine MyPitching = new PitcherLine();
+        /// <summary>Postseason games my club has played, for a pitcher's turn: he starts every fourth.</summary>
+        public int MyTeamGames;
         public int Bonus;
     }
 
@@ -85,6 +89,29 @@ namespace BaseballSim.Career
             if (!mine) return sim.Play(away, home, awayStarter, homeStarter);
 
             var gamePlayer = career.Me.ForGame(random);
+            if (gamePlayer.IsPitcher)
+            {
+                if (result.MyTeamGames++ % 4 != 0) return sim.Play(away, home, awayStarter, homeStarter);
+                bool atHome = home == career.MyTeam;
+                var replaced = atHome ? homeStarter : awayStarter;
+                int slot = career.MyTeam.Rotation.IndexOf(replaced);
+                career.MyTeam.Rotation[slot] = gamePlayer;
+                try
+                {
+                    var game = sim.Play(away, home, atHome ? awayStarter : gamePlayer, atHome ? gamePlayer : homeStarter);
+                    if (game.Pitching.TryGetValue(gamePlayer, out var arm))
+                    {
+                        int ours = atHome ? game.HomeScore : game.AwayScore, theirs = atHome ? game.AwayScore : game.HomeScore;
+                        var (win, loss) = PitcherLine.Decision(arm, ours, theirs);
+                        result.MyPitching.Add(arm, true, win, loss);
+                    }
+                    return game;
+                }
+                finally
+                {
+                    career.MyTeam.Rotation[slot] = replaced;
+                }
+            }
             var regular = career.MyTeam.Lineup[career.LineupSlot];
             career.MyTeam.Lineup[career.LineupSlot] = gamePlayer;
             try

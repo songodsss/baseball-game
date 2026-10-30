@@ -20,6 +20,8 @@ namespace BaseballGame
         CareerState _career;
         Club _club;
         RectTransform _content;
+        GameObject _canvas;
+        ChallengeResult _lastChallenge;
         readonly Dictionary<Tab, Button> _tabs = new Dictionary<Tab, Button>();
 
         public static void Open(CareerState career, Club club)
@@ -35,6 +37,7 @@ namespace BaseballGame
         {
             var canvasGo = new GameObject("RecordsCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
+            _canvas = canvasGo;
             var canvas = canvasGo.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 5;
@@ -100,6 +103,45 @@ namespace BaseballGame
 
         void ShowMyRecord()
         {
+            if (_career.Me.IsPitcher) ShowMyPitching();
+            else ShowMyBatting();
+            ShowMoves();
+        }
+
+        void ShowMyPitching()
+        {
+            var me = _career.Me;
+            var p = _career.SeasonPitching;
+            Section($"{me.Name}  {_career.Year} 시즌 · {Positions.Name(me.Position)}");
+            float[] statWidths = { 0, 0, 0, 0, 0, 0 };
+            Header(statWidths, "승", "패", "평균자책", "이닝", "탈삼진", "WHIP");
+            Row(statWidths, 0, false, $"{p.Wins}", $"{p.Losses}", p.EraText, p.Innings, $"{p.Strikeouts}", p.Outs == 0 ? "-" : p.Whip.ToString("0.00"));
+            Header(statWidths, "선발", "피안타", "피홈런", "볼넷", "실점", "완봉");
+            Row(statWidths, 0, false, $"{p.Starts}", $"{p.Hits}", $"{p.HomeRuns}", $"{p.Walks}", $"{p.Runs}", $"{p.Shutouts}");
+            var f = _career.FarmPitching;
+            if (f.Outs > 0)
+                Note($"2군 {f.Starts}경기  {f.Wins}승 {f.Losses}패  평균자책 {f.EraText}" + (_career.InFarm ? "  · 지금 2군" : ""), TextAnchor.MiddleLeft, 60);
+            Note($"다음 선발까지 {_career.DaysToNextStart}일", TextAnchor.MiddleLeft, 60);
+
+            Section("시즌별 기록");
+            float[] widths = { 0, 100, 110, 140, 160, 130, 170 };
+            Header(widths, "연도", "나이", "승-패", "평균자책", "이닝", "탈삼진", "연봉");
+            if (me.History.Count == 0) Note("첫 시즌이 끝나면 여기에 기록이 쌓여요.");
+            for (int i = 0; i < me.History.Count; i++)
+            {
+                var h = me.History[i];
+                var hp = h.Pitching ?? new PitcherLine();
+                Row(widths, i, false, $"{CareerState.YearOf(h.Season)}", $"{h.Age}", $"{hp.Wins}-{hp.Losses}", hp.EraText, hp.Innings, $"{hp.Strikeouts}", $"{h.Salary:N0}");
+            }
+
+            var t = Stats.CareerPitching(_career);
+            Section("통산 (이번 시즌 포함)");
+            Header(statWidths, "승", "패", "평균자책", "이닝", "탈삼진", "완봉");
+            Row(statWidths, 0, true, $"{t.Wins}", $"{t.Losses}", t.EraText, t.Innings, $"{t.Strikeouts}", $"{t.Shutouts}");
+        }
+
+        void ShowMyBatting()
+        {
             var me = _career.Me;
             var l = _career.SeasonLine;
             Section($"{me.Name}  {_career.Year} 시즌");
@@ -124,6 +166,18 @@ namespace BaseballGame
                 Row(widths, i, false, $"{CareerState.YearOf(h.Season)}", $"{h.Age}", $"{h.Games}", Stats.Rate(Stats.Avg(h.Line)),
                     $"{h.Line.HomeRuns}", $"{h.Line.RunsBattedIn}", Stats.Rate(Stats.Ops(h.Line)), $"{h.Salary:N0}");
             }
+
+            var t = Stats.CareerTotal(_career);
+            Section("통산 (이번 시즌 포함)");
+            Header(statWidths, "타율", "안타", "홈런", "타점", "OPS", "볼넷");
+            Row(statWidths, 0, true, Stats.Rate(Stats.Avg(t)), t.Hits.ToString(), t.HomeRuns.ToString(),
+                t.RunsBattedIn.ToString(), Stats.Rate(Stats.Ops(t)), t.Walks.ToString());
+        }
+
+        /// <summary>Titles, moves, clubs and the rival: the same for hitters and pitchers.</summary>
+        void ShowMoves()
+        {
+            var me = _career.Me;
 
             var titled = me.History.Where(h => h.Titles.Count > 0).ToList();
             if (titled.Count > 0)
@@ -167,19 +221,14 @@ namespace BaseballGame
             if (_career.Rival != null)
             {
                 var rivalYears = me.History.Where(h => h.RivalLine != null).ToList();
-                int wins = rivalYears.Count(h => Stats.Ops(h.Line) >= Stats.Ops(h.RivalLine));
+                double Mine(SeasonRecord h) => h.Pitching != null ? CareerState.PitchingForm(h.Pitching) : Stats.Ops(h.Line);
+                int wins = rivalYears.Count(h => Mine(h) >= Stats.Ops(h.RivalLine));
                 var rl = _career.RivalLine;
                 Section($"라이벌 {_career.Rival.Name} ({_career.RivalTeam?.Name})");
                 Note($"이번 시즌 타율 {Stats.Rate(Stats.Avg(rl))}  {rl.HomeRuns}홈런  OPS {Stats.Rate(Stats.Ops(rl))}", TextAnchor.MiddleLeft, 60);
                 if (rivalYears.Count > 0)
-                    Note($"시즌 OPS 대결 {wins}승 {rivalYears.Count - wins}패", TextAnchor.MiddleLeft, 60);
+                    Note($"시즌 대결 {wins}승 {rivalYears.Count - wins}패", TextAnchor.MiddleLeft, 60);
             }
-
-            var t = Stats.CareerTotal(_career);
-            Section("통산 (이번 시즌 포함)");
-            Header(statWidths, "타율", "안타", "홈런", "타점", "OPS", "볼넷");
-            Row(statWidths, 0, true, Stats.Rate(Stats.Avg(t)), t.Hits.ToString(), t.HomeRuns.ToString(),
-                t.RunsBattedIn.ToString(), Stats.Rate(Stats.Ops(t)), t.Walks.ToString());
         }
 
         void ShowAchievements()
@@ -205,14 +254,68 @@ namespace BaseballGame
         void ShowMyTeam()
         {
             Section($"명예 포인트 {_club.LegacyPoints:N0}  ·  다음 선수 잠재력 +{_club.PotentialBonus}");
-            float[] widths = { 0, 110, 130, 120, 130 };
-            Header(widths, "선수", "시즌", "안타", "홈런", "종합");
-            if (_club.Roster.Count == 0) Note("은퇴한 선수가 내 팀에 들어와요. 나중에 이 선수들로 팀 콘텐츠를 즐길 수 있어요.");
+            if (_club.Roster.Count == 0)
+            {
+                Note("은퇴한 선수가 내 팀에 들어와요. 내 팀으로 도전 경기를 치를 수 있어요.");
+                return;
+            }
+
+            Section($"도전 경기  ·  통산 {_club.ChallengeWins}승");
+            Note("은퇴 선수들이 전성기 능력치로 뛰어요. 빈자리는 기본 선수가 채워요. 단계마다 첫 승리에 명예 포인트!", TextAnchor.MiddleLeft, 80);
+            foreach (ChallengeTier tier in System.Enum.GetValues(typeof(ChallengeTier)))
+            {
+                var t = tier;
+                bool won = _club.ChallengesWon.Contains(t);
+                string label = $"{DreamTeam.TierName(t)} 도전" + (won ? "  ✓ 승리" : $"  (첫 승 +{DreamTeam.Reward(t)})");
+                UiKit.Height(UiKit.Button(_content, label, () => Challenge(t), won ? UiKit.Card : UiKit.Accent), 100);
+            }
+            if (_lastChallenge != null)
+            {
+                var g = _lastChallenge.Game;
+                string result = _lastChallenge.Won ? "<color=#5FA8FF><b>승리!</b></color>" : "<color=#F28C40>패배</color>";
+                string reward = _lastChallenge.LegacyPoints > 0 ? $"  명예 포인트 +{_lastChallenge.LegacyPoints}" : "";
+                Note($"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}  {result}{reward}", TextAnchor.MiddleLeft, 70);
+                UiKit.Height(UiKit.Button(_content, "도전 경기 보기", () => Watch(g), UiKit.Muted), 90);
+            }
+
+            Section("선수단");
+            float[] widths = { 0, 110, 130, 100, 300, 110 };
+            Header(widths, "선수", "번호", "포지션", "시즌", "통산", "종합");
             var roster = _club.Roster.OrderByDescending(p => p.Overall).ToList();
             for (int i = 0; i < roster.Count; i++)
             {
                 var p = roster[i];
-                Row(widths, i, p.HallOfFame, (p.HallOfFame ? "★ " : "") + p.Name, $"{p.Seasons}", $"{p.CareerLine.Hits}", $"{p.CareerLine.HomeRuns}", $"{p.Overall}");
+                string totals = p.IsPitcher && p.CareerPitching != null ? $"{p.CareerPitching.Wins}승 {p.CareerPitching.Strikeouts}K" : $"{p.CareerLine.Hits}안타 {p.CareerLine.HomeRuns}홈런";
+                Row(widths, i, p.HallOfFame, (p.HallOfFame ? "★ " : "") + p.Name, p.ShownNumber > 0 ? $"{p.ShownNumber}" : "-",
+                    Positions.Name(p.Position), $"{p.Seasons}", totals, $"{p.Overall}");
+            }
+
+            // Numbers on my own team are mine to set; a number retired in a career stays a career story.
+            Section("내 팀 등번호");
+            foreach (var p in roster)
+            {
+                var player = p;
+                var row = UiKit.Empty(_content, "Number");
+                UiKit.Height(row, 80);
+                UiKit.Row(row, 10).childForceExpandWidth = false;
+                var label = UiKit.Label(row, "", 28, TextAnchor.MiddleLeft);
+                UiKit.Width(label, 0, 1);
+                void ShowNumber() => label.text = $"{player.Name}  <b>{(player.ShownNumber > 0 ? player.ShownNumber + "번" : "번호 없음")}</b>" +
+                    (player.TeamNumber > 0 && player.Number > 0 ? $" <size=22><color=#9EABC2>(현역 {player.Number}번)</color></size>" : "");
+                foreach (int step in new[] { -10, -1, 1, 10 })
+                {
+                    int d = step;
+                    var b = UiKit.Button(row, d > 0 ? $"+{d}" : $"{d}", () =>
+                    {
+                        int from = player.ShownNumber > 0 ? player.ShownNumber : 1;
+                        player.TeamNumber = (from - 1 + d + 99) % 99 + 1;
+                        ShowNumber();
+                        Save();
+                    }, UiKit.Background);
+                    b.GetComponentInChildren<Text>().fontSize = 26;
+                    UiKit.Width(b, 100);
+                }
+                ShowNumber();
             }
 
             var famers = roster.Where(p => p.HallOfFame).ToList();
@@ -222,6 +325,26 @@ namespace BaseballGame
                 foreach (var p in famers)
                     Note($"★ {p.Name}  점수 {p.HallOfFameScore}  올스타 {p.AllStars}회" + (p.NumberRetiredBy != null ? $"  · {p.NumberRetiredBy} 영구결번" : ""), TextAnchor.MiddleLeft, 60);
             }
+        }
+
+        void Challenge(ChallengeTier tier)
+        {
+            _lastChallenge = DreamTeam.Play(_club, tier, new SeededRandom(System.Environment.TickCount));
+            Save();
+            Show(Tab.MyTeam);
+        }
+
+        void Watch(GameResult game)
+        {
+            _canvas.SetActive(false);
+            MatchScreen.Open(game, null, () => { if (this != null) _canvas.SetActive(true); });
+        }
+
+        /// <summary>My team lives in the club, which the growth screen saves too; save here so a result can't be lost.</summary>
+        void Save()
+        {
+            if (_career != null && _career.IsMidGame) return;
+            SaveStore.Save(_club, _career);
         }
 
         // ---------- Pieces ----------

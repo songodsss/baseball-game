@@ -11,7 +11,11 @@ namespace BaseballSim.Career
                 case Stat.Power: return "파워";
                 case Stat.Eye: return "선구안";
                 case Stat.Speed: return "주루";
-                default: return "수비";
+                case Stat.Defense: return "수비";
+                case Stat.Velocity: return "구속";
+                case Stat.Control: return "제구";
+                case Stat.Breaking: return "변화구";
+                default: return "체력";
             }
         }
 
@@ -33,6 +37,15 @@ namespace BaseballSim.Career
             var total = new BattingLine();
             foreach (var season in career.Me.History) Career.Accumulate(total, season.Line);
             Career.Accumulate(total, career.SeasonLine);
+            return total;
+        }
+
+        /// <summary>A pitcher's finished seasons plus the one in progress (1군 only).</summary>
+        public static PitcherLine CareerPitching(Career career)
+        {
+            var total = new PitcherLine();
+            foreach (var season in career.Me.History) if (season.Pitching != null) total.Add(season.Pitching);
+            total.Add(career.SeasonPitching);
             return total;
         }
     }

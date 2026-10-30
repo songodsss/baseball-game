@@ -67,6 +67,17 @@ namespace BaseballSim.Career
             Add("reads", "수싸움의 달인", "찬스 타석 노림수 30번 적중", c => c.Me.ReadsRight >= 30);
             Add("gold", "금메달", "아시아 야구 대회 금메달", c => c.Me.GoldMedals >= 1);
             Add("golden_glove", "골든글러브", "골든글러브 수상", c => HasTitle(c, Awards.GoldenGlove));
+            PitcherLine Arm(Career c) => Stats.CareerPitching(c);
+            Add("first_win", "프로 첫 승", "프로 무대에서 첫 승리", c => Arm(c).Wins >= 1);
+            Add("first_k", "프로 첫 탈삼진", "프로 무대에서 첫 삼진", c => Arm(c).Strikeouts >= 1);
+            Add("wins_50", "50승", "통산 50승", c => Arm(c).Wins >= 50);
+            Add("wins_100", "100승", "통산 100승", c => Arm(c).Wins >= 100);
+            Add("k_500", "500탈삼진", "통산 500탈삼진", c => Arm(c).Strikeouts >= 500);
+            Add("k_1000", "1000탈삼진", "통산 1000탈삼진", c => Arm(c).Strikeouts >= 1000);
+            Add("shutout", "완봉승", "9이닝 무실점 완봉", c => Arm(c).Shutouts >= 1);
+            Add("ace_season", "2점대 에이스", "규정 이닝을 채우고 평균자책 2점대 이하",
+                c => c.Me.History.Any(h => h.Pitching != null && h.Pitching.Outs >= 3 * h.Games && h.Pitching.Era < 3.0));
+            Add("fan_favorite", "국민 스타", "인기도 100 달성", c => c.Me.Popularity >= 100);
             Add("iron_man", "철인", "부상 없이 시즌 완주", c => c.Me.History.Any(h => h.InjuryFree));
             return list;
         }

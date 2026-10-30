@@ -55,6 +55,7 @@ namespace BaseballSim.Career
 
         public void Exp(Stat stat, int amount)
         {
+            stat = Me.RoleStat(stat);
             int points = Me.GainExp(stat, amount);
             if (points == 0) return;
             Outcome.PointsGained.TryGetValue(stat, out var p);
@@ -91,12 +92,19 @@ namespace BaseballSim.Career
         }
 
         /// <summary>Rolls for a small injury; returns true if it happened.</summary>
-        public bool MaybeInjure(double chance, int days)
+        public bool MaybeInjure(double chance, int days, InjuryKind kind = InjuryKind.Ankle)
         {
             if (Me.IsInjured || _random.NextDouble() >= chance) return false;
-            Me.InjuryDaysLeft = days;
-            Outcome.Changes.Add($"부상 {days}일");
+            days = _career.Injure(kind, days);
+            Outcome.Changes.Add($"{Injuries.Name(kind)} {days}일");
             return true;
+        }
+
+        public void Fans(int points)
+        {
+            int before = Me.Popularity;
+            _career.AddFansFromEvent(points);
+            if (Me.Popularity != before) Outcome.Changes.Add($"인기 +{Me.Popularity - before}");
         }
 
         public void Say(string text) => Outcome.Text += "\n" + text;
@@ -130,7 +138,8 @@ namespace BaseballSim.Career
             return options.Last().Event;
         }
 
-        static bool PlayedWell(DayResult d) => d.MyLine != null && (d.MyLine.HomeRuns > 0 || d.MyLine.Hits >= 3);
+        static bool PlayedWell(DayResult d) =>
+            d.MyLine != null && (d.MyLine.HomeRuns > 0 || d.MyLine.Hits >= 3) || d.MyPitching != null && d.MyPitching.Wins > 0 && !d.InFarm;
 
         static List<StoryEvent> Build()
         {
@@ -141,7 +150,7 @@ namespace BaseballSim.Career
                 Id = "coach_extra",
                 Title = "코치의 특별 지도",
                 Text = "타격 코치가 {name}에게 다가왔다.\n\"오늘 끝나고 30분만 더 하자. 스윙이 조금 늦어.\"",
-                Weight = (c, d) => c.Me.IsInjured ? 0 : 1,
+                Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher ? 0 : 1,
                 Choices =
                 {
                     new EventChoice { Label = "남아서 배운다", Result = "땀범벅이 됐지만 감이 잡혔다.", Apply = e => { e.Exp(Stat.Contact, 60); e.Fatigue(15); } },
@@ -168,7 +177,7 @@ namespace BaseballSim.Career
                 Id = "slump",
                 Title = "슬럼프",
                 Text = "{name}, 최근 경기에서 안타가 없다.\n배트가 무겁게 느껴진다.",
-                Weight = (c, d) => c.HitlessStreak >= 3 ? 6 : 0,
+                Weight = (c, d) => !c.Me.IsPitcher && c.HitlessStreak >= 3 ? 6 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "영상을 돌려본다", Result = "타이밍이 반 박자 늦었던 걸 찾았다.", Apply = e => { e.Exp(Stat.Eye, 30); e.Morale(4); } },
@@ -182,7 +191,7 @@ namespace BaseballSim.Career
                 Id = "fan_letter",
                 Title = "팬레터",
                 Text = "오늘 경기를 본 어린이 팬에게서 편지가 왔다.\n\"{name} 선수처럼 되고 싶어요!\"",
-                Weight = (c, d) => PlayedWell(d) ? 4 : 0,
+                Weight = (c, d) => PlayedWell(d) ? 4 * (1 + c.Me.Popularity / 50.0) : 0,
                 Choices =
                 {
                     new EventChoice { Label = "답장을 쓴다", Result = "편지를 쓰며 처음 야구를 시작한 날이 떠올랐다.", Apply = e => e.Morale(6) },
@@ -281,11 +290,92 @@ namespace BaseballSim.Career
                 Id = "defense_drill",
                 Title = "펑고 100개",
                 Text = "수비 코치가 펑고 배트를 들었다.\n\"오늘 실책 하나 했지? 100개 받고 가.\"",
-                Weight = (c, d) => c.Me.IsInjured ? 0 : 0.8,
+                Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher ? 0 : 0.8,
                 Choices =
                 {
                     new EventChoice { Label = "다 받는다", Result = "유니폼이 흙투성이가 됐다.", Apply = e => { e.Exp(Stat.Defense, 60); e.Fatigue(15); } },
                     new EventChoice { Label = "50개만 부탁한다", Result = "\"다음엔 100개다.\"", Apply = e => { e.Exp(Stat.Defense, 25); e.Fatigue(5); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "farm_coach",
+                Title = "2군 코치의 특훈",
+                Text = "2군 구장. 잔뼈 굵은 코치가 {name}을 불렀다.\n\"여기 오래 있을 생각 없지? 그럼 기본부터 다시 하자.\"",
+                Weight = (c, d) => c.InFarm && !c.InMilitary && !c.Me.IsInjured ? 3 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "폼을 뜯어고친다", Result = "며칠은 어색했지만, 몸에 붙기 시작했다.", Apply = e => { e.Exp(Stat.Contact, 90); e.Fatigue(20); e.Morale(-1); } },
+                    new EventChoice { Label = "기본기를 다진다", Result = "화려하진 않아도 단단해졌다.", Apply = e => { e.Exp(Stat.Eye, 40); e.Exp(Stat.Defense, 40); e.Fatigue(10); } },
+                    new EventChoice { Label = "1군 복귀만 생각한다", Result = "마음을 다잡았다.", Apply = e => e.Morale(5) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "video_analysis",
+                Title = "전력분석실",
+                Text = "전력분석팀이 {name}의 최근 영상을 정리해 왔다.\n\"요즘 상대가 이렇게 공략하고 있어요.\"",
+                Weight = (c, d) => c.HitlessStreak >= 2 ? 3 : 0.4,
+                Choices =
+                {
+                    new EventChoice { Label = "밤새 분석한다", Result = "상대의 패턴이 보이기 시작했다.", Apply = e => { e.Exp(Stat.Eye, 60); e.Fatigue(10); } },
+                    new EventChoice { Label = "핵심만 듣는다", Result = "\"이것만 기억하세요.\" 머리가 맑아졌다.", Apply = e => { e.Exp(Stat.Eye, 25); e.Morale(2); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "mental_coach",
+                Title = "멘탈 코치",
+                Text = "구단이 멘탈 코치와의 상담을 권했다.\n개인 비용 200만원이 든다.",
+                Weight = (c, d) => c.Me.Morale <= -3 || c.HitlessStreak >= 3 ? 3 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "상담을 받는다 (200만원)", Result = "\"결과 말고 과정만 생각해요.\" 마음이 한결 가벼워졌다.", Apply = e => { e.Money(-200); e.Morale(8); } },
+                    new EventChoice { Label = "혼자 이겨낸다", Result = "이를 악물었다.", Apply = e => e.Morale(2) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "pitcher_slump",
+                Title = "흔들리는 마운드",
+                Text = "{name}, 최근 등판에서 연달아 무너졌다.\n공이 손에서 빠지는 느낌이다.",
+                Weight = (c, d) => c.Me.IsPitcher && c.HitlessStreak >= 2 ? 6 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "투구 폼을 점검한다", Result = "릴리스 포인트가 미세하게 낮아져 있었다.", Apply = e => { e.Exp(Stat.Control, 50); e.Morale(3); } },
+                    new EventChoice { Label = "어깨를 쉬게 한다", Result = "푹 쉬고 나니 팔이 가벼워졌다.", Apply = e => { e.Fatigue(-30); e.Morale(4); } },
+                    new EventChoice { Label = "불펜에서 100구", Result = "어깨는 무거워도 감은 돌아왔다.", Apply = e => { e.Exp(Stat.Breaking, 50); e.Fatigue(20); e.Morale(2); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "pitching_coach",
+                Title = "투수 코치의 원포인트",
+                Text = "불펜 피칭을 지켜보던 투수 코치가 다가왔다.\n\"하나만 고쳐 보자. 뭐부터 할래?\"",
+                Weight = (c, d) => c.Me.IsPitcher && !c.Me.IsInjured ? 1.2 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "새 변화구를 배운다", Result = "그립을 바꾸자 공이 꺾이기 시작했다.", Apply = e => { e.Exp(Stat.Breaking, 60); e.Fatigue(10); } },
+                    new EventChoice { Label = "제구를 잡는다", Result = "포수 미트가 움직이지 않았다.", Apply = e => { e.Exp(Stat.Control, 60); e.Fatigue(10); } },
+                    new EventChoice { Label = "하체를 쓴다", Result = "공 끝에 힘이 붙었다.", Apply = e => { e.Exp(Stat.Velocity, 50); e.Fatigue(15); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "fan_signing",
+                Title = "팬 사인회",
+                Text = "{team} 팬 사인회에 {name}의 줄이 가장 길다.\n예정 시간이 이미 지났다.",
+                Weight = (c, d) => c.Me.Popularity >= 40 ? 0.8 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "끝까지 다 해 준다", Result = "손목이 저렸지만 팬들의 얼굴이 잊히지 않는다.", Apply = e => { e.Morale(6); e.Fatigue(10); e.Fans(60); } },
+                    new EventChoice { Label = "양해를 구하고 마친다", Result = "아쉬워하는 팬들에게 고개를 숙였다.", Apply = e => e.Fatigue(-5) },
                 },
             });
 
@@ -299,7 +389,7 @@ namespace BaseballSim.Career
             Id = "legend_" + legend.Id,
             Title = "레전드의 방문",
             Text = $"\"{legend.Nickname}\" {legend.Name}({legend.Years}).\n{legend.Record}의 전설이 오늘 훈련장을 찾았다.\n\"{legend.Line}\"",
-            Weight = (c, d) => c.Me.Age <= 30 && !c.Me.IsInjured && !c.Me.MetLegends.Contains(legend.Id) ? 0.35 : 0,
+            Weight = (c, d) => c.Me.Age <= 30 && !c.Me.IsInjured && !c.Me.IsPitcher && !c.Me.MetLegends.Contains(legend.Id) ? 0.35 : 0,
             Choices =
             {
                 new EventChoice

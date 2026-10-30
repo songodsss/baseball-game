@@ -10,6 +10,10 @@ namespace BaseballSim.Career
         /// <summary>My player made a squad and played.</summary>
         public bool Selected;
         public BattingLine MyLine;
+        /// <summary>My pitcher's outing, if he pitched.</summary>
+        public PitcherLine MyPitching;
+        /// <summary>Picked by the fans rather than on the numbers.</summary>
+        public bool FanVote;
         /// <summary>Best batter on the winning side, "Name (Team)".</summary>
         public string Mvp;
         public bool MyMvp;
@@ -30,12 +34,12 @@ namespace BaseballSim.Career
         public static AllStarResult Play(Career career, GameSimulator sim)
         {
             var league = career.League;
-            var east = Squad(career, EastName, league.Teams.Where((t, i) => i % 2 == 0).ToList(), out var eastMine);
-            var west = Squad(career, WestName, league.Teams.Where((t, i) => i % 2 == 1).ToList(), out var westMine);
+            var east = Squad(career, EastName, league.Teams.Where((t, i) => i % 2 == 0).ToList(), out var eastMine, out var eastFans);
+            var west = Squad(career, WestName, league.Teams.Where((t, i) => i % 2 == 1).ToList(), out var westMine, out var westFans);
             var game = sim.Play(west, east, west.Rotation[0], east.Rotation[0]);
             var mine = eastMine ?? westMine;
 
-            var result = new AllStarResult { Game = game, East = east, West = west, Selected = mine != null };
+            var result = new AllStarResult { Game = game, East = east, West = west, Selected = mine != null, FanVote = eastFans || westFans };
             var winners = game.Winner == null ? game.Batting.Keys.ToList() : game.Winner.Lineup;
             var mvp = winners
                 .Where(p => game.Batting.ContainsKey(p))
@@ -46,6 +50,11 @@ namespace BaseballSim.Career
             if (mine != null)
             {
                 result.MyLine = game.Batting.TryGetValue(mine, out var line) ? line : new BattingLine();
+                if (game.Pitching.TryGetValue(mine, out var arm))
+                {
+                    result.MyPitching = new PitcherLine();
+                    result.MyPitching.Add(arm, true, false, false);
+                }
                 result.MyMvp = mvp == mine;
                 result.Bonus = SelectionBonus + (result.MyMvp ? MvpBonus : 0);
                 career.Me.Money += result.Bonus;
@@ -63,29 +72,27 @@ namespace BaseballSim.Career
         /// Nine hitters ranked by OPS so far (my player too, unless hurt or in 2군), the two best starters
         /// and five best relievers. <paramref name="mine"/> is my player's game copy if picked.
         /// </summary>
-        static Team Squad(Career career, string name, List<Team> teams, out Player mine)
+        static Team Squad(Career career, string name, List<Team> teams, out Player mine, out bool fanVote)
         {
-            var league = career.League;
-            int minPa = career.Day * 2;
-            double Ops(string id) => league.Batting.TryGetValue(id, out var s) && s.Line.PlateAppearances >= minPa ? Career.Ops(s.Line) : 0;
-
-            var candidates = teams.SelectMany(t => t.Lineup).Select(p => (Player: p, Ops: Ops(p.Id))).ToList();
-            mine = null;
-            if (teams.Contains(career.MyTeam) && !career.InFarm && !career.Me.IsInjured)
+            fanVote = false;
+            Player me = teams.Contains(career.MyTeam) && !career.InFarm && !career.Me.IsInjured
+                ? career.Me.ForGame(new SeededRandom(career.Season)) : null;
+            var team = career.PickSquad(name, teams, me, 9, 2, 5, out mine);
+            // A favourite the numbers left out goes in on the fans' vote, in place of the last pick.
+            if (me != null && mine == null && career.Me.Popularity >= Career.FanVotePopularity)
             {
-                mine = career.Me.ForGame(new SeededRandom(career.Season));
-                candidates.Add((mine, Ops(career.Me.Id)));
+                if (me.IsPitcher) team.Rotation[team.Rotation.Count - 1] = me;
+                else team.Lineup[team.Lineup.Count - 1] = me;
+                mine = me;
+                fanVote = true;
             }
-            var lineup = candidates.OrderByDescending(c => c.Ops).Take(9).Select(c => c.Player).ToList();
-            if (!lineup.Contains(mine)) mine = null;
-
-            int Stuff(Player p) => p.Pitching.Velocity + p.Pitching.Control + p.Pitching.Breaking;
-            return new Team(name)
+            // My pitcher, once picked, gets the start.
+            if (mine != null && mine.IsPitcher)
             {
-                Lineup = lineup,
-                Rotation = teams.SelectMany(t => t.Rotation).OrderByDescending(Stuff).Take(2).ToList(),
-                Bullpen = teams.SelectMany(t => t.Bullpen).OrderByDescending(Stuff).Take(5).ToList(),
-            };
+                team.Rotation.Remove(mine);
+                team.Rotation.Insert(0, mine);
+            }
+            return team;
         }
     }
 }
