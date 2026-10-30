@@ -291,7 +291,6 @@ namespace BaseballGame
 
         // ---------- Big at bats ----------
 
-        static readonly string[] BaseNames = { "1루", "2루", "3루" };
 
         /// <summary>The game is paused at my big at bat: read the pitcher and pick an approach.</summary>
         void ShowAtBat(DayResult result)
@@ -299,19 +298,12 @@ namespace BaseballGame
             if (result.AtBat.Pitching) { ShowPitchChoice(result); return; }
             var s = result.AtBat;
             var card = OpenOverlay("찬스 타석!");
-            var runners = Enumerable.Range(0, 3).Where(i => s.Bases[i]).Select(i => BaseNames[i]).ToList();
-            string hunch = s.Hunch == Pitch.Fastball ? "직구" : "변화구";
-            string previous = result.AtBatLog.Count > 0 ? $"<color=#9EABC2>직전 찬스: {result.AtBatLog.Last()}</color>\n\n" : "";
-            string text = previous +
-                $"{Commentary.HalfInning(s.Inning, s.IsTopHalf)} {s.Outs}아웃 · 주자 {(runners.Count == 0 ? "없음" : string.Join(", ", runners))}\n" +
-                $"{_career.MyTeam.Name} {s.MyRuns} : {s.TheirRuns} 상대\n\n" +
-                $"투수 {s.Pitcher.Name}  직구 {s.FastballShare:P0} · 변화구 {1 - s.FastballShare:P0}\n" +
-                $"<color=#FFD24D>느낌: 이번엔 {hunch}가 올 것 같다</color>  (선구안 감 적중률 {s.HunchAccuracy:P0})";
-            UiKit.Height(UiKit.Label(card, text, 32, TextAnchor.MiddleCenter), 0, 1);
-            UiKit.Height(UiKit.Button(card, "직구 노리기", () => Answer(Approach.SitFastball)), 105);
-            UiKit.Height(UiKit.Button(card, "변화구 노리기", () => Answer(Approach.SitBreaking)), 105);
-            UiKit.Height(UiKit.Button(card, "신중하게 (볼넷 노림)", () => Answer(Approach.Patient), UiKit.Muted), 105);
-            UiKit.Height(UiKit.Button(card, "평소대로", () => Answer(Approach.Normal), UiKit.Background), 105);
+            SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 찬스: " + result.AtBatLog.Last() : null);
+            PitchMix(card, $"투수 {s.Pitcher.Name}의 승부구", s.FastballShare);
+            Hunch(card, $"느낌: 이번엔 <b>{(s.Hunch == Pitch.Fastball ? "직구" : "변화구")}</b>가 올 것 같다", $"선구안 감 적중률 {s.HunchAccuracy:P0}");
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            ChoiceRow(card, ("직구 노리기", Approach.SitFastball, UiKit.Accent), ("변화구 노리기", Approach.SitBreaking, UiKit.Accent));
+            ChoiceRow(card, ("신중하게 (볼넷 노림)", Approach.Patient, UiKit.Muted), ("평소대로", Approach.Normal, UiKit.Background));
             Tip("atbat", "찬스 타석에선 노림수를 골라요. 노린 공이 오면 장타 확률이 크게 오르고, 틀리면 삼진이 늘어요. 선구안이 높을수록 '느낌'이 정확해요.");
         }
 
@@ -320,20 +312,141 @@ namespace BaseballGame
         {
             var s = result.AtBat;
             var card = OpenOverlay("위기 상황! 승부구 선택");
-            var runners = Enumerable.Range(0, 3).Where(i => s.Bases[i]).Select(i => BaseNames[i]).ToList();
-            string hunch = s.Hunch == Pitch.Fastball ? "직구" : "변화구";
-            string previous = result.AtBatLog.Count > 0 ? $"<color=#9EABC2>직전 승부: {result.AtBatLog.Last()}</color>\n\n" : "";
-            string text = previous +
-                $"{Commentary.HalfInning(s.Inning, s.IsTopHalf)} {s.Outs}아웃 · 주자 {(runners.Count == 0 ? "없음" : string.Join(", ", runners))}\n" +
-                $"{_career.MyTeam.Name} {s.MyRuns} : {s.TheirRuns} 상대\n\n" +
-                $"타자 {s.Batter.Name}  직구 노림 {s.SitsFastball:P0} · 변화구 노림 {1 - s.SitsFastball:P0}\n" +
-                $"<color=#FFD24D>포수의 느낌: {hunch}를 노리고 있다</color>  (제구 감 적중률 {s.HunchAccuracy:P0})";
-            UiKit.Height(UiKit.Label(card, text, 32, TextAnchor.MiddleCenter), 0, 1);
-            UiKit.Height(UiKit.Button(card, "직구로 승부", () => Answer(Approach.ThrowFastball)), 105);
-            UiKit.Height(UiKit.Button(card, "변화구로 승부", () => Answer(Approach.ThrowBreaking)), 105);
-            UiKit.Height(UiKit.Button(card, "어렵게 승부 (볼넷 각오)", () => Answer(Approach.PitchAround), UiKit.Muted), 105);
-            UiKit.Height(UiKit.Button(card, "평소대로", () => Answer(Approach.Normal), UiKit.Background), 105);
+            SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 승부: " + result.AtBatLog.Last() : null);
+            PitchMix(card, $"타자 {s.Batter.Name}이(가) 노리는 공", s.SitsFastball);
+            Hunch(card, $"포수의 느낌: <b>{(s.Hunch == Pitch.Fastball ? "직구" : "변화구")}</b>를 노리고 있다", $"제구 감 적중률 {s.HunchAccuracy:P0}");
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            ChoiceRow(card, ("직구로 승부", Approach.ThrowFastball, UiKit.Accent), ("변화구로 승부", Approach.ThrowBreaking, UiKit.Accent));
+            ChoiceRow(card, ("어렵게 승부 (볼넷 각오)", Approach.PitchAround, UiKit.Muted), ("평소대로", Approach.Normal, UiKit.Background));
             Tip("pitch", "위기에선 승부구를 골라요. 타자가 노리지 않는 공을 던지면 삼진이 늘고, 노리는 공을 던지면 장타를 맞기 쉬워요. 제구가 높을수록 포수의 느낌이 정확해요.");
+        }
+
+        static readonly Color BaseOff = new Color(1, 1, 1, 0.15f);
+        static readonly Color FastballColor = new Color(0.3f, 0.6f, 1f);
+        static readonly Color BreakingColor = new Color(0.95f, 0.55f, 0.25f);
+
+        /// <summary>
+        /// A broadcast-style board for a paused game: inning, score with club badges, runners on a
+        /// diamond, outs as lights, and who is facing whom.
+        /// </summary>
+        void SituationBoard(RectTransform card, AtBatSituation s, string previous)
+        {
+            var board = UiKit.Panel(card, "Situation", UiKit.Background);
+            UiKit.Height(board, 330);
+            var row = UiKit.Row(board, 24);
+            row.padding = new RectOffset(28, 28, 20, 20);
+            row.childForceExpandWidth = false;
+
+            // Diamond and outs.
+            var left = UiKit.Empty(board, "Field");
+            UiKit.Width(left, 230);
+            var diamond = UiKit.Empty(left, "Bases");
+            diamond.anchorMin = diamond.anchorMax = new Vector2(0.5f, 0.62f);
+            diamond.sizeDelta = new Vector2(200, 200);
+            var spots = new[] { new Vector2(68, 0), new Vector2(0, 68), new Vector2(-68, 0), new Vector2(0, -68) };
+            for (int b = 0; b < 4; b++)
+            {
+                bool home = b == 3;
+                var bag = UiKit.Panel(diamond, home ? "Home" : "Base " + (b + 1), home ? Color.white : s.Bases[b] ? Gold : BaseOff, rounded: false);
+                bag.sizeDelta = home ? new Vector2(30, 30) : new Vector2(54, 54);
+                bag.anchorMin = bag.anchorMax = new Vector2(0.5f, 0.5f);
+                bag.anchoredPosition = spots[b];
+                bag.localRotation = Quaternion.Euler(0, 0, 45);
+                if (!home && s.Bases[b]) UiAnim.Pulse(bag, 1.15f, 0.6f);
+            }
+            var outs = UiKit.Empty(left, "Outs");
+            outs.anchorMin = new Vector2(0, 0);
+            outs.anchorMax = new Vector2(1, 0);
+            outs.pivot = new Vector2(0.5f, 0);
+            outs.sizeDelta = new Vector2(0, 44);
+            var outRow = UiKit.Row(outs, 12);
+            outRow.childForceExpandWidth = false;
+            outRow.childAlignment = TextAnchor.MiddleCenter;
+            UiKit.Width(UiKit.Label(outs, "OUT", 26, TextAnchor.MiddleCenter, UiKit.Muted), 70);
+            for (int i = 0; i < 2; i++)
+            {
+                var light = UiKit.Panel(outs, "Out", i < s.Outs ? new Color(1f, 0.35f, 0.3f) : BaseOff, rounded: false);
+                light.GetComponent<Image>().sprite = UiKit.CircleSprite;
+                UiKit.Width(light, 34);
+            }
+
+            // Inning, score, matchup.
+            var right = UiKit.Empty(board, "Score");
+            UiKit.Width(right, 0, 1);
+            UiKit.Column(right, 0, 8).childAlignment = TextAnchor.MiddleCenter;
+            bool late = s.Inning >= 8;
+            var inning = UiKit.Label(right, Commentary.HalfInning(s.Inning, s.IsTopHalf), 46, TextAnchor.MiddleCenter, late ? Gold : Color.white);
+            inning.fontStyle = FontStyle.Bold;
+            UiKit.Height(inning, 64);
+            string opponent = _career.MidGameOpponent?.Name ?? "상대";
+            ScoreLine(right, _career.MyTeam.Name, s.MyRuns, s.MyRuns >= s.TheirRuns);
+            ScoreLine(right, opponent, s.TheirRuns, s.TheirRuns >= s.MyRuns);
+            string matchup = s.Pitching ? $"투수 <b>{_career.Me.Name}</b>  vs  타자 {s.Batter.Name}" : $"타자 <b>{_career.Me.Name}</b>  vs  투수 {s.Pitcher.Name}";
+            UiKit.Height(UiKit.Label(right, matchup, 28, TextAnchor.MiddleCenter, UiKit.Muted), 44);
+
+            if (previous != null)
+                UiKit.Height(UiKit.Label(card, previous, 26, TextAnchor.MiddleCenter, UiKit.Muted), 44);
+        }
+
+        void ScoreLine(RectTransform parent, string team, int runs, bool leading)
+        {
+            var line = UiKit.Empty(parent, team);
+            UiKit.Height(line, 64);
+            var row = UiKit.Row(line, 14);
+            row.childForceExpandWidth = false;
+            row.childControlHeight = false;
+            row.childAlignment = TextAnchor.MiddleLeft;
+            var emblem = ArtLibrary.Emblem(line, team, 52);
+            emblem.sizeDelta = new Vector2(52, 52);
+            var name = UiKit.Label(line, team, 32);
+            name.rectTransform.sizeDelta = new Vector2(0, 60);
+            UiKit.Width(name, 0, 1);
+            var score = UiKit.Label(line, runs.ToString(), 48, TextAnchor.MiddleRight, leading ? Color.white : UiKit.Muted);
+            score.fontStyle = FontStyle.Bold;
+            score.rectTransform.sizeDelta = new Vector2(80, 60);
+            UiKit.Width(score, 80);
+        }
+
+        /// <summary>A two-colour bar: fastball share against breaking balls.</summary>
+        void PitchMix(RectTransform card, string title, double fastball)
+        {
+            UiKit.Height(UiKit.Label(card, title, 28, TextAnchor.LowerLeft, UiKit.Muted), 44);
+            var bar = UiKit.Panel(card, "Mix", BreakingColor);
+            UiKit.Height(bar, 64);
+            var fill = UiKit.Panel(bar, "Fastball", FastballColor);
+            fill.anchorMin = Vector2.zero;
+            fill.anchorMax = new Vector2((float)fastball, 1);
+            fill.offsetMin = fill.offsetMax = Vector2.zero;
+            var left = UiKit.Label(bar, $"직구 {fastball:P0}", 30, TextAnchor.MiddleLeft);
+            UiKit.Stretch(left.rectTransform);
+            left.rectTransform.offsetMin = new Vector2(20, 0);
+            left.fontStyle = FontStyle.Bold;
+            var right = UiKit.Label(bar, $"변화구 {1 - fastball:P0}", 30, TextAnchor.MiddleRight);
+            UiKit.Stretch(right.rectTransform);
+            right.rectTransform.offsetMax = new Vector2(-20, 0);
+            right.fontStyle = FontStyle.Bold;
+        }
+
+        /// <summary>The hunch, called out in gold so it reads before anything else.</summary>
+        void Hunch(RectTransform card, string text, string accuracy)
+        {
+            var box = UiKit.Panel(card, "Hunch", new Color(1f, 0.82f, 0.3f, 0.16f));
+            UiKit.Height(box, 120);
+            UiKit.Column(box, 16, 2).childAlignment = TextAnchor.MiddleCenter;
+            UiKit.Height(UiKit.Label(box, text, 36, TextAnchor.MiddleCenter, Gold), 56);
+            UiKit.Height(UiKit.Label(box, accuracy, 26, TextAnchor.MiddleCenter, UiKit.Muted), 36);
+        }
+
+        void ChoiceRow(RectTransform card, params (string Label, Approach Approach, Color Color)[] choices)
+        {
+            var row = UiKit.Empty(card, "Choices");
+            UiKit.Height(row, 115);
+            UiKit.Row(row, 20);
+            foreach (var c in choices)
+            {
+                var approach = c.Approach;
+                UiKit.Button(row, c.Label, () => Answer(approach), c.Color).GetComponentInChildren<Text>().fontSize = 32;
+            }
         }
 
         void Answer(Approach approach)

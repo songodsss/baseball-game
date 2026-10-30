@@ -383,6 +383,8 @@ namespace BaseballSim.Career
         MyGameState _game;
         public bool IsMidGame => _game != null;
         public AtBatSituation PendingAtBat => _game?.Result.AtBat;
+        /// <summary>The club my team is playing in the paused game, or null.</summary>
+        public Team MidGameOpponent => _game == null ? null : _game.Home == MyTeam ? _game.Away : _game.Home;
 
         /// <summary>Returns false if the game paused at a big at bat.</summary>
         bool StartMyGame(Team away, Team home, DayResult result)
