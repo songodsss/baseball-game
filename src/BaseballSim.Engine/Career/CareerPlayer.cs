@@ -13,6 +13,9 @@ namespace BaseballSim.Career
         public BattingLine Line;
         public Dictionary<Stat, int> Ratings;
         public int Salary;
+        /// <summary>My titles this season, e.g. "홈런왕", and the championship if won.</summary>
+        public List<string> Titles = new List<string>();
+        public bool InjuryFree;
     }
 
     /// <summary>The one player the user is raising, with everything that persists between days.</summary>
@@ -46,6 +49,8 @@ namespace BaseballSim.Career
         public List<SeasonRecord> History = new List<SeasonRecord>();
         /// <summary>Level 0-3 of each facility; missing means 0.</summary>
         public Dictionary<Facility, int> Facilities = new Dictionary<Facility, int>();
+        /// <summary>Achievement ids unlocked in this career, in the order reached.</summary>
+        public List<string> Achievements = new List<string>();
 
         public int FacilityLevel(Facility f) => Facilities.TryGetValue(f, out var level) ? level : 0;
 

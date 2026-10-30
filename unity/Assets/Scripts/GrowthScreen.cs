@@ -23,6 +23,8 @@ namespace BaseballGame
                 new GameObject("GrowthScreen").AddComponent<GrowthScreen>();
         }
 
+        static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
+
         static readonly Dictionary<Stat, string> StatNames = new Dictionary<Stat, string>
         {
             { Stat.Contact, "컨택" }, { Stat.Power, "파워" }, { Stat.Eye, "선구안" },
@@ -264,6 +266,7 @@ namespace BaseballGame
             string label = Actions.First(a => a.Action == r.Action).Label;
             var lines = new List<string> { $"<b>{r.Day + 1}일차</b> {label}" };
             if (r.GotInjured) lines.Add("<color=#F28C40>무리하다 부상! 며칠 쉬어야 합니다.</color>");
+            foreach (var a in r.NewAchievements) lines.Add($"<color=#5FA8FF>업적 달성: {a.Name}</color>");
             if (r.PointsGained.Count > 0)
                 lines.Add("능력치 상승: " + string.Join(", ", r.PointsGained.Select(p => $"{StatNames[p.Key]} +{p.Value}")));
 
@@ -291,6 +294,14 @@ namespace BaseballGame
             if (_lastDay?.MyGame == null) return;
             _canvas.SetActive(false);
             MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true));
+        }
+
+        /// <summary>Replays any game; my player is found by id among its batters.</summary>
+        void Watch(GameResult game)
+        {
+            var mine = game.Batting.Keys.FirstOrDefault(p => p.Id == _career.Me.Id);
+            _canvas.SetActive(false);
+            MatchScreen.Open(game, mine, () => _canvas.SetActive(true));
         }
 
         void CycleSeasonLength()
@@ -402,25 +413,55 @@ namespace BaseballGame
             var line = _career.SeasonLine;
             var summary = _career.EndSeason();
             var card = OpenOverlay($"{summary.Record.Season}시즌 종료");
+            var body = UiKit.ScrollList(card, 6);
+            UiKit.Height(body.parent, 0, 1);
+            void Section(string title) => UiKit.Height(UiKit.Label(body, title, 32, TextAnchor.LowerLeft, Gold), 70);
+            void Line(string text, int height = 50) => UiKit.Height(UiKit.Label(body, text, 30, TextAnchor.MiddleLeft), height);
 
-            double avg = line.AtBats == 0 ? 0 : (double)line.Hits / line.AtBats;
-            var text = new List<string>
+            Section("정규시즌");
+            Line($"팀 순위 {summary.Rank}위");
+            Line($"타율 {Stats.Rate(Stats.Avg(line))}  {line.HomeRuns}홈런  {line.RunsBattedIn}타점  OPS {Stats.Rate(Stats.Ops(line))}");
+
+            var post = summary.Postseason;
+            Section("가을야구");
+            foreach (var series in post.Series)
+                Line($"{series.Name}  {series.High.Name} {series.HighWins} : {series.LowWins} {series.Low.Name}");
+            if (post.MyTeamWon) Line("<color=#FFD24D><b>우승!</b></color>  " + MyPostLine(post), 60);
+            else if (post.MyTeamIn) Line($"{post.Champion.Name} 우승  ·  " + MyPostLine(post));
+            else Line($"{post.Champion.Name} 우승  ·  {_career.MyTeam.Name}은 진출하지 못했습니다.");
+
+            Section("시즌 타이틀");
+            foreach (var a in summary.Awards)
             {
-                $"팀 순위 {summary.Rank}위",
-                $"타율 {avg:0.000}  {line.HomeRuns}홈런  {line.RunsBattedIn}타점  OPS {CareerState.Ops(line):0.000}",
-                $"연봉 {summary.OldSalary:N0} → <b>{summary.NewSalary:N0}</b>만원",
-                $"나이 {_career.Me.Age}세가 되었습니다.",
-            };
-            if (summary.Decline.Count > 0)
-                text.Add("<color=#F28C40>노쇠화: " + string.Join(", ", summary.Decline.Select(d => $"{StatNames[d.Key]} -{d.Value}")) + "</color>");
-            UiKit.Height(UiKit.Label(card, string.Join("\n\n", text), 34, TextAnchor.UpperCenter), 0, 1);
+                string text = $"{a.Title}  {a.Winner} ({a.Team})  {a.Value}";
+                Line(a.Mine ? $"<color=#FFD24D><b>{text}</b></color>" : text);
+            }
 
-            if (_lastDay?.MyGame != null)
-                UiKit.Height(UiKit.Button(card, "마지막 경기 보기", WatchGame, UiKit.Muted), 110);
+            Section("계약");
+            Line($"연봉 {summary.OldSalary:N0} → <b>{summary.NewSalary:N0}</b>만원" + (post.Bonus > 0 ? $"  ·  가을야구 보너스 {post.Bonus:N0}만원" : ""));
+            Line($"나이 {_career.Me.Age}세가 되었습니다.");
+            if (summary.Decline.Count > 0)
+                Line("<color=#F28C40>노쇠화: " + string.Join(", ", summary.Decline.Select(d => $"{StatNames[d.Key]} -{d.Value}")) + "</color>");
+
+            if (summary.NewAchievements.Count > 0)
+            {
+                Section("새 업적");
+                foreach (var a in summary.NewAchievements) Line($"<color=#5FA8FF>{a.Name}</color>  {a.Description}");
+            }
+
+            var finalGame = post.Series.Last().Games.LastOrDefault();
+            if (finalGame != null)
+                UiKit.Height(UiKit.Button(card, "결정전 마지막 경기 보기", () => Watch(finalGame), UiKit.Muted), 100);
             if (_career.Me.Age >= 30)
-                UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 110);
+                UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 100);
             if (!_career.MustRetire)
-                UiKit.Height(UiKit.Button(card, "다음 시즌", CloseOverlay), 110);
+                UiKit.Height(UiKit.Button(card, "다음 시즌", CloseOverlay), 100);
+        }
+
+        string MyPostLine(PostseasonResult post)
+        {
+            var l = post.MyLine;
+            return l.PlateAppearances == 0 ? "출전하지 못했어요" : $"내 성적 {l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런";
         }
 
         void Retire()

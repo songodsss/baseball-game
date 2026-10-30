@@ -11,7 +11,7 @@ namespace BaseballGame
     /// <summary>League standings, my season and career numbers, and the retired players on my team.</summary>
     public class RecordsScreen : MonoBehaviour
     {
-        enum Tab { Standings, MyRecord, MyTeam }
+        enum Tab { Standings, MyRecord, Achievements, MyTeam }
 
         static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
         static readonly Color Highlight = new Color(0.25f, 0.55f, 0.95f, 0.25f);
@@ -53,6 +53,7 @@ namespace BaseballGame
             UiKit.Row(tabs, 16);
             _tabs[Tab.Standings] = UiKit.Button(tabs, "리그 순위", () => Show(Tab.Standings), UiKit.Card);
             _tabs[Tab.MyRecord] = UiKit.Button(tabs, "내 기록", () => Show(Tab.MyRecord), UiKit.Card);
+            _tabs[Tab.Achievements] = UiKit.Button(tabs, "업적", () => Show(Tab.Achievements), UiKit.Card);
             _tabs[Tab.MyTeam] = UiKit.Button(tabs, "내 팀", () => Show(Tab.MyTeam), UiKit.Card);
 
             var card = UiKit.Panel(root, "Card", UiKit.Card);
@@ -73,6 +74,7 @@ namespace BaseballGame
             {
                 case Tab.Standings: ShowStandings(); break;
                 case Tab.MyRecord: ShowMyRecord(); break;
+                case Tab.Achievements: ShowAchievements(); break;
                 default: ShowMyTeam(); break;
             }
         }
@@ -120,11 +122,38 @@ namespace BaseballGame
                     $"{h.Line.HomeRuns}", $"{h.Line.RunsBattedIn}", Stats.Rate(Stats.Ops(h.Line)), $"{h.Salary:N0}");
             }
 
+            var titled = me.History.Where(h => h.Titles.Count > 0).ToList();
+            if (titled.Count > 0)
+            {
+                Section("수상");
+                foreach (var h in titled) Note($"{h.Season}시즌  {string.Join(", ", h.Titles)}", TextAnchor.MiddleLeft, 60);
+            }
+
             var t = Stats.CareerTotal(_career);
             Section("통산 (이번 시즌 포함)");
             Header(statWidths, "타율", "안타", "홈런", "타점", "OPS", "볼넷");
             Row(statWidths, 0, true, Stats.Rate(Stats.Avg(t)), t.Hits.ToString(), t.HomeRuns.ToString(),
                 t.RunsBattedIn.ToString(), Stats.Rate(Stats.Ops(t)), t.Walks.ToString());
+        }
+
+        void ShowAchievements()
+        {
+            var collection = _club.Collection;
+            var mine = new HashSet<string>(_career.Me.Achievements);
+            int collected = Achievements.All.Count(a => mine.Contains(a.Id) || collection.Contains(a.Id));
+            Section($"이번 선수 {mine.Count}개  ·  내 팀 전체 {collected}/{Achievements.All.Count}개");
+            float[] widths = { 0, 260 };
+            Header(widths, "업적", "달성");
+            for (int i = 0; i < Achievements.All.Count; i++)
+            {
+                var a = Achievements.All[i];
+                string by = mine.Contains(a.Id) ? _career.Me.Name
+                    : collection.Contains(a.Id) ? _club.Roster.First(p => p.Achievements.Contains(a.Id)).Name
+                    : "-";
+                bool reached = by != "-";
+                string name = reached ? $"<b>{a.Name}</b>  <size=24><color=#9EABC2>{a.Description}</color></size>" : $"<color=#5C667A>{a.Name}  <size=24>{a.Description}</size></color>";
+                Row(widths, i, mine.Contains(a.Id), name, by);
+            }
         }
 
         void ShowMyTeam()
@@ -154,10 +183,10 @@ namespace BaseballGame
         void Row(float[] widths, int index, bool highlight, params string[] cells) =>
             UiKit.TableRow(_content, widths, cells, 30, Color.white, highlight ? Highlight : index % 2 == 1 ? Stripe : (Color?)null);
 
-        void Note(string text)
+        void Note(string text, TextAnchor anchor = TextAnchor.MiddleCenter, float height = 100)
         {
-            var label = UiKit.Label(_content, text, 28, TextAnchor.MiddleCenter, UiKit.Muted);
-            UiKit.Height(label, 100);
+            var label = UiKit.Label(_content, text, 28, anchor, UiKit.Muted);
+            UiKit.Height(label, height);
         }
     }
 }

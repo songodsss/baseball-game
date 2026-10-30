@@ -13,6 +13,8 @@ namespace BaseballSim.Career
         /// <summary>Best rating reached in each stat, so a long career isn't punished for its decline years.</summary>
         public Dictionary<Stat, int> PeakRatings;
         public int LegacyPoints;
+        public List<string> Achievements = new List<string>();
+        public List<string> Titles = new List<string>();
 
         public int Overall => (int)Math.Round(PeakRatings.Values.Average());
     }
@@ -29,6 +31,9 @@ namespace BaseballSim.Career
         /// <summary>Added to every potential of the next new player, at most +8.</summary>
         public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
 
+        /// <summary>Achievement ids any retired player of mine ever reached.</summary>
+        public HashSet<string> Collection => new HashSet<string>(Roster.SelectMany(p => p.Achievements));
+
         public RetiredPlayer Retire(Career career)
         {
             var me = career.Me;
@@ -41,6 +46,8 @@ namespace BaseballSim.Career
                 Seasons = me.History.Count,
                 CareerLine = line,
                 PeakRatings = new Dictionary<Stat, int>(me.PeakRatings),
+                Achievements = new List<string>(me.Achievements),
+                Titles = me.History.SelectMany(h => h.Titles).ToList(),
                 // Each season scaled to a full 144 games, so a short-season career earns the same.
                 LegacyPoints = (int)me.History.Sum(r => (r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0) * League.FullSeason / r.Games + 5),
             };

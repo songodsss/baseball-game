@@ -29,6 +29,7 @@ namespace BaseballSim.Career
         public int MoneyEarned;
         /// <summary>A story event to answer before the next day, or null.</summary>
         public StoryEvent Event;
+        public List<Achievement> NewAchievements = new List<Achievement>();
     }
 
     public class SeasonSummary
@@ -38,6 +39,9 @@ namespace BaseballSim.Career
         public int OldSalary;
         public int NewSalary;
         public Dictionary<Stat, int> Decline = new Dictionary<Stat, int>();
+        public List<SeasonAward> Awards = new List<SeasonAward>();
+        public PostseasonResult Postseason;
+        public List<Achievement> NewAchievements = new List<Achievement>();
     }
 
     /// <summary>
@@ -76,6 +80,9 @@ namespace BaseballSim.Career
 
         /// <summary>Games in a row with at bats and no hit. Story events react to slumps.</summary>
         public int HitlessStreak;
+
+        /// <summary>Missed at least one game hurt this season.</summary>
+        public bool InjuredThisSeason;
 
         /// <summary>Set by PlayDay now and then; answer it with ResolveEvent. The next PlayDay drops it.</summary>
         public StoryEvent PendingEvent { get; private set; }
@@ -142,6 +149,7 @@ namespace BaseballSim.Career
             if (_random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
                 PendingEvent = StoryEvents.Pick(this, result, _random);
             result.Event = PendingEvent;
+            result.NewAchievements = Achievements.Check(this);
             return result;
         }
 
@@ -216,6 +224,7 @@ namespace BaseballSim.Career
             if (Me.IsInjured)
             {
                 result.SatOut = true;
+                InjuredThisSeason = true;
                 result.MyGame = _sim.Play(away, home, awayStarter, homeStarter);
                 League.Record(result.MyGame);
                 return;
@@ -227,12 +236,12 @@ namespace BaseballSim.Career
             try
             {
                 result.MyGame = _sim.Play(away, home, awayStarter, homeStarter);
+                League.Record(result.MyGame);
             }
             finally
             {
                 MyTeam.Lineup[LineupSlot] = regular;
             }
-            League.Record(result.MyGame);
 
             result.MyGamePlayer = gamePlayer;
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
@@ -266,7 +275,10 @@ namespace BaseballSim.Career
             result.MoneyEarned = pay;
         }
 
-        /// <summary>Ages the player, renegotiates salary on this season's OPS, and starts a new season.</summary>
+        /// <summary>
+        /// Plays the postseason, hands out titles, ages the player, renegotiates salary on this
+        /// season's OPS, and starts a new season.
+        /// </summary>
         public SeasonSummary EndSeason()
         {
             var ranked = League.Ranked();
@@ -274,6 +286,8 @@ namespace BaseballSim.Career
             {
                 Rank = ranked.FindIndex(s => s.Team == MyTeam) + 1,
                 OldSalary = Me.Salary,
+                Postseason = BaseballSim.Career.Postseason.Play(this, _sim, _random),
+                Awards = BaseballSim.Career.Awards.For(League, Me.Id, Me.History.Count == 0),
             };
 
             summary.Record = new SeasonRecord
@@ -284,7 +298,10 @@ namespace BaseballSim.Career
                 Line = SeasonLine,
                 Ratings = Me.Snapshot(),
                 Salary = Me.Salary,
+                Titles = summary.Awards.Where(a => a.Mine).Select(a => a.Title).ToList(),
+                InjuryFree = !InjuredThisSeason,
             };
+            if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
             Me.History.Add(summary.Record);
 
             // Salary moves halfway toward what this season's OPS is worth, so one fluke year
@@ -311,8 +328,11 @@ namespace BaseballSim.Career
                 }
             }
 
+            summary.NewAchievements = Achievements.Check(this);
+
             Season++;
             Day = 0;
+            InjuredThisSeason = false;
             SeasonLine = new BattingLine();
             League.ResetStandings();
             return summary;

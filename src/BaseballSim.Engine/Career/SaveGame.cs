@@ -15,8 +15,8 @@ namespace BaseballSim.Career
     public static class SaveGame
     {
         const string Magic = "BBSV";
-        /// <summary>2: morale, slump streak and coach. 3: facilities.</summary>
-        public const int Version = 3;
+        /// <summary>2: morale, slump streak and coach. 3: facilities. 4: titles, achievements, league batting.</summary>
+        public const int Version = 4;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -57,7 +57,7 @@ namespace BaseballSim.Career
                 if (version > Version)
                     throw new InvalidDataException($"Save version {version} is newer than this game ({Version}).");
 
-                var club = ReadClub(r);
+                var club = ReadClub(r, version);
                 var career = r.ReadBoolean() ? ReadCareer(r, random, club, version) : null;
                 return (club, career);
             }
@@ -76,9 +76,15 @@ namespace BaseballSim.Career
                 WriteStats(w, p.PeakRatings);
                 w.Write(p.LegacyPoints);
             });
+            // Added in version 4.
+            WriteList(w, club.Roster, p =>
+            {
+                WriteList(w, p.Achievements, w.Write);
+                WriteList(w, p.Titles, w.Write);
+            });
         }
 
-        static Club ReadClub(BinaryReader r)
+        static Club ReadClub(BinaryReader r, int version)
         {
             var club = new Club { LegacyPoints = r.ReadInt32() };
             club.Roster = ReadList(r, () => new RetiredPlayer
@@ -89,6 +95,17 @@ namespace BaseballSim.Career
                 PeakRatings = ReadStats(r),
                 LegacyPoints = r.ReadInt32(),
             });
+            if (version >= 4)
+            {
+                int i = 0;
+                ReadList(r, () =>
+                {
+                    var p = club.Roster[i++];
+                    p.Achievements = ReadList(r, r.ReadString);
+                    p.Titles = ReadList(r, r.ReadString);
+                    return p;
+                });
+            }
             return club;
         }
 
@@ -119,6 +136,22 @@ namespace BaseballSim.Career
                 w.Write(league.StartsMade(team));
             });
             w.Write(league.Teams.IndexOf(career.MyTeam));
+
+            // Added in version 4.
+            w.Write(career.InjuredThisSeason);
+            WriteList(w, career.Me.Achievements, w.Write);
+            WriteList(w, career.Me.History, h =>
+            {
+                WriteList(w, h.Titles, w.Write);
+                w.Write(h.InjuryFree);
+            });
+            WriteList(w, league.Batting.Values.ToList(), b =>
+            {
+                w.Write(b.Id);
+                w.Write(b.Name);
+                w.Write(league.Teams.IndexOf(b.Team));
+                WriteLine(w, b.Line);
+            });
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -153,7 +186,7 @@ namespace BaseballSim.Career
                 league.SetStartsMade(teams[i], standings[i].Starts);
             }
 
-            return new Career(me, league, teams[r.ReadInt32()], random)
+            var career = new Career(me, league, teams[r.ReadInt32()], random)
             {
                 Season = season,
                 Day = day,
@@ -162,6 +195,23 @@ namespace BaseballSim.Career
                 HitlessStreak = hitlessStreak,
                 Coach = coach >= 0 && coach < club.Roster.Count ? club.Roster[coach] : null,
             };
+
+            if (version >= 4)
+            {
+                career.InjuredThisSeason = r.ReadBoolean();
+                me.Achievements = ReadList(r, r.ReadString);
+                int i = 0;
+                ReadList(r, () =>
+                {
+                    var h = me.History[i++];
+                    h.Titles = ReadList(r, r.ReadString);
+                    h.InjuryFree = r.ReadBoolean();
+                    return h;
+                });
+                foreach (var b in ReadList(r, () => new BatterSeason { Id = r.ReadString(), Name = r.ReadString(), Team = teams[r.ReadInt32()], Line = ReadLine(r) }))
+                    league.Batting[b.Id] = b;
+            }
+            return career;
         }
 
         static void WriteMe(BinaryWriter w, CareerPlayer me)

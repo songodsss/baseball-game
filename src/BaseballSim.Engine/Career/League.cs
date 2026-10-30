@@ -11,6 +11,15 @@ namespace BaseballSim.Career
         public double WinPct => Wins + Losses == 0 ? 0 : (double)Wins / (Wins + Losses);
     }
 
+    /// <summary>One batter's numbers for the season so far, for leaderboards and awards.</summary>
+    public class BatterSeason
+    {
+        public string Id;
+        public string Name;
+        public Team Team;
+        public BattingLine Line = new BattingLine();
+    }
+
     /// <summary>Ten fictional teams, every team playing once a day. One season is one year.</summary>
     public class League
     {
@@ -29,6 +38,8 @@ namespace BaseballSim.Career
 
         public List<Team> Teams = new List<Team>();
         public Dictionary<Team, Standing> Standings = new Dictionary<Team, Standing>();
+        /// <summary>Every batter's season line, by player id. Reset with the standings.</summary>
+        public Dictionary<string, BatterSeason> Batting = new Dictionary<string, BatterSeason>();
         readonly Dictionary<Team, int> _nextStarter = new Dictionary<Team, int>();
 
         public League(RosterGenerator generator, int gamesPerSeason = 36)
@@ -61,6 +72,7 @@ namespace BaseballSim.Career
         public void ResetStandings()
         {
             Standings = Teams.ToDictionary(t => t, t => new Standing { Team = t });
+            Batting = new Dictionary<string, BatterSeason>();
             foreach (var t in Teams) _nextStarter[t] = 0;
         }
 
@@ -100,7 +112,19 @@ namespace BaseballSim.Career
             if (result.IsTie) { home.Ties++; away.Ties++; }
             else if (result.Winner == result.Home) { home.Wins++; away.Losses++; }
             else { away.Wins++; home.Losses++; }
+
+            // Call while the lineups are as they were for the game, so every batter is found on a team.
+            foreach (var pair in result.Batting)
+            {
+                var team = result.Away.Lineup.Contains(pair.Key) ? result.Away : result.Home;
+                if (!Batting.TryGetValue(pair.Key.Id, out var season))
+                    Batting[pair.Key.Id] = season = new BatterSeason { Id = pair.Key.Id, Name = pair.Key.Name, Team = team };
+                Career.Accumulate(season.Line, pair.Value);
+            }
         }
+
+        /// <summary>Plate appearances needed to qualify for rate titles: 3.1 per team game, as in pro leagues.</summary>
+        public int QualifyingPa => (int)Math.Ceiling(3.1 * GamesPerSeason);
 
         public List<Standing> Ranked() => Standings.Values.OrderByDescending(s => s.WinPct).ToList();
 

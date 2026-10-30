@@ -51,21 +51,22 @@ namespace BaseballSim.Sandbox
                     string avg = l.AtBats == 0 ? "-" : ((double)l.Hits / l.AtBats).ToString("F3");
                     string gear = string.Join(" ", me.Equipped.Values.OrderBy(e => e.Slot).Select(e => e.Id))
                         + "  시설 " + string.Join("", Facilities.All.Select(f => me.FacilityLevel(f)));
-                    Console.WriteLine(
+                    string row =
                         $"{career.Season,3}  {me.Age,3}   {r[Stat.Contact],3}  {r[Stat.Power],3}  {r[Stat.Eye],3}  {r[Stat.Speed],3}  {r[Stat.Defense],3} | " +
-                        $"{avg}  {l.HomeRuns,3}  {Career.Career.Ops(l):F3} | {me.Salary,8}  {me.Money,6}  {injuredDays,4}  {events,4} | {gear}");
+                        $"{avg}  {l.HomeRuns,3}  {Career.Career.Ops(l):F3} | {me.Salary,8}  {me.Money,6}  {injuredDays,4}  {events,4} | {gear}";
+                    var summary = career.EndSeason();
+                    Console.WriteLine(row + (summary.Record.Titles.Count > 0 ? "  " + string.Join(", ", summary.Record.Titles) : ""));
 
                     // Retire at 37 to keep the demo short, or when forced.
-                    if (me.Age >= 37 || career.MustRetire) break;
-                    career.EndSeason();
+                    if (me.Age >= 38 || career.MustRetire) break;
                 }
 
-                career.EndSeason();
                 var retired = club.Retire(career);
                 var t = retired.CareerLine;
                 Console.WriteLine();
                 Console.WriteLine($"은퇴: {retired.Name}, {retired.Seasons}시즌, 통산 {t.Hits}안타 {t.HomeRuns}홈런 타율 {(double)t.Hits / t.AtBats:F3}");
                 Console.WriteLine($"내 팀 합류, 전성기 능력치 {Ratings(retired.PeakRatings)} (종합 {retired.Overall}), 명예 포인트 +{retired.LegacyPoints}");
+                Console.WriteLine($"업적 {retired.Achievements.Count}/{Achievements.All.Count}: {string.Join(", ", retired.Achievements.Select(id => Achievements.Find(id).Name))}");
                 Console.WriteLine();
             }
         }
