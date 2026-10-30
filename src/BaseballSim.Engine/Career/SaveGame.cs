@@ -20,7 +20,8 @@ namespace BaseballSim.Career
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
         /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
-        public const int Version = 20;
+        /// 21: stolen bases.
+        public const int Version = 21;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -408,6 +409,11 @@ namespace BaseballSim.Career
 
             // Added in version 19.
             w.Write((int)me.Role);
+
+            // Added in version 21.
+            w.Write(career.SeasonLine.StolenBases);
+            w.Write(career.SeasonLine.CaughtStealing);
+            w.Write(me.CareerStolenBases);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -555,6 +561,12 @@ namespace BaseballSim.Career
                     career.League.Pitching[p.Id] = p;
             }
             if (version >= 19) me.Role = (PitcherRole)r.ReadInt32();
+            if (version >= 21)
+            {
+                career.SeasonLine.StolenBases = r.ReadInt32();
+                career.SeasonLine.CaughtStealing = r.ReadInt32();
+                me.CareerStolenBases = r.ReadInt32();
+            }
             return career;
         }
 

@@ -100,8 +100,11 @@ namespace BaseballGame
                         yield return Wait(0.8f);
                     }
 
-                    if (ev.Kind == EventKind.PitchingChange)
+                    if (ev.Kind != EventKind.PlateAppearance)
                     {
+                        // Pitching changes and steals: no pitch to animate; the runners snap below.
+                        if (ev.Kind == EventKind.StolenBase && !Skipping)
+                            Pop(ev.OutsAfter > ev.OutsBefore ? "도루 실패" : "도루 성공!", ev.OutsAfter > ev.OutsBefore ? Color.gray : Gold);
                         yield return Wait(0.6f);
                     }
                     else

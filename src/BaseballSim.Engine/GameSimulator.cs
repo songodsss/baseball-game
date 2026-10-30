@@ -27,6 +27,10 @@ namespace BaseballSim
         /// <summary>Big spots asked about in one game when <see cref="DecideFor"/> pitches, so a starter isn't stopped all night.</summary>
         public int MaxPitchingDecisions = 4;
         int _pitchingAsks;
+        /// <summary>Steal chances asked about in one game, so my runner isn't stopped on every single.</summary>
+        public int MaxStealDecisions = 2;
+        int _stealAsks;
+        Approach _tactic;
         /// <summary>The game so far; after a pause, everything up to the paused at bat.</summary>
         public GameResult Partial => _result;
 
@@ -70,6 +74,7 @@ namespace BaseballSim
             _home = NewSide(home, homeStarter);
             Suspended = null;
             _pitchingAsks = 0;
+            _stealAsks = 0;
 
             try
             {
@@ -117,6 +122,7 @@ namespace BaseballSim
             while (_outs < 3)
             {
                 MaybeChangePitcher(fielding);
+                if (MaybeSteal(fielding) && _outs >= 3) break;
                 PlayPlateAppearance(batting, fielding);
                 if (IsWalkOff()) return;
             }
@@ -195,10 +201,11 @@ namespace BaseballSim
             double fatigue = Math.Max(0, (fielding.PitchCount - limit * 0.8) / (limit * 0.2)) * 0.3;
 
             var odds = PlateAppearanceModel.Compute(batter, pitcher, fielding.Defense, fatigue);
+            _tactic = Approach.Normal;
             string note = Decide == null ? null
                 : batter == DecideFor ? AskApproach(batter, pitcher, odds)
                 : pitcher == DecideFor ? AskPitch(batter, pitcher, odds, fielding) : null;
-            var outcome = odds.Pick(_random);
+            var outcome = _tactic == Approach.Bunt ? BuntOutcome(batter) : odds.Pick(_random);
 
             var ev = new GameEvent
             {
@@ -213,7 +220,8 @@ namespace BaseballSim
                 Note = note,
             };
 
-            ResolveOutcome(ev, batter);
+            if (_tactic == Approach.Bunt) ResolveBunt(ev, batter);
+            else ResolveOutcome(ev, batter);
 
             int pitches = PitchesFor(outcome);
             fielding.PitchCount += pitches;
@@ -281,14 +289,135 @@ namespace BaseballSim
             situation.TheirRuns = theirs;
             situation.Score = ScoreSoFar();
             situation.MineIsAway = _top;
+            situation.CanBunt = AtBatChoice.CanBunt(bases, _outs);
+            situation.CanHitAndRun = AtBatChoice.CanHitAndRun(bases, _outs);
+            situation.BuntOdds = AtBatChoice.BuntOdds(batter);
+            situation.BuntHitOdds = AtBatChoice.BuntHitOdds(batter);
             var approach = Decide(situation);
             if (approach == null)
             {
                 Suspended = situation;
                 throw new SuspendGame();
             }
+            if (approach == Approach.Bunt && situation.CanBunt)
+            {
+                _tactic = Approach.Bunt;
+                return null; // the bunt's own note is set when it resolves
+            }
+            if (approach == Approach.HitAndRun && situation.CanHitAndRun)
+            {
+                _tactic = Approach.HitAndRun;
+                AtBatChoice.ApplyHitAndRun(odds);
+                return "히트앤런";
+            }
             AtBatChoice.Apply(odds, approach.Value, situation.Coming, batter);
             return AtBatChoice.Note(approach.Value, situation.Coming);
+        }
+
+        /// <summary>
+        /// My player on first with second open, close game: ask whether to steal before the pitch.
+        /// Returns true if a steal was tried (the runner is on second or out).
+        /// </summary>
+        bool MaybeSteal(Side fielding)
+        {
+            var runner = _bases[0];
+            if (Decide == null || runner == null || runner != DecideFor || _bases[1] != null || _outs >= 2) return false;
+            int gap = _top ? _result.AwayScore - _result.HomeScore : _result.HomeScore - _result.AwayScore;
+            if (_stealAsks >= MaxStealDecisions || Math.Abs(gap) > 2) return false;
+            _stealAsks++;
+
+            var bases = _bases.Select(b => b != null).ToArray();
+            var situation = new AtBatSituation
+            {
+                Stealing = true,
+                Runner = runner,
+                Pitcher = fielding.Pitcher,
+                Batter = (_top ? _away : _home).Team.Lineup[(_top ? _away : _home).BattingIndex],
+                StealOdds = AtBatChoice.StealOdds(runner),
+                Inning = _inning,
+                IsTopHalf = _top,
+                Outs = _outs,
+                Bases = bases,
+                MyRuns = _top ? _result.AwayScore : _result.HomeScore,
+                TheirRuns = _top ? _result.HomeScore : _result.AwayScore,
+                Score = ScoreSoFar(),
+                MineIsAway = _top,
+            };
+            var approach = Decide(situation);
+            if (approach == null)
+            {
+                Suspended = situation;
+                throw new SuspendGame();
+            }
+            if (approach != Approach.Steal) return false;
+
+            bool safe = Chance(situation.StealOdds);
+            var ev = new GameEvent
+            {
+                Kind = EventKind.StolenBase,
+                Inning = _inning,
+                IsTopHalf = _top,
+                Batter = runner,
+                Pitcher = fielding.Pitcher,
+                OutsBefore = _outs,
+                BasesBefore = (Player[])_bases.Clone(),
+                Note = safe ? "도루 성공!" : "도루 실패",
+            };
+            _bases[0] = null;
+            if (safe)
+            {
+                _bases[1] = runner;
+                BattingFor(runner).StolenBases++;
+            }
+            else
+            {
+                _outs++;
+                BattingFor(runner).CaughtStealing++;
+                PitchingFor(fielding.Pitcher).OutsRecorded++;
+                fielding.StintOuts++;
+            }
+            ev.OutsAfter = _outs;
+            ev.BasesAfter = (Player[])_bases.Clone();
+            ev.AwayScore = _result.AwayScore;
+            ev.HomeScore = _result.HomeScore;
+            _result.Events.Add(ev);
+            return true;
+        }
+
+        Outcome BuntOutcome(Player batter)
+        {
+            double roll = _random.NextDouble();
+            if (roll < AtBatChoice.BuntHitOdds(batter)) return Outcome.Single;
+            return Outcome.GroundOut;
+        }
+
+        /// <summary>
+        /// A bunt: a single moves everyone up a base; otherwise a sacrifice moves the runners up for the
+        /// batter's out, or the lead runner is forced and the batter reaches first.
+        /// </summary>
+        void ResolveBunt(GameEvent ev, Player batter)
+        {
+            var first = _bases[0];
+            var second = _bases[1];
+            if (ev.Outcome == Outcome.Single)
+            {
+                _bases = new Player[] { batter, first, second };
+                ev.Note = "번트 안타!";
+                return;
+            }
+            _outs++;
+            if (Chance(AtBatChoice.BuntOdds(batter)))
+            {
+                ev.SacrificeBunt = true;
+                _bases = new Player[] { null, first, second };
+                ev.Note = "희생번트 성공";
+            }
+            else
+            {
+                // The lead runner is thrown out; the others hold or move up behind him.
+                _bases = second != null ? new Player[] { batter, first, null } : new Player[] { batter, null, null };
+                ev.Note = "번트 실패, 선행 주자 아웃";
+            }
         }
 
         /// <summary>The line score up to this plate appearance; the half under way counts its runs so far.</summary>
@@ -399,13 +528,15 @@ namespace BaseballSim
                     }
                     if (first != null)
                     {
-                        if (_bases[2] == null && Chance(0.25 + 0.2 * SpeedOf(first))) _bases[2] = first;
+                        // On a hit and run the runner is already going and takes third.
+                        bool going = _tactic == Approach.HitAndRun;
+                        if (_bases[2] == null && (going || Chance(0.25 + 0.2 * SpeedOf(first)))) _bases[2] = first;
                         else _bases[1] = first;
                     }
                     break;
 
                 case Outcome.GroundOut:
-                    if (first != null && _outs < 2 && Chance(0.45 - 0.2 * SpeedOf(batter)))
+                    if (first != null && _outs < 2 && _tactic != Approach.HitAndRun && Chance(0.45 - 0.2 * SpeedOf(batter)))
                     {
                         ev.DoublePlay = true;
                         _outs += 2;
@@ -483,7 +614,7 @@ namespace BaseballSim
             pit.Pitches += ev.PitchesThrown;
             pit.OutsRecorded += ev.OutsAfter - ev.OutsBefore;
 
-            bool atBat = ev.Outcome != Outcome.Walk && ev.Outcome != Outcome.HitByPitch && !ev.SacrificeFly;
+            bool atBat = ev.Outcome != Outcome.Walk && ev.Outcome != Outcome.HitByPitch && !ev.SacrificeFly && !ev.SacrificeBunt;
             if (atBat) bat.AtBats++;
 
             switch (ev.Outcome)
