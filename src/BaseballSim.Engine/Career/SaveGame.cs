@@ -21,7 +21,8 @@ namespace BaseballSim.Career
         /// </summary>
         /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
         /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
-        public const int Version = 22;
+        /// 23: the league paper.
+        public const int Version = 23;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -437,6 +438,15 @@ namespace BaseballSim.Career
             WriteList(w, story.Log, w.Write);
             w.Write(story.LastSeason);
             w.Write(story.LastDay);
+
+            // Added in version 23.
+            WriteList(w, career.News, n =>
+            {
+                w.Write(n.Season);
+                w.Write(n.Day);
+                w.Write((int)n.Kind);
+                w.Write(n.Headline);
+            });
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -601,6 +611,8 @@ namespace BaseballSim.Career
                 story.LastSeason = r.ReadInt32();
                 story.LastDay = r.ReadInt32();
             }
+            if (version >= 23)
+                career.News = ReadList(r, () => new NewsItem { Season = r.ReadInt32(), Day = r.ReadInt32(), Kind = (NewsKind)r.ReadInt32(), Headline = r.ReadString() });
             return career;
         }
 

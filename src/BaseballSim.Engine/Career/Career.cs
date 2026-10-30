@@ -251,6 +251,7 @@ namespace BaseballSim.Career
             ReviewRoster(result);
             if (Day == AllStarDay) PlayAllStar(result);
             if (Day == TournamentDay && NationalTeam.IsTournamentYear(Year)) PlayTournament(result);
+            WriteNews(result);
 
             // A main story scene, when its moment has come, takes the place of the day's random event.
             if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
@@ -603,6 +604,7 @@ namespace BaseballSim.Career
             summary.Offers = new List<ContractOffer>(PendingOffers);
             summary.SalaryTalk = PendingSalary;
             summary.CanEnlist = CanEnlist;
+            WriteSeasonNews(summary);
             return summary;
         }
 
