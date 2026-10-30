@@ -65,6 +65,7 @@ namespace BaseballSim.Career
             Add("all_star", "올스타", "올스타전 출전", c => c.Me.AllStarSelections >= 1);
             Add("all_star_mvp", "별 중의 별", "올스타전 MVP", c => c.Me.AllStarMvps >= 1);
             Add("reads", "수싸움의 달인", "찬스 타석 노림수 30번 적중", c => c.Me.ReadsRight >= 30);
+            Add("gold", "금메달", "아시아 야구 대회 금메달", c => c.Me.GoldMedals >= 1);
             Add("iron_man", "철인", "부상 없이 시즌 완주", c => c.Me.History.Any(h => h.InjuryFree));
             return list;
         }

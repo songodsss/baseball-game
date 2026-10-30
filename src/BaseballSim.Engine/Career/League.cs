@@ -45,6 +45,11 @@ namespace BaseballSim.Career
             { "울산 웨일스", "#1E3A8A" },
             { AllStar.EastName, "#E0475B" },
             { AllStar.WestName, "#3E8EDE" },
+            { "대한민국", "#1F4FB4" },
+            { "일본", "#E8E8E8" },
+            { "대만", "#2E7D32" },
+            { "중국", "#C62828" },
+            { "홍콩", "#B71C5A" },
         };
 
         public static string ColorOf(Team team) => TeamColors.TryGetValue(team.Name, out var c) ? c : "#888888";

@@ -19,7 +19,7 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        public const int Version = 13;
+        public const int Version = 14;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -238,6 +238,9 @@ namespace BaseballSim.Career
                 w.Write(career.PendingSalary.Worth);
                 w.Write(career.PendingSalary.Titles);
             }
+
+            // Added in version 14.
+            w.Write(career.Me.GoldMedals);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -347,6 +350,7 @@ namespace BaseballSim.Career
             }
             if (version >= 13 && r.ReadBoolean())
                 career.PendingSalary = new SalaryTalk { OldSalary = r.ReadInt32(), Offer = r.ReadInt32(), Worth = r.ReadInt32(), Titles = r.ReadInt32() };
+            if (version >= 14) me.GoldMedals = r.ReadInt32();
             return career;
         }
 

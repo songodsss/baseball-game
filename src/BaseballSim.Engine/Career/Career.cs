@@ -47,6 +47,8 @@ namespace BaseballSim.Career
         public int? OldSlot;
         /// <summary>My big at bats so far today with the approach taken, e.g. "7회 ... 2루타 (직구 노림 적중!)".</summary>
         public List<string> AtBatLog = new List<string>();
+        /// <summary>The Asian tournament, every four years a little after midseason; null on other days.</summary>
+        public TournamentResult Tournament;
         /// <summary>The all-star game, played on the midseason day; null on other days.</summary>
         public AllStarResult AllStar;
     }
@@ -213,8 +215,9 @@ namespace BaseballSim.Career
             Day++;
             ReviewRoster(result);
             if (Day == AllStarDay) PlayAllStar(result);
+            if (Day == TournamentDay && NationalTeam.IsTournamentYear(Year)) PlayTournament(result);
 
-            if (PendingTrade == null && result.AllStar == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
+            if (PendingTrade == null && result.AllStar == null && result.Tournament == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
                 PendingEvent = StoryEvents.Pick(this, result, _random);
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);

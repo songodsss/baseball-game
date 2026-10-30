@@ -281,6 +281,15 @@ namespace BaseballSim.Career
             Me.Morale = Math.Min(CareerPlayer.MaxMorale, Me.Morale + 2);
         }
 
+        int TournamentDay => League.GamesPerSeason * 11 / 20;
+
+        void PlayTournament(DayResult result)
+        {
+            result.Tournament = NationalTeam.Play(this, _random);
+            if (result.Tournament.Selected)
+                SeasonNotes.Add($"{MonthText} {NationalTeam.Name} " + (result.Tournament.Medal ?? "대표 출전"));
+        }
+
         void ResetSeasonMoves()
         {
             FarmLine = new BattingLine();

@@ -65,6 +65,7 @@ namespace BaseballSim.Career
         public int AllStarMvps;
         /// <summary>Big at bats where the pitch I sat on came.</summary>
         public int ReadsRight;
+        public int GoldMedals;
         /// <summary>Trait ids picked, in order.</summary>
         public List<string> Traits = new List<string>();
         /// <summary>Exp put into a stat already at its potential; enough of it raises the potential.</summary>

@@ -239,6 +239,10 @@ namespace BaseballGame
             {
                 ShowAllStar(result.AllStar);
             }
+            else if (result.Tournament != null)
+            {
+                ShowTournament(result.Tournament);
+            }
             else if (result.TraitOffer != null)
             {
                 ShowTraitOffer(result.TraitOffer);
@@ -367,6 +371,23 @@ namespace BaseballGame
             }, UiKit.Muted), 120);
         }
 
+        void ShowTournament(TournamentResult t)
+        {
+            var card = OpenOverlay($"{t.Year} {NationalTeam.Name}");
+            string medal = t.Medal == null ? "메달 없이 조별리그 탈락" : $"<color=#FFD24D><b>대한민국 {t.Medal}!</b></color>";
+            string me = t.Selected
+                ? $"국가대표로 출전! {t.MyLine.AtBats}타수 {t.MyLine.Hits}안타 {t.MyLine.HomeRuns}홈런 {t.MyLine.RunsBattedIn}타점\n<color=#5FA8FF>보너스 +{t.Bonus:N0}만원</color>"
+                : _career.InFarm ? "2군에 있어서 대표팀에 뽑히지 못했어요." : "이번엔 대표팀에 뽑히지 못했어요. 시즌 OPS가 리그 최상위면 뽑혀요.";
+            UiKit.Height(UiKit.Label(card, $"{medal}\n\n{me}", 34, TextAnchor.MiddleCenter), 0, 1);
+            foreach (var game in t.Games)
+            {
+                var g = game.Game;
+                string label = $"{game.Stage}  {g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}  {(game.Won ? "승" : "패")}";
+                UiKit.Height(UiKit.Button(card, label, () => Watch(g), game.Won ? UiKit.Accent : UiKit.Muted), 90);
+            }
+            UiKit.Height(UiKit.Button(card, "확인", CloseOverlay), 110);
+        }
+
         void ShowAllStar(AllStarResult allStar)
         {
             var g = allStar.Game;
@@ -448,6 +469,8 @@ namespace BaseballGame
             foreach (var stat in r.Breakthroughs)
                 lines.Add($"<color=#F28C40>한계 돌파! {StatNames[stat]} 잠재력 +{CareerPlayer.BreakthroughGain} → {_career.Me.Potential[stat]}</color>");
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
+            if (r.Tournament != null)
+                lines.Add($"<color=#FFD24D>{NationalTeam.Name}</color> 대한민국 {r.Tournament.Medal ?? "조별리그 탈락"}" + (r.Tournament.Selected ? " (국가대표 출전)" : ""));
             if (r.AllStar != null)
             {
                 var g = r.AllStar.Game;
