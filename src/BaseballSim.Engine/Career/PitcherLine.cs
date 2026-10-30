@@ -6,6 +6,7 @@ namespace BaseballSim.Career
     public class PitcherLine
     {
         public int Games, Starts, Wins, Losses, Outs, Hits, Runs, Walks, Strikeouts, HomeRuns, Shutouts;
+        public int Saves, Holds, BlownSaves;
 
         public double Era => Outs == 0 ? 0 : Runs * 27.0 / Outs;
         public double Whip => Outs == 0 ? 0 : (Hits + Walks) * 3.0 / Outs;
@@ -30,16 +31,20 @@ namespace BaseballSim.Career
             Outs += line.OutsRecorded; Hits += line.Hits; Runs += line.Runs;
             Walks += line.Walks; Strikeouts += line.Strikeouts; HomeRuns += line.HomeRuns;
             if (start && line.OutsRecorded >= 27 && line.Runs == 0) Shutouts++;
+            Saves += line.Saves; Holds += line.Holds; BlownSaves += line.BlownSaves;
         }
 
         public void Add(PitcherLine l)
         {
             Games += l.Games; Starts += l.Starts; Wins += l.Wins; Losses += l.Losses; Outs += l.Outs; Hits += l.Hits;
             Runs += l.Runs; Walks += l.Walks; Strikeouts += l.Strikeouts; HomeRuns += l.HomeRuns; Shutouts += l.Shutouts;
+            Saves += l.Saves; Holds += l.Holds; BlownSaves += l.BlownSaves;
         }
 
-        public override string ToString() =>
-            $"{Wins}승 {Losses}패 · 평균자책 {EraText} · {Innings}이닝 · 탈삼진 {Strikeouts}";
+        /// <summary>Starters lead with wins, relievers with saves and holds.</summary>
+        public override string ToString() => Starts * 2 >= Games && Games > 0 || Games == 0
+            ? $"{Wins}승 {Losses}패 · 평균자책 {EraText} · {Innings}이닝 · 탈삼진 {Strikeouts}"
+            : $"{Games}경기 {Saves}세이브 {Holds}홀드 · 평균자책 {EraText} · {Innings}이닝 · 탈삼진 {Strikeouts}";
     }
 
     /// <summary>One pitcher's numbers for the season so far, for leaderboards and awards.</summary>

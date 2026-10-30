@@ -6,7 +6,7 @@ namespace BaseballSim.Career
 {
     public enum GoalTier { Easy, Normal, Hard }
 
-    public enum GoalKind { Avg, HomeRuns, RunsBattedIn, Hits, Ops, Wins, Strikeouts, Era }
+    public enum GoalKind { Avg, HomeRuns, RunsBattedIn, Hits, Ops, Wins, Strikeouts, Era, Saves, Holds }
 
     /// <summary>
     /// A target the player commits to before a season. Harder targets pay more, so picking one is a
@@ -23,6 +23,10 @@ namespace BaseballSim.Career
         bool IsRate => Kind == GoalKind.Avg || Kind == GoalKind.Ops || Kind == GoalKind.Era;
         public static readonly GoalKind[] HitterKinds = { GoalKind.Avg, GoalKind.HomeRuns, GoalKind.RunsBattedIn, GoalKind.Hits, GoalKind.Ops };
         public static readonly GoalKind[] PitcherKinds = { GoalKind.Wins, GoalKind.Strikeouts, GoalKind.Era };
+        public static GoalKind[] KindsFor(PitcherRole role) =>
+            role == PitcherRole.Closer ? new[] { GoalKind.Saves, GoalKind.Strikeouts, GoalKind.Era }
+            : role == PitcherRole.Setup ? new[] { GoalKind.Holds, GoalKind.Strikeouts, GoalKind.Era }
+            : PitcherKinds;
 
         public string Text
         {
@@ -35,6 +39,8 @@ namespace BaseballSim.Career
                     case GoalKind.HomeRuns: return $"홈런 {Target:0}개";
                     case GoalKind.RunsBattedIn: return $"타점 {Target:0}개";
                     case GoalKind.Wins: return $"{Target:0}승";
+                    case GoalKind.Saves: return $"{Target:0}세이브";
+                    case GoalKind.Holds: return $"{Target:0}홀드";
                     case GoalKind.Strikeouts: return $"탈삼진 {Target:0}개";
                     case GoalKind.Era: return $"평균자책 {Target:0.00} 이하 (규정 이닝)";
                     default: return $"안타 {Target:0}개";
@@ -49,6 +55,8 @@ namespace BaseballSim.Career
             switch (Kind)
             {
                 case GoalKind.Wins: return p.Wins;
+                case GoalKind.Saves: return p.Saves;
+                case GoalKind.Holds: return p.Holds;
                 case GoalKind.Strikeouts: return p.Strikeouts;
                 case GoalKind.Era: return p.Era;
                 case GoalKind.Avg: return Stats.Avg(l);
@@ -71,7 +79,7 @@ namespace BaseballSim.Career
         public bool Met(Career career)
         {
             if (Kind == GoalKind.Era)
-                return career.SeasonPitching.Outs >= career.League.QualifyingOuts && Current(career) <= Target;
+                return career.SeasonPitching.Outs >= career.QualifyingOutsForMe && Current(career) <= Target;
             return Current(career) >= Target && (!IsRate || career.SeasonLine.PlateAppearances >= career.League.QualifyingPa);
         }
 
@@ -115,13 +123,22 @@ namespace BaseballSim.Career
             double era = ExpectedEra(me.Velocity, me.Control, me.Breaking);
             double wins = starts * Math.Max(0.15, 0.40 + (LeagueEra - era) * 0.08);
             double strikeouts = starts * Math.Max(1, 4.35 + 0.039 * (me.Velocity - 46.5));
+            if (Me.Role != PitcherRole.Starter)
+            {
+                // A reliever pitches about an inning in a third of the games.
+                double outings = League.GamesPerSeason * ReliefOutingsPerGame;
+                strikeouts = outings * Math.Max(0.4, 0.88 + 0.012 * (me.Velocity - 46.5));
+            }
+            double saves = League.GamesPerSeason * SavesPerGame * Math.Max(0.5, 1 + (LeagueEra - era) * 0.1);
+            double holds = League.GamesPerSeason * HoldsPerGame * Math.Max(0.5, 1 + (LeagueEra - era) * 0.1);
             double TargetFor(GoalKind kind, GoalTier tier)
             {
                 int t = (int)tier;
                 if (kind == GoalKind.Era) return Math.Round(Math.Max(1.0, era + new[] { 0.60, 0.0, -0.60 }[t]), 2);
-                return Math.Max(1, Math.Round((kind == GoalKind.Wins ? wins : strikeouts) * new[] { 0.8, 1.0, 1.2 }[t]));
+                double e = kind == GoalKind.Wins ? wins : kind == GoalKind.Saves ? saves : kind == GoalKind.Holds ? holds : strikeouts;
+                return Math.Max(1, Math.Round(e * new[] { 0.8, 1.0, 1.2 }[t]));
             }
-            var kinds = SeasonGoal.PitcherKinds.OrderBy(_ => _random.NextDouble()).ToList();
+            var kinds = SeasonGoal.KindsFor(Me.Role).OrderBy(_ => _random.NextDouble()).ToList();
             return Enum.GetValues(typeof(GoalTier)).Cast<GoalTier>()
                 .Select((tier, i) => new SeasonGoal { Kind = kinds[i], Tier = tier, Target = TargetFor(kinds[i], tier) })
                 .ToList();

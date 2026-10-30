@@ -32,7 +32,7 @@ namespace BaseballSim.Career
         public static string TierName(ChallengeTier tier) => TierNames[(int)tier];
         public static int Reward(ChallengeTier tier) => TierReward[(int)tier];
 
-        /// <summary>My retired hitters (best nine) and pitchers (best five starters), the rest ordinary players.</summary>
+        /// <summary>My retired hitters (best nine), starters (best five), closer and setup man; the rest ordinary players.</summary>
         public static Team Build(Club club, IRandom random)
         {
             var team = new RosterGenerator(random).CreateTeam(Name);
@@ -53,8 +53,13 @@ namespace BaseballSim.Career
 
             var hitters = club.Roster.Where(r => !r.IsPitcher).OrderByDescending(r => r.Overall).Take(team.Lineup.Count).ToList();
             for (int k = 0; k < hitters.Count; k++) team.Lineup[k] = FromRetired(hitters[k]);
-            var pitchers = club.Roster.Where(r => r.IsPitcher).OrderByDescending(r => r.Overall).Take(team.Rotation.Count).ToList();
-            for (int k = 0; k < pitchers.Count; k++) team.Rotation[k] = FromRetired(pitchers[k]);
+            var starters = club.Roster.Where(r => r.IsPitcher && r.Role == PitcherRole.Starter).OrderByDescending(r => r.Overall).Take(team.Rotation.Count).ToList();
+            for (int k = 0; k < starters.Count; k++) team.Rotation[k] = FromRetired(starters[k]);
+            // The best retired closer and setup man take those bullpen jobs.
+            var closer = club.Roster.Where(r => r.IsPitcher && r.Role == PitcherRole.Closer).OrderByDescending(r => r.Overall).FirstOrDefault();
+            if (closer != null) team.Bullpen[team.Bullpen.Count - 1] = FromRetired(closer);
+            var setup = club.Roster.Where(r => r.IsPitcher && r.Role == PitcherRole.Setup).OrderByDescending(r => r.Overall).FirstOrDefault();
+            if (setup != null) team.Bullpen[team.Bullpen.Count - 2] = FromRetired(setup);
             return team;
         }
 

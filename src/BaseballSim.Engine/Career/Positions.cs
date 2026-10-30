@@ -6,6 +6,8 @@ namespace BaseballSim.Career
 {
     public enum Position { Catcher, FirstBase, SecondBase, ThirdBase, Shortstop, Outfield, DesignatedHitter, Pitcher }
 
+    public enum PitcherRole { Starter, Setup, Closer }
+
     /// <summary>
     /// Positions, picked once at registration. Harder positions make the glove count for more in the
     /// golden glove vote and a catcher tires faster; a designated hitter doesn't field at all. A pitcher
@@ -33,6 +35,9 @@ namespace BaseballSim.Career
                 default: return 0;
             }
         }
+
+        static readonly string[] RoleNames = { "선발", "중계", "마무리" };
+        public static string RoleName(PitcherRole r) => RoleNames[(int)r];
 
         public static int ExtraGameFatigue(Position p) => p == Position.Catcher ? 3 : p == Position.DesignatedHitter ? -2 : 0;
 

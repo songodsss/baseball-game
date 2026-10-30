@@ -85,7 +85,13 @@ namespace BaseballSim.Career
             if (Me.IsPitcher)
             {
                 // A 2군 starter pitches every fifth day too; the 2군 pays the salary share either way.
-                if (IsStartDay) { DaysSinceStart = 0; PlayFarmStart(result); }
+                if (Me.Role != PitcherRole.Starter)
+                {
+                    // A 2군 reliever gets an inning about every other day while fresh.
+                    if (Me.Fatigue < ReliefFatigueLimit && _random.NextDouble() < 0.45) PlayFarmStart(result, relief: true);
+                    else result.BetweenStarts = true;
+                }
+                else if (IsStartDay) { DaysSinceStart = 0; PlayFarmStart(result); }
                 else { DaysSinceStart++; result.BetweenStarts = true; }
                 result.MoneyEarned = InMilitary ? 20 : Me.Salary / League.GamesPerSeason;
                 Me.Money += result.MoneyEarned;

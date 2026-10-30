@@ -183,9 +183,10 @@ namespace BaseballSim.Career
         public bool MustRetire => Me.Age >= RetirementAge || Released && PendingOffers.Count == 0;
 
         /// <summary>Creates a fresh 18-year-old with random starting ratings and potential.</summary>
-        public static CareerPlayer NewPlayer(string name, IRandom random, int potentialBonus = 0, Position position = Position.Outfield, int number = 0)
+        public static CareerPlayer NewPlayer(string name, IRandom random, int potentialBonus = 0, Position position = Position.Outfield, int number = 0,
+            PitcherRole role = PitcherRole.Starter)
         {
-            var me = new CareerPlayer { Id = "me", Name = name, Age = 18, Position = position, Number = number };
+            var me = new CareerPlayer { Id = "me", Name = name, Age = 18, Position = position, Number = number, Role = position == Position.Pitcher ? role : PitcherRole.Starter };
             foreach (var stat in me.MyStats)
             {
                 int start = 30 + (int)(random.NextDouble() * 16);
@@ -414,6 +415,7 @@ namespace BaseballSim.Career
 
         bool RunMyGame(DayResult result)
         {
+            if (_game.Player.IsPitcher) return RunPitcherGame(result);
             var g = _game;
             var sim = _sim;
             if (DecideAtBats)
@@ -493,7 +495,7 @@ namespace BaseballSim.Career
             var l = result.MyLine;
             var p = result.MyPitching;
             if (l != null) pay += DayWeight * (5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn);
-            if (p != null) pay += DayWeight * (60 * p.Wins + 5 * p.Strikeouts);
+            if (p != null) pay += DayWeight * (60 * p.Wins + 40 * p.Saves + 25 * p.Holds + 5 * p.Strikeouts);
             Me.Money += pay;
             result.MoneyEarned = pay;
         }

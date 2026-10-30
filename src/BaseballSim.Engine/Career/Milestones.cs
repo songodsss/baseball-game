@@ -5,7 +5,7 @@ using System.Linq;
 namespace BaseballSim.Career
 {
     /// <summary>
-    /// Career milestones reached in a game: the 100th hit, every 50th homer, the 100th win. The crowd
+    /// Career milestones reached in a game: the 100th hit, every 50th homer, the 100th win, every 50th save or hold. The crowd
     /// stands, the club hands over a commemorative bonus, and it goes on the season record.
     /// </summary>
     public partial class Career
@@ -15,6 +15,7 @@ namespace BaseballSim.Career
         static IEnumerable<int> HitMarks() => new[] { 100, 250 }.Concat(Enumerable.Range(2, 20).Select(i => i * 250));
         static IEnumerable<int> HomeRunMarks() => Enumerable.Range(1, 20).Select(i => i * 50);
         static IEnumerable<int> WinMarks() => new[] { 10 }.Concat(Enumerable.Range(1, 10).Select(i => i * 50));
+        static IEnumerable<int> ReliefMarks() => Enumerable.Range(1, 20).Select(i => i * 50);
         static IEnumerable<int> StrikeoutMarks() => new[] { 100 }.Concat(Enumerable.Range(1, 10).Select(i => i * 500));
 
         /// <summary>Milestones today's 1군 game crossed, as ceremony lines; each one pays and wins fans.</summary>
@@ -41,6 +42,8 @@ namespace BaseballSim.Career
                 var total = Stats.CareerPitching(this);
                 Cross(total.Wins, result.MyPitching.Wins, WinMarks(), "승");
                 Cross(total.Strikeouts, result.MyPitching.Strikeouts, StrikeoutMarks(), "탈삼진");
+                Cross(total.Saves, result.MyPitching.Saves, ReliefMarks(), "세이브");
+                Cross(total.Holds, result.MyPitching.Holds, ReliefMarks(), "홀드");
             }
             foreach (var _ in reached)
             {

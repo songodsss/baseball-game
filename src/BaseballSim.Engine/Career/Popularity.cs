@@ -25,7 +25,7 @@ namespace BaseballSim.Career
         void FansForGame(BattingLine bat, PitcherLine pitch)
         {
             int points = bat != null ? 2 * bat.Hits + 6 * bat.HomeRuns : 0;
-            if (pitch != null) points += 10 * pitch.Wins + pitch.Strikeouts + 30 * pitch.Shutouts;
+            if (pitch != null) points += 10 * pitch.Wins + 8 * pitch.Saves + 5 * pitch.Holds + pitch.Strikeouts + 30 * pitch.Shutouts;
             AddFans(points * DayWeight);
         }
 

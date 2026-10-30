@@ -64,7 +64,7 @@ namespace BaseballSim.Career
                 if (mine != null && game.Pitching.TryGetValue(mine, out var arm))
                 {
                     var g = new PitcherLine();
-                    g.Add(arm, true, false, false);
+                    g.Add(arm, career.Me.Role == PitcherRole.Starter, false, false);
                     result.MyPitching.Add(g);
                 }
                 return won;

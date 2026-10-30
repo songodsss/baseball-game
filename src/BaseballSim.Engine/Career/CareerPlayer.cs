@@ -95,6 +95,8 @@ namespace BaseballSim.Career
         public bool IsInjured => InjuryDaysLeft > 0;
 
         public bool IsPitcher => Position == Position.Pitcher;
+        /// <summary>A pitcher's job, picked at registration: starter, setup man or closer.</summary>
+        public PitcherRole Role = PitcherRole.Starter;
 
         /// <summary>A hitter's five stats.</summary>
         public static IEnumerable<Stat> AllStats => HitterStats;

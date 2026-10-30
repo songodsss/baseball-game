@@ -112,32 +112,51 @@ namespace BaseballGame
         {
             var me = _career.Me;
             var p = _career.SeasonPitching;
-            Section($"{me.Name}  {_career.Year} 시즌 · {Positions.Name(me.Position)}");
+            bool relief = me.Role != PitcherRole.Starter;
+            Section($"{me.Name}  {_career.Year} 시즌 · {Positions.RoleName(me.Role)} 투수");
             float[] statWidths = { 0, 0, 0, 0, 0, 0 };
-            Header(statWidths, "승", "패", "평균자책", "이닝", "탈삼진", "WHIP");
-            Row(statWidths, 0, false, $"{p.Wins}", $"{p.Losses}", p.EraText, p.Innings, $"{p.Strikeouts}", p.Outs == 0 ? "-" : p.Whip.ToString("0.00"));
-            Header(statWidths, "선발", "피안타", "피홈런", "볼넷", "실점", "완봉");
-            Row(statWidths, 0, false, $"{p.Starts}", $"{p.Hits}", $"{p.HomeRuns}", $"{p.Walks}", $"{p.Runs}", $"{p.Shutouts}");
+            if (relief)
+            {
+                Header(statWidths, "경기", "세이브", "홀드", "블론", "평균자책", "WHIP");
+                Row(statWidths, 0, false, $"{p.Games}", $"{p.Saves}", $"{p.Holds}", $"{p.BlownSaves}", p.EraText, p.Outs == 0 ? "-" : p.Whip.ToString("0.00"));
+                Header(statWidths, "이닝", "피안타", "피홈런", "볼넷", "실점", "탈삼진");
+                Row(statWidths, 0, false, p.Innings, $"{p.Hits}", $"{p.HomeRuns}", $"{p.Walks}", $"{p.Runs}", $"{p.Strikeouts}");
+            }
+            else
+            {
+                Header(statWidths, "승", "패", "평균자책", "이닝", "탈삼진", "WHIP");
+                Row(statWidths, 0, false, $"{p.Wins}", $"{p.Losses}", p.EraText, p.Innings, $"{p.Strikeouts}", p.Outs == 0 ? "-" : p.Whip.ToString("0.00"));
+                Header(statWidths, "선발", "피안타", "피홈런", "볼넷", "실점", "완봉");
+                Row(statWidths, 0, false, $"{p.Starts}", $"{p.Hits}", $"{p.HomeRuns}", $"{p.Walks}", $"{p.Runs}", $"{p.Shutouts}");
+            }
             var f = _career.FarmPitching;
             if (f.Outs > 0)
                 Note($"2군 {f.Starts}경기  {f.Wins}승 {f.Losses}패  평균자책 {f.EraText}" + (_career.InFarm ? "  · 지금 2군" : ""), TextAnchor.MiddleLeft, 60);
-            Note($"다음 선발까지 {_career.DaysToNextStart}일", TextAnchor.MiddleLeft, 60);
+            Note(relief ? (_career.CanPitchToday ? "불펜 대기 중" : "피로가 쌓여 쉬는 중") : $"다음 선발까지 {_career.DaysToNextStart}일", TextAnchor.MiddleLeft, 60);
 
             Section("시즌별 기록");
             float[] widths = { 0, 100, 110, 140, 160, 130, 170 };
-            Header(widths, "연도", "나이", "승-패", "평균자책", "이닝", "탈삼진", "연봉");
+            Header(widths, "연도", "나이", relief ? "세이브-홀드" : "승-패", "평균자책", "이닝", "탈삼진", "연봉");
             if (me.History.Count == 0) Note("첫 시즌이 끝나면 여기에 기록이 쌓여요.");
             for (int i = 0; i < me.History.Count; i++)
             {
                 var h = me.History[i];
                 var hp = h.Pitching ?? new PitcherLine();
-                Row(widths, i, false, $"{CareerState.YearOf(h.Season)}", $"{h.Age}", $"{hp.Wins}-{hp.Losses}", hp.EraText, hp.Innings, $"{hp.Strikeouts}", $"{h.Salary:N0}");
+                Row(widths, i, false, $"{CareerState.YearOf(h.Season)}", $"{h.Age}", relief ? $"{hp.Saves}-{hp.Holds}" : $"{hp.Wins}-{hp.Losses}", hp.EraText, hp.Innings, $"{hp.Strikeouts}", $"{h.Salary:N0}");
             }
 
             var t = Stats.CareerPitching(_career);
             Section("통산 (이번 시즌 포함)");
-            Header(statWidths, "승", "패", "평균자책", "이닝", "탈삼진", "완봉");
-            Row(statWidths, 0, true, $"{t.Wins}", $"{t.Losses}", t.EraText, t.Innings, $"{t.Strikeouts}", $"{t.Shutouts}");
+            if (relief)
+            {
+                Header(statWidths, "경기", "세이브", "홀드", "평균자책", "이닝", "탈삼진");
+                Row(statWidths, 0, true, $"{t.Games}", $"{t.Saves}", $"{t.Holds}", t.EraText, t.Innings, $"{t.Strikeouts}");
+            }
+            else
+            {
+                Header(statWidths, "승", "패", "평균자책", "이닝", "탈삼진", "완봉");
+                Row(statWidths, 0, true, $"{t.Wins}", $"{t.Losses}", t.EraText, t.Innings, $"{t.Strikeouts}", $"{t.Shutouts}");
+            }
         }
 
         void ShowMyBatting()
@@ -285,9 +304,13 @@ namespace BaseballGame
             for (int i = 0; i < roster.Count; i++)
             {
                 var p = roster[i];
-                string totals = p.IsPitcher && p.CareerPitching != null ? $"{p.CareerPitching.Wins}승 {p.CareerPitching.Strikeouts}K" : $"{p.CareerLine.Hits}안타 {p.CareerLine.HomeRuns}홈런";
+                var arm = p.CareerPitching;
+                string totals = !p.IsPitcher || arm == null ? $"{p.CareerLine.Hits}안타 {p.CareerLine.HomeRuns}홈런"
+                    : p.Role == PitcherRole.Closer ? $"{arm.Saves}세이브 {arm.Strikeouts}K"
+                    : p.Role == PitcherRole.Setup ? $"{arm.Holds}홀드 {arm.Strikeouts}K"
+                    : $"{arm.Wins}승 {arm.Strikeouts}K";
                 Row(widths, i, p.HallOfFame, (p.HallOfFame ? "★ " : "") + p.Name, p.ShownNumber > 0 ? $"{p.ShownNumber}" : "-",
-                    Positions.Name(p.Position), $"{p.Seasons}", totals, $"{p.Overall}");
+                    p.IsPitcher ? Positions.RoleName(p.Role) : Positions.Name(p.Position), $"{p.Seasons}", totals, $"{p.Overall}");
             }
 
             // Numbers on my own team are mine to set; a number retired in a career stays a career story.

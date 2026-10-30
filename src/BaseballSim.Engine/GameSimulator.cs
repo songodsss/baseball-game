@@ -4,7 +4,11 @@ using System.Linq;
 
 namespace BaseballSim
 {
-    /// <summary>Plays one full game plate appearance by plate appearance.</summary>
+    /// <summary>
+    /// Plays one full game plate appearance by plate appearance. A bullpen of three or more has roles:
+    /// its last arm closes (the 9th with a lead of one to three), the one before sets up (the 8th, tied
+    /// or up by three or less), and the rest relieve a tired pitcher in order.
+    /// </summary>
     public class GameSimulator
     {
         // KBO rules: a game still tied after the 12th inning ends in a tie.
@@ -20,6 +24,9 @@ namespace BaseballSim
         public Func<AtBatSituation, Approach?> Decide;
         public Player DecideFor;
         public AtBatSituation Suspended { get; private set; }
+        /// <summary>Big spots asked about in one game when <see cref="DecideFor"/> pitches, so a starter isn't stopped all night.</summary>
+        public int MaxPitchingDecisions = 4;
+        int _pitchingAsks;
         /// <summary>The game so far; after a pause, everything up to the paused at bat.</summary>
         public GameResult Partial => _result;
 
@@ -39,6 +46,14 @@ namespace BaseballSim
             public int PitchCount;
             public int NextReliever;
             public double Defense;
+            public bool UsedSetup, UsedCloser;
+            /// <summary>The current reliever's lead when he came in, if it was a save situation (1-3).</summary>
+            public int? EntryLead;
+            public bool LostLead;
+            public int StintOuts;
+            public Player Setup => Team.Bullpen.Count >= 3 ? Team.Bullpen[Team.Bullpen.Count - 2] : null;
+            public Player Closer => Team.Bullpen.Count >= 3 ? Team.Bullpen[Team.Bullpen.Count - 1] : null;
+            public int OrdinaryRelievers => Team.Bullpen.Count >= 3 ? Team.Bullpen.Count - 2 : Team.Bullpen.Count;
         }
 
         GameResult _result;
@@ -54,6 +69,7 @@ namespace BaseballSim
             _away = NewSide(away, awayStarter);
             _home = NewSide(home, homeStarter);
             Suspended = null;
+            _pitchingAsks = 0;
 
             try
             {
@@ -72,6 +88,10 @@ namespace BaseballSim
             }
 
             _result.Innings = Math.Min(_inning, MaxInnings);
+            // The save goes to the winning side's last arm, if he came in to protect a small lead and kept it.
+            var winner = _result.HomeScore > _result.AwayScore ? _home : _result.AwayScore > _result.HomeScore ? _away : null;
+            if (winner != null && !winner.PitcherIsStarter && winner.EntryLead != null && !winner.LostLead)
+                PitchingFor(winner.Pitcher).Saves = 1;
             return _result;
         }
 
@@ -93,6 +113,7 @@ namespace BaseballSim
             var batting = top ? _away : _home;
             var fielding = top ? _home : _away;
 
+            BringInLateRelief(fielding);
             while (_outs < 3)
             {
                 MaybeChangePitcher(fielding);
@@ -107,14 +128,47 @@ namespace BaseballSim
             ? 60 + (int)(side.Pitcher.Pitching.Stamina * 0.6)
             : 15 + (int)(side.Pitcher.Pitching.Stamina * 0.3);
 
+        int LeadOf(Side side) => side == _home ? _result.HomeScore - _result.AwayScore : _result.AwayScore - _result.HomeScore;
+
+        /// <summary>At the top of a half inning: the closer for a save, the setup man for the 8th, or the setup man's inning is done.</summary>
+        void BringInLateRelief(Side fielding)
+        {
+            int lead = LeadOf(fielding);
+            if (_inning >= 9 && lead >= 1 && lead <= 3 && fielding.Closer != null && !fielding.UsedCloser && fielding.Pitcher != fielding.Closer)
+            {
+                fielding.UsedCloser = true;
+                ChangePitcher(fielding, fielding.Closer);
+            }
+            else if (_inning == 8 && lead >= 0 && lead <= 3 && fielding.Setup != null && !fielding.UsedSetup && fielding.Pitcher != fielding.Setup)
+            {
+                fielding.UsedSetup = true;
+                ChangePitcher(fielding, fielding.Setup);
+            }
+            else if (fielding.Pitcher == fielding.Setup && fielding.StintOuts >= 3 && fielding.NextReliever < fielding.OrdinaryRelievers)
+            {
+                ChangePitcher(fielding, fielding.Team.Bullpen[fielding.NextReliever++]);
+            }
+        }
+
         void MaybeChangePitcher(Side fielding)
         {
             if (fielding.PitchCount < MaxPitches(fielding)) return;
-            if (fielding.NextReliever >= fielding.Team.Bullpen.Count) return; // nobody left, keep going tired
+            if (fielding.NextReliever >= fielding.OrdinaryRelievers) return; // nobody left, keep going tired
+            ChangePitcher(fielding, fielding.Team.Bullpen[fielding.NextReliever++]);
+        }
 
-            fielding.Pitcher = fielding.Team.Bullpen[fielding.NextReliever++];
+        void ChangePitcher(Side fielding, Player next)
+        {
+            // A reliever who hands on the small lead he was given gets a hold.
+            if (!fielding.PitcherIsStarter && fielding.EntryLead != null && !fielding.LostLead && fielding.StintOuts > 0 && LeadOf(fielding) > 0)
+                PitchingFor(fielding.Pitcher).Holds = 1;
+            int lead = LeadOf(fielding);
+            fielding.Pitcher = next;
             fielding.PitcherIsStarter = false;
             fielding.PitchCount = 0;
+            fielding.StintOuts = 0;
+            fielding.EntryLead = lead >= 1 && lead <= 3 ? lead : (int?)null;
+            fielding.LostLead = false;
             _result.Events.Add(new GameEvent
             {
                 Kind = EventKind.PitchingChange,
@@ -141,7 +195,9 @@ namespace BaseballSim
             double fatigue = Math.Max(0, (fielding.PitchCount - limit * 0.8) / (limit * 0.2)) * 0.3;
 
             var odds = PlateAppearanceModel.Compute(batter, pitcher, fielding.Defense, fatigue);
-            string note = Decide != null && batter == DecideFor ? AskApproach(batter, pitcher, odds) : null;
+            string note = Decide == null ? null
+                : batter == DecideFor ? AskApproach(batter, pitcher, odds)
+                : pitcher == DecideFor ? AskPitch(batter, pitcher, odds, fielding) : null;
             var outcome = odds.Pick(_random);
 
             var ev = new GameEvent
@@ -172,6 +228,38 @@ namespace BaseballSim
 
             _result.Events.Add(ev);
             RecordStats(ev);
+
+            fielding.StintOuts += ev.OutsAfter - ev.OutsBefore;
+            if (fielding.EntryLead != null && !fielding.LostLead && LeadOf(fielding) <= 0)
+            {
+                fielding.LostLead = true;
+                PitchingFor(pitcher).BlownSaves = 1;
+            }
+        }
+
+        /// <summary>My pitcher in a big spot: read the batter and pick the pitch; pauses the game if there's no answer yet.</summary>
+        string AskPitch(Player batter, Player pitcher, OutcomeOdds odds, Side fielding)
+        {
+            var bases = _bases.Select(b => b != null).ToArray();
+            int lead = LeadOf(fielding);
+            if (_pitchingAsks >= MaxPitchingDecisions || !AtBatChoice.IsBigForPitcher(_inning, bases, lead)) return null;
+            _pitchingAsks++;
+
+            var situation = AtBatChoice.ReadBatter(batter, pitcher, _random);
+            situation.Inning = _inning;
+            situation.IsTopHalf = _top;
+            situation.Outs = _outs;
+            situation.Bases = bases;
+            situation.MyRuns = lead + (fielding == _home ? _result.AwayScore : _result.HomeScore);
+            situation.TheirRuns = fielding == _home ? _result.AwayScore : _result.HomeScore;
+            var approach = Decide(situation);
+            if (approach == null)
+            {
+                Suspended = situation;
+                throw new SuspendGame();
+            }
+            AtBatChoice.ApplyPitch(odds, approach.Value, situation.Coming);
+            return AtBatChoice.PitchNote(approach.Value, situation.Coming);
         }
 
         /// <summary>In a big spot, reads the pitcher and applies the chosen approach; pauses the game if there's no answer yet.</summary>

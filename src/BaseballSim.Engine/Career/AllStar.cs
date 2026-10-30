@@ -53,7 +53,7 @@ namespace BaseballSim.Career
                 if (game.Pitching.TryGetValue(mine, out var arm))
                 {
                     result.MyPitching = new PitcherLine();
-                    result.MyPitching.Add(arm, true, false, false);
+                    result.MyPitching.Add(arm, career.Me.Role == PitcherRole.Starter, false, false);
                 }
                 result.MyMvp = mvp == mine;
                 result.Bonus = SelectionBonus + (result.MyMvp ? MvpBonus : 0);
@@ -81,13 +81,14 @@ namespace BaseballSim.Career
             // A favourite the numbers left out goes in on the fans' vote, in place of the last pick.
             if (me != null && mine == null && career.Me.Popularity >= Career.FanVotePopularity)
             {
-                if (me.IsPitcher) team.Rotation[team.Rotation.Count - 1] = me;
+                if (me.IsPitcher && career.Me.Role != PitcherRole.Starter) team.Bullpen[career.Me.Role == PitcherRole.Closer ? team.Bullpen.Count - 1 : team.Bullpen.Count - 2] = me;
+                else if (me.IsPitcher) team.Rotation[team.Rotation.Count - 1] = me;
                 else team.Lineup[team.Lineup.Count - 1] = me;
                 mine = me;
                 fanVote = true;
             }
             // My pitcher, once picked, gets the start.
-            if (mine != null && mine.IsPitcher)
+            if (mine != null && team.Rotation.Contains(mine))
             {
                 team.Rotation.Remove(mine);
                 team.Rotation.Insert(0, mine);

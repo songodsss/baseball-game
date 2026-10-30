@@ -35,6 +35,7 @@ namespace BaseballSim.Career
         /// <summary>A pitcher's career line; null for hitters.</summary>
         public PitcherLine CareerPitching;
 
+        public PitcherRole Role = PitcherRole.Starter;
         public bool IsPitcher => Position == Position.Pitcher;
         public int Overall => (int)Math.Round(PeakRatings.Values.Average());
 
@@ -46,8 +47,10 @@ namespace BaseballSim.Career
                 var lines = new List<string>();
                 string number = Number > 0 ? $"등번호 {Number}번 " : "";
                 lines.Add($"{MainClub ?? "구단"} 홈구장. {number}{Name}의 은퇴식이 열렸다.");
+                var arm = CareerPitching ?? new PitcherLine();
+                string pitched = Role == PitcherRole.Closer ? $"통산 {arm.Saves}세이브" : Role == PitcherRole.Setup ? $"통산 {arm.Holds}홀드" : $"통산 {arm.Wins}승";
                 lines.Add(IsPitcher
-                    ? $"{Seasons}시즌, 통산 {CareerPitching?.Wins ?? 0}승 {CareerPitching?.Strikeouts ?? 0}탈삼진. 마지막으로 마운드에 올라 시구를 했다."
+                    ? $"{Seasons}시즌, {pitched} {arm.Strikeouts}탈삼진. 마지막으로 마운드에 올라 시구를 했다."
                     : $"{Seasons}시즌, 통산 {CareerLine.Hits}안타 {CareerLine.HomeRuns}홈런. 마지막 타석에 들어서자 관중이 이름을 연호했다.");
                 if (Titles.Count > 0) lines.Add($"타이틀 {Titles.Count}개의 기억이 전광판을 채웠다.");
                 if (NumberRetiredBy != null) lines.Add($"{NumberRetiredBy}이(가) 그의 {(Number > 0 ? Number + "번" : "등번호")}을 영구결번으로 지정했다. 유니폼이 외야 펜스 위에 걸렸다.");
@@ -96,6 +99,7 @@ namespace BaseballSim.Career
                 Achievements = new List<string>(me.Achievements),
                 Titles = me.History.SelectMany(h => h.Titles).ToList(),
                 Position = me.Position,
+                Role = me.Role,
                 Number = me.Number,
                 MainClub = me.History.GroupBy(h => h.Club ?? career.MyTeam.Name).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key ?? career.MyTeam.Name,
             };
@@ -108,7 +112,7 @@ namespace BaseballSim.Career
             // A season's worth: hits and homers, or wins and strikeouts, scaled to a full 144 games so a
             // short-season career earns the same.
             double Worth(SeasonRecord r) => (r.Pitching != null
-                ? r.Pitching.Wins + r.Pitching.Strikeouts / 10.0
+                ? r.Pitching.Wins + r.Pitching.Saves * 0.6 + r.Pitching.Holds * 0.4 + r.Pitching.Strikeouts / 10.0
                 : r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0) * League.FullSeason / r.Games;
             retired.LegacyPoints = (int)me.History.Sum(r => Worth(r) + 5);
             int titles = retired.Titles.Count(t => t != Postseason.ChampionTitle);

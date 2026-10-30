@@ -19,7 +19,7 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        public const int Version = 18;
+        public const int Version = 19;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -106,6 +106,8 @@ namespace BaseballSim.Career
             });
             WriteList(w, club.ChallengesWon.ToList(), t => w.Write((int)t));
             w.Write(club.ChallengeWins);
+            // Added in version 19.
+            WriteList(w, club.Roster, p => w.Write((int)p.Role));
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -162,11 +164,16 @@ namespace BaseballSim.Career
                     p.TeamNumber = r.ReadInt32();
                     var main = r.ReadString();
                     p.MainClub = main.Length == 0 ? null : main;
-                    p.CareerPitching = ReadOptional(r);
+                    p.CareerPitching = ReadOptional(r, version);
                     return p;
                 });
                 club.ChallengesWon = new HashSet<ChallengeTier>(ReadList(r, () => (ChallengeTier)r.ReadInt32()));
                 club.ChallengeWins = r.ReadInt32();
+            }
+            if (version >= 19)
+            {
+                int i = 0;
+                ReadList(r, () => club.Roster[i++].Role = (PitcherRole)r.ReadInt32());
             }
             return club;
         }
@@ -318,6 +325,9 @@ namespace BaseballSim.Career
                 w.Write(teams.IndexOf(p.Team));
                 WritePitcherLine(w, p.Line);
             });
+
+            // Added in version 19.
+            w.Write((int)me.Role);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -455,15 +465,16 @@ namespace BaseballSim.Career
                 me.Injury = (InjuryKind)r.ReadInt32();
                 me.LingerDays = r.ReadInt32();
                 me.FanPoints = r.ReadInt32();
-                career.SeasonPitching = ReadPitcherLine(r);
-                career.FarmPitching = ReadPitcherLine(r);
-                career.StintPitching = ReadPitcherLine(r);
+                career.SeasonPitching = ReadPitcherLine(r, version);
+                career.FarmPitching = ReadPitcherLine(r, version);
+                career.StintPitching = ReadPitcherLine(r, version);
                 career.DaysSinceStart = r.ReadInt32();
                 int n = 0;
-                ReadList(r, () => me.History[n++].Pitching = ReadOptional(r));
-                foreach (var p in ReadList(r, () => new PitcherSeason { Id = r.ReadString(), Name = r.ReadString(), Team = teams[r.ReadInt32()], Line = ReadPitcherLine(r) }))
+                ReadList(r, () => me.History[n++].Pitching = ReadOptional(r, version));
+                foreach (var p in ReadList(r, () => new PitcherSeason { Id = r.ReadString(), Name = r.ReadString(), Team = teams[r.ReadInt32()], Line = ReadPitcherLine(r, version) }))
                     career.League.Pitching[p.Id] = p;
             }
+            if (version >= 19) me.Role = (PitcherRole)r.ReadInt32();
             return career;
         }
 
@@ -574,16 +585,22 @@ namespace BaseballSim.Career
             HomeRuns = r.ReadInt32(), Walks = r.ReadInt32(), Strikeouts = r.ReadInt32(), Runs = r.ReadInt32(), RunsBattedIn = r.ReadInt32(),
         };
 
+        // Saves, holds and blown saves were added in version 19.
         static void WritePitcherLine(BinaryWriter w, PitcherLine l)
         {
-            foreach (int v in new[] { l.Games, l.Starts, l.Wins, l.Losses, l.Outs, l.Hits, l.Runs, l.Walks, l.Strikeouts, l.HomeRuns, l.Shutouts }) w.Write(v);
+            foreach (int v in new[] { l.Games, l.Starts, l.Wins, l.Losses, l.Outs, l.Hits, l.Runs, l.Walks, l.Strikeouts, l.HomeRuns, l.Shutouts, l.Saves, l.Holds, l.BlownSaves }) w.Write(v);
         }
 
-        static PitcherLine ReadPitcherLine(BinaryReader r) => new PitcherLine
+        static PitcherLine ReadPitcherLine(BinaryReader r, int version)
         {
-            Games = r.ReadInt32(), Starts = r.ReadInt32(), Wins = r.ReadInt32(), Losses = r.ReadInt32(), Outs = r.ReadInt32(), Hits = r.ReadInt32(),
-            Runs = r.ReadInt32(), Walks = r.ReadInt32(), Strikeouts = r.ReadInt32(), HomeRuns = r.ReadInt32(), Shutouts = r.ReadInt32(),
-        };
+            var l = new PitcherLine
+            {
+                Games = r.ReadInt32(), Starts = r.ReadInt32(), Wins = r.ReadInt32(), Losses = r.ReadInt32(), Outs = r.ReadInt32(), Hits = r.ReadInt32(),
+                Runs = r.ReadInt32(), Walks = r.ReadInt32(), Strikeouts = r.ReadInt32(), HomeRuns = r.ReadInt32(), Shutouts = r.ReadInt32(),
+            };
+            if (version >= 19) { l.Saves = r.ReadInt32(); l.Holds = r.ReadInt32(); l.BlownSaves = r.ReadInt32(); }
+            return l;
+        }
 
         static void WriteOptional(BinaryWriter w, PitcherLine l)
         {
@@ -591,7 +608,7 @@ namespace BaseballSim.Career
             if (l != null) WritePitcherLine(w, l);
         }
 
-        static PitcherLine ReadOptional(BinaryReader r) => r.ReadBoolean() ? ReadPitcherLine(r) : null;
+        static PitcherLine ReadOptional(BinaryReader r, int version) => r.ReadBoolean() ? ReadPitcherLine(r, version) : null;
 
         static void WriteStats(BinaryWriter w, Dictionary<Stat, int> stats) =>
             WriteList(w, stats.ToList(), pair => { w.Write((int)pair.Key); w.Write(pair.Value); });

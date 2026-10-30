@@ -43,6 +43,9 @@ namespace BaseballSim
     public class PitchingLine
     {
         public int OutsRecorded, Hits, Runs, Walks, Strikeouts, HomeRuns, Pitches;
+        /// <summary>Relief credits, 0 or 1 a game: finished a win he entered with a lead of three or less,
+        /// handed such a lead on intact, or let it slip.</summary>
+        public int Saves, Holds, BlownSaves;
     }
 
     public class GameResult

@@ -92,10 +92,10 @@ namespace BaseballGame
             SaveStore.Save(_club, _retired ? null : _career);
         }
 
-        void StartNewCareer(string name, int games, int team, Position position, int number)
+        void StartNewCareer(string name, int games, int team, Position position, int number, PitcherRole role)
         {
             var league = new League(new RosterGenerator(_random), games);
-            var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus, position, number);
+            var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus, position, number, role);
             _career = new CareerState(me, league, league.Teams[team], _random) { DecideAtBats = true };
             _lastDay = null;
             _retired = false;
@@ -277,6 +277,7 @@ namespace BaseballGame
         /// <summary>The game is paused at my big at bat: read the pitcher and pick an approach.</summary>
         void ShowAtBat(DayResult result)
         {
+            if (result.AtBat.Pitching) { ShowPitchChoice(result); return; }
             var s = result.AtBat;
             var card = OpenOverlay("찬스 타석!");
             var runners = Enumerable.Range(0, 3).Where(i => s.Bases[i]).Select(i => BaseNames[i]).ToList();
@@ -293,6 +294,27 @@ namespace BaseballGame
             UiKit.Height(UiKit.Button(card, "신중하게 (볼넷 노림)", () => Answer(Approach.Patient), UiKit.Muted), 105);
             UiKit.Height(UiKit.Button(card, "평소대로", () => Answer(Approach.Normal), UiKit.Background), 105);
             Tip("atbat", "찬스 타석에선 노림수를 골라요. 노린 공이 오면 장타 확률이 크게 오르고, 틀리면 삼진이 늘어요. 선구안이 높을수록 '느낌'이 정확해요.");
+        }
+
+        /// <summary>My pitcher in a jam: read what the batter sits on and pick the pitch.</summary>
+        void ShowPitchChoice(DayResult result)
+        {
+            var s = result.AtBat;
+            var card = OpenOverlay("위기 상황! 승부구 선택");
+            var runners = Enumerable.Range(0, 3).Where(i => s.Bases[i]).Select(i => BaseNames[i]).ToList();
+            string hunch = s.Hunch == Pitch.Fastball ? "직구" : "변화구";
+            string previous = result.AtBatLog.Count > 0 ? $"<color=#9EABC2>직전 승부: {result.AtBatLog.Last()}</color>\n\n" : "";
+            string text = previous +
+                $"{Commentary.HalfInning(s.Inning, s.IsTopHalf)} {s.Outs}아웃 · 주자 {(runners.Count == 0 ? "없음" : string.Join(", ", runners))}\n" +
+                $"{_career.MyTeam.Name} {s.MyRuns} : {s.TheirRuns} 상대\n\n" +
+                $"타자 {s.Batter.Name}  직구 노림 {s.SitsFastball:P0} · 변화구 노림 {1 - s.SitsFastball:P0}\n" +
+                $"<color=#FFD24D>포수의 느낌: {hunch}를 노리고 있다</color>  (제구 감 적중률 {s.HunchAccuracy:P0})";
+            UiKit.Height(UiKit.Label(card, text, 32, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "직구로 승부", () => Answer(Approach.ThrowFastball)), 105);
+            UiKit.Height(UiKit.Button(card, "변화구로 승부", () => Answer(Approach.ThrowBreaking)), 105);
+            UiKit.Height(UiKit.Button(card, "어렵게 승부 (볼넷 각오)", () => Answer(Approach.PitchAround), UiKit.Muted), 105);
+            UiKit.Height(UiKit.Button(card, "평소대로", () => Answer(Approach.Normal), UiKit.Background), 105);
+            Tip("pitch", "위기에선 승부구를 골라요. 타자가 노리지 않는 공을 던지면 삼진이 늘고, 노리는 공을 던지면 장타를 맞기 쉬워요. 제구가 높을수록 포수의 느낌이 정확해요.");
         }
 
         void Answer(Approach approach)
@@ -444,7 +466,9 @@ namespace BaseballGame
         }
 
         static string PitchingText(PitcherLine p) =>
-            $"{p.Innings}이닝 {p.Runs}실점 {p.Strikeouts}탈삼진 {p.Walks}볼넷" + (p.Wins > 0 ? " <color=#5FA8FF>승</color>" : p.Losses > 0 ? " <color=#F28C40>패</color>" : "");
+            $"{p.Innings}이닝 {p.Runs}실점 {p.Strikeouts}탈삼진 {p.Walks}볼넷" +
+            (p.Wins > 0 ? " <color=#5FA8FF>승</color>" : p.Losses > 0 ? " <color=#F28C40>패</color>" : "") +
+            (p.Saves > 0 ? " <color=#5FA8FF>세이브</color>" : p.Holds > 0 ? " <color=#5FA8FF>홀드</color>" : p.BlownSaves > 0 ? " <color=#F28C40>블론세이브</color>" : "");
 
         void ShowAllStar(AllStarResult allStar)
         {
@@ -454,7 +478,7 @@ namespace BaseballGame
             if (allStar.Selected)
             {
                 var l = allStar.MyLine;
-                string mine = allStar.MyPitching != null ? "선발 " + PitchingText(allStar.MyPitching)
+                string mine = allStar.MyPitching != null ? (_career.Me.Role == PitcherRole.Starter ? "선발 " : "구원 ") + PitchingText(allStar.MyPitching)
                     : _career.Me.IsPitcher ? "등판 기회가 없었어요" : $"{l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런 {l.RunsBattedIn}타점";
                 text += (allStar.FanVote ? $"<color=#FFD24D>팬 투표로 뽑힌 올스타!</color> (인기 {_career.Me.Popularity})" : "팬과 감독이 뽑은 올스타!") + $"\n내 성적 {mine}\n" +
                         $"<color=#5FA8FF>보너스 +{allStar.Bonus:N0}만원 · 사기 +2</color>";
@@ -509,23 +533,24 @@ namespace BaseballGame
             }
             else if (r.FarmPitching != null)
             {
-                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} 선발</color> {PitchingText(r.FarmPitching)}  (+{r.MoneyEarned}만원)");
+                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} {(_career.Me.Role == PitcherRole.Starter ? "선발" : "구원")}</color> {PitchingText(r.FarmPitching)}  (+{r.MoneyEarned}만원)");
             }
             else if (r.InFarm && r.BetweenStarts)
             {
-                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")}</color> 등판 없는 날 · 다음 등판까지 {_career.DaysToNextStart + 1}일  (+{r.MoneyEarned}만원)");
+                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")}</color> 등판 없는 날" + (_career.Me.Role == PitcherRole.Starter ? $" · 다음 등판까지 {_career.DaysToNextStart + 1}일" : "") + $"  (+{r.MoneyEarned}만원)");
             }
             else if (r.MyGame != null && r.MyPitching == null && _career.Me.IsPitcher)
             {
                 var g = r.MyGame;
                 lines.Add($"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}");
-                lines.Add($"등판 없는 날 · 다음 선발까지 {_career.DaysToNextStart + 1}일  (+{r.MoneyEarned}만원)");
+                lines.Add((_career.Me.Role == PitcherRole.Starter ? $"등판 없는 날 · 다음 선발까지 {_career.DaysToNextStart + 1}일"
+                    : _career.Me.Fatigue >= CareerState.ReliefFatigueLimit ? "피로가 쌓여 휴식 (불펜 대기 제외)" : "불펜 대기, 등판 기회 없음") + $"  (+{r.MoneyEarned}만원)");
             }
             else if (r.MyGame != null && r.MyPitching != null)
             {
                 var g = r.MyGame;
                 lines.Add($"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}");
-                lines.Add($"<b>선발 등판</b> {PitchingText(r.MyPitching)}  (+{r.MoneyEarned}만원)");
+                lines.Add($"<b>{(_career.Me.Role == PitcherRole.Starter ? "선발 등판" : "구원 등판")}</b> {PitchingText(r.MyPitching)}  (+{r.MoneyEarned}만원)");
                 if (r.RivalLine != null)
                     lines.Add($"<color=#E0475B>라이벌과 투타 대결</color> {_career.Rival.Name} {r.RivalLine.AtBats}타수 {r.RivalLine.Hits}안타 {r.RivalLine.HomeRuns}홈런");
             }
@@ -545,7 +570,7 @@ namespace BaseballGame
                 foreach (var ev in g.Events.Where(e => e.Batter == r.MyGamePlayer && IsHighlight(e)))
                     lines.Add($"  {Commentary.HalfInning(ev.Inning, ev.IsTopHalf)} {Commentary.Describe(ev)}");
             }
-            foreach (var atBat in r.AtBatLog) lines.Add($"  찬스: {atBat}");
+            foreach (var atBat in r.AtBatLog) lines.Add($"  {(_career.Me.IsPitcher ? "승부구" : "찬스")}: {atBat}");
             if (r.OldSlot != null)
             {
                 bool up = CareerState.SlotStanding(_career.LineupSlot) < CareerState.SlotStanding(r.OldSlot.Value);
@@ -795,7 +820,7 @@ namespace BaseballGame
             Section("정규시즌");
             Line($"팀 순위 {summary.Rank}위");
             Line(pitcher
-                ? $"{pitching.Wins}승 {pitching.Losses}패  평균자책 {pitching.EraText}  {pitching.Innings}이닝  탈삼진 {pitching.Strikeouts}"
+                ? pitching.ToString().Replace(" · ", "  ") + (pitching.BlownSaves > 0 ? $"  블론 {pitching.BlownSaves}" : "")
                 : $"타율 {Stats.Rate(Stats.Avg(line))}  {line.HomeRuns}홈런  {line.RunsBattedIn}타점  OPS {Stats.Rate(Stats.Ops(line))}");
             Line($"인기 {summary.Popularity}  ·  광고 수입 {summary.Sponsor:N0}만원");
 
@@ -983,7 +1008,9 @@ namespace BaseballGame
             if (_career.Me.IsPitcher)
             {
                 var p = post.MyPitching;
-                return p.Starts == 0 ? "등판하지 못했어요" : $"내 성적 {p.Starts}경기 {p.Wins}승 {p.Losses}패 평균자책 {p.EraText}";
+                if (p.Games == 0) return "등판하지 못했어요";
+                return _career.Me.Role == PitcherRole.Starter ? $"내 성적 {p.Starts}경기 {p.Wins}승 {p.Losses}패 평균자책 {p.EraText}"
+                    : $"내 성적 {p.Games}경기 {p.Saves}세이브 {p.Holds}홀드 평균자책 {p.EraText}";
             }
             return l.PlateAppearances == 0 ? "출전하지 못했어요" : $"내 성적 {l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런";
         }
@@ -1002,8 +1029,9 @@ namespace BaseballGame
             string donation = retired.Donation > 0
                 ? $"남은 돈 {retired.Donation:N0}만원을 유소년 야구에 기부 → 명예 포인트 +{retired.DonationPoints}\n"
                 : "";
+            var arm = retired.CareerPitching;
             string totals = retired.IsPitcher
-                ? $"통산 {retired.CareerPitching.Wins}승 {retired.CareerPitching.Losses}패 평균자책 {retired.CareerPitching.EraText} {retired.CareerPitching.Strikeouts}탈삼진"
+                ? (retired.Role == PitcherRole.Starter ? $"통산 {arm.Wins}승 {arm.Losses}패" : $"통산 {arm.Games}경기 {arm.Saves}세이브 {arm.Holds}홀드") + $" 평균자책 {arm.EraText} {arm.Strikeouts}탈삼진"
                 : $"통산 {t.Hits}안타 {t.HomeRuns}홈런";
             string text =
                 $"<i>{string.Join(" ", retired.Ceremony)}</i>\n\n" +
@@ -1086,9 +1114,19 @@ namespace BaseballGame
             posGrid.constraintCount = 4;
             posGrid.childAlignment = TextAnchor.MiddleCenter;
             var positionButtons = new List<(Position Position, Button Button)>();
+            var role = PitcherRole.Starter;
+            var roleRow = UiKit.Empty(card, "Roles");
+            UiKit.Height(roleRow, 90);
+            UiKit.Row(roleRow, 12);
+            var roleButtons = new List<(PitcherRole Role, Button Button)>();
             void ShowPosition()
             {
-                string what = position == Position.Pitcher ? "5경기마다 선발 등판, 구속·제구·변화구·체력을 키워요"
+                roleRow.gameObject.SetActive(position == Position.Pitcher);
+                foreach (var (r, b) in roleButtons) b.GetComponent<Image>().color = r == role ? UiKit.Accent : UiKit.Background;
+                string what = position == Position.Pitcher
+                    ? role == PitcherRole.Starter ? "5경기마다 선발 등판, 구속·제구·변화구·체력을 키워요"
+                    : role == PitcherRole.Closer ? "9회 세이브 상황에 나와 경기를 끝내요"
+                    : "8회 접전에 나와 리드를 지키고 홀드를 쌓아요"
                     : position == Position.Catcher ? "수비 부담이 커서 더 지치지만 골든글러브에서 수비가 크게 쳐줘요"
                     : position == Position.DesignatedHitter ? "수비를 안 해서 덜 지치지만 수비 능력은 쓰이지 않아요"
                     : "타격·주루·수비 다섯 능력치를 키워요";
@@ -1101,6 +1139,15 @@ namespace BaseballGame
                 var b = UiKit.Button(positions, Positions.Name(p), () => { position = p; ShowPosition(); });
                 b.GetComponentInChildren<Text>().fontSize = 28;
                 positionButtons.Add((p, b));
+            }
+            // The pitcher's job, under the positions; the row is shown for a pitcher only.
+            roleRow.SetSiblingIndex(positions.GetSiblingIndex() + 1);
+            foreach (var r in new[] { PitcherRole.Starter, PitcherRole.Setup, PitcherRole.Closer })
+            {
+                var pr = r;
+                var b = UiKit.Button(roleRow, $"{Positions.RoleName(pr)} 투수", () => { role = pr; ShowPosition(); });
+                b.GetComponentInChildren<Text>().fontSize = 28;
+                roleButtons.Add((pr, b));
             }
             ShowPosition();
 
@@ -1147,7 +1194,7 @@ namespace BaseballGame
                     placeholder.color = UiKit.Warning;
                     return;
                 }
-                StartNewCareer(name, games, team, position, number);
+                StartNewCareer(name, games, team, position, number, role);
                 CloseOverlay();
                 _logLines.Clear();
                 Log($"{CareerState.StartYear}년, {_career.Me.Name} 선수 {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
@@ -1170,11 +1217,14 @@ namespace BaseballGame
             if (_career == null) return; // first launch, still on the new-player card
             var me = _career.Me;
             var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
-            string role = me.IsPitcher
+            string role = me.IsPitcher && me.Role != PitcherRole.Starter
+                ? (_career.CanPitchToday ? " · 불펜 대기" : " · <color=#F28C40>휴식 (피로)</color>")
+                : me.IsPitcher
                 ? (_career.IsStartDay ? " · <color=#FFD24D>오늘 선발</color>" : $" · 선발 D-{_career.DaysToNextStart}")
                 : $" · {CareerState.SlotName(_career.LineupSlot)} 타자";
             string number = me.Number > 0 ? $"#{me.Number} " : "";
-            _header.text = $"<b>{me.Name}</b>  {number}{Positions.Name(me.Position)} · {me.Age}세 · {_career.MyTeam.Name}\n" +
+            string position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position);
+            _header.text = $"<b>{me.Name}</b>  {number}{position} · {me.Age}세 · {_career.MyTeam.Name}\n" +
                 $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InMilitary ? " · <color=#9EABC2>군 복무 중</color>" : _career.InFarm ? " · <color=#F28C40>2군</color>" : role) +
                 (_career.ContractSeasonsLeft > 0 ? $" · 계약 {_career.ContractSeasonsLeft}년" : "") + "</color></size>";
 
@@ -1187,7 +1237,10 @@ namespace BaseballGame
             string traits = me.Traits.Count == 0 ? "특성 없음" : "특성 " + string.Join(" · ", me.Traits.Select(id => Traits.Find(id)?.Name));
             if (_career.Goal != null) traits = $"목표 {_career.Goal.Text} ({_career.Goal.Progress(_career)})  ·  " + traits;
             var p = _career.SeasonPitching;
-            string season = me.IsPitcher ? $"{p.Wins}승 {p.Losses}패 평균자책 {p.EraText}" : $"타율 {avg}  {l.HomeRuns}홈런";
+            string season = !me.IsPitcher ? $"타율 {avg}  {l.HomeRuns}홈런"
+                : me.Role == PitcherRole.Closer ? $"{p.Saves}세이브 평균자책 {p.EraText}"
+                : me.Role == PitcherRole.Setup ? $"{p.Holds}홀드 평균자책 {p.EraText}"
+                : $"{p.Wins}승 {p.Losses}패 평균자책 {p.EraText}";
             _status.text = $"{season}  ·  보유 {me.Money:N0}만원  ·  인기 {me.Popularity}{injury}{morale}\n" +
                 $"<size=24><color=#9EABC2>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);

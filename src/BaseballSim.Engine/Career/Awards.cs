@@ -25,6 +25,8 @@ namespace BaseballSim.Career
         public const string Wins = "다승왕";
         public const string EraTitle = "평균자책점 1위";
         public const string StrikeoutTitle = "탈삼진왕";
+        public const string SavesTitle = "세이브왕";
+        public const string HoldsTitle = "홀드왕";
 
         /// <summary>
         /// Rate titles need a qualifying number of plate appearances; counting titles don't.
@@ -67,6 +69,8 @@ namespace BaseballSim.Career
             AddArm(Wins, arms.Where(p => p.Line.Wins > 0), l => l.Wins, l => $"{l.Wins}승");
             AddArm(EraTitle, qualifiedArms, l => -l.Era, l => l.EraText);
             AddArm(StrikeoutTitle, arms.Where(p => p.Line.Strikeouts > 0), l => l.Strikeouts, l => l.Strikeouts.ToString());
+            AddArm(SavesTitle, arms.Where(p => p.Line.Saves > 0), l => l.Saves, l => $"{l.Saves}세이브");
+            AddArm(HoldsTitle, arms.Where(p => p.Line.Holds > 0), l => l.Holds, l => $"{l.Holds}홀드");
 
             // MVP: best OPS among qualified hitters, a little extra for playing on a winning team. A
             // qualified pitcher counts on the same scale from his ERA, and needs a little more to win it.

@@ -77,6 +77,11 @@ namespace BaseballSim.Career
             Add("shutout", "완봉승", "9이닝 무실점 완봉", c => Arm(c).Shutouts >= 1);
             Add("ace_season", "2점대 에이스", "규정 이닝을 채우고 평균자책 2점대 이하",
                 c => c.Me.History.Any(h => h.Pitching != null && h.Pitching.Outs >= 3 * h.Games && h.Pitching.Era < 3.0));
+            Add("first_save", "프로 첫 세이브", "프로 무대에서 첫 세이브", c => Arm(c).Saves >= 1);
+            Add("saves_100", "100세이브", "통산 100세이브", c => Arm(c).Saves >= 100);
+            Add("saves_300", "300세이브", "통산 300세이브", c => Arm(c).Saves >= 300);
+            Add("first_hold", "프로 첫 홀드", "프로 무대에서 첫 홀드", c => Arm(c).Holds >= 1);
+            Add("holds_100", "100홀드", "통산 100홀드", c => Arm(c).Holds >= 100);
             Add("fan_favorite", "국민 스타", "인기도 100 달성", c => c.Me.Popularity >= 100);
             Add("iron_man", "철인", "부상 없이 시즌 완주", c => c.Me.History.Any(h => h.InjuryFree));
             return list;

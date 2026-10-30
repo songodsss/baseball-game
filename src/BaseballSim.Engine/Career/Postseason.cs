@@ -89,6 +89,24 @@ namespace BaseballSim.Career
             if (!mine) return sim.Play(away, home, awayStarter, homeStarter);
 
             var gamePlayer = career.Me.ForGame(random);
+            if (gamePlayer.IsPitcher && career.Me.Role != PitcherRole.Starter)
+            {
+                // A reliever is in the bullpen every game, in his own job.
+                var pen = career.MyTeam.Bullpen;
+                int at = pen.Count - (career.Me.Role == PitcherRole.Closer ? 1 : 2);
+                var regularArm = pen[at];
+                pen[at] = gamePlayer;
+                try
+                {
+                    var game = sim.Play(away, home, awayStarter, homeStarter);
+                    if (game.Pitching.TryGetValue(gamePlayer, out var arm)) result.MyPitching.Add(arm, false, false, false);
+                    return game;
+                }
+                finally
+                {
+                    pen[at] = regularArm;
+                }
+            }
             if (gamePlayer.IsPitcher)
             {
                 if (result.MyTeamGames++ % 4 != 0) return sim.Play(away, home, awayStarter, homeStarter);

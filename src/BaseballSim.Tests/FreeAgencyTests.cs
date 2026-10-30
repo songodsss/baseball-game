@@ -13,6 +13,7 @@ public class FreeAgencyTests
         var career = new CareerState(CareerState.NewPlayer("테스트", random), league, league.Teams[0], random);
         // A solid regular, so no release gets in the way of free agency.
         foreach (var stat in CareerPlayer.AllStats) career.Me.Ratings[stat] = career.Me.Potential[stat] = 70;
+        career.MilitaryDone = true; // nor a season of military service
         return career;
     }
 

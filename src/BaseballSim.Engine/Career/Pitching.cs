@@ -16,6 +16,12 @@ namespace BaseballSim.Career
         const double LeagueEra = 4.20;
 
         public PitcherLine SeasonPitching = new PitcherLine();
+        // Calibrated from the game model, at full-season pace, for a dedicated setup man and closer.
+        double ReliefOutingsPerGame => Me.Role == PitcherRole.Closer ? 0.28 : 0.38;
+        const double SavesPerGame = 0.24;
+        const double HoldsPerGame = 0.22;
+        /// <summary>Innings for the ERA goal: a starter needs the league line, a reliever a third of it.</summary>
+        public int QualifyingOutsForMe => Me.Role == PitcherRole.Starter ? League.QualifyingOuts : League.GamesPerSeason;
         /// <summary>2군 pitching this season.</summary>
         public PitcherLine FarmPitching = new PitcherLine();
         /// <summary>Pitching since the last call-up, send-down or trade.</summary>
@@ -38,18 +44,29 @@ namespace BaseballSim.Career
         double Form(BattingLine batting, PitcherLine pitching) =>
             Me.IsPitcher ? PitchingForm(pitching ?? new PitcherLine()) : Ops(batting ?? new BattingLine());
 
-        /// <summary>How much there is to judge, in plate appearances; a starter's out is worth 1.2 of them.</summary>
+        /// <summary>How much there is to judge, in plate appearances; a starter's out is worth 1.2 of them, a reliever's 3.</summary>
         int Sample(BattingLine batting, PitcherLine pitching) =>
-            Me.IsPitcher ? (pitching?.Outs ?? 0) * 6 / 5 : batting?.PlateAppearances ?? 0;
+            !Me.IsPitcher ? batting?.PlateAppearances ?? 0
+            : (pitching?.Outs ?? 0) * (Me.Role == PitcherRole.Starter ? 6 : 15) / 5; // a reliever's few outs count more
 
-        /// <summary>A 1군 day for a pitcher: his start, or a day on the bench while the club plays.</summary>
+        /// <summary>A reliever needs this little fatigue to be available; the club rests him otherwise.</summary>
+        public const int ReliefFatigueLimit = 70;
+
+        /// <summary>Whether my pitcher can pitch today: a starter on his day, a reliever when fresh enough.</summary>
+        public bool CanPitchToday => !Me.IsInjured && (Me.Role == PitcherRole.Starter ? IsStartDay : Me.Fatigue < ReliefFatigueLimit);
+
+        /// <summary>A 1군 day for a pitcher: his start, a day in the bullpen, or a day on the bench while the club plays.</summary>
         bool PlayPitcherDay(Team away, Team home, Player awayStarter, Player homeStarter, DayResult result)
         {
             StintDays++;
-            bool start = IsStartDay && !Me.IsInjured;
-            if (!start)
+            bool available = CanPitchToday;
+            if (Me.Role == PitcherRole.Starter)
             {
-                if (DaysSinceStart < StartEvery - 1) DaysSinceStart++;
+                if (available) DaysSinceStart = 0;
+                else if (DaysSinceStart < StartEvery - 1) DaysSinceStart++;
+            }
+            if (!available)
+            {
                 if (Me.IsInjured) { result.SatOut = true; InjuredThisSeason = true; }
                 else result.BetweenStarts = true;
                 result.MyGame = _sim.Play(away, home, awayStarter, homeStarter);
@@ -59,32 +76,99 @@ namespace BaseballSim.Career
                 return true;
             }
 
-            DaysSinceStart = 0;
-            var mine = Me.ForGame(_random);
-            bool atHome = home == MyTeam;
-            var replaced = atHome ? homeStarter : awayStarter;
-            int slot = MyTeam.Rotation.IndexOf(replaced);
-            MyTeam.Rotation[slot] = mine;
+            _game = new MyGameState
+            {
+                Away = away,
+                Home = home,
+                AwayStarter = awayStarter,
+                HomeStarter = homeStarter,
+                Player = Me.ForGame(_random),
+                Seed = (int)(_random.NextDouble() * int.MaxValue),
+                Result = result,
+            };
+            return RunPitcherGame(result);
+        }
+
+        /// <summary>
+        /// Plays my club's game with my pitcher in his place: in the rotation for his start, or in the
+        /// bullpen's setup or closer slot. Returns false if it paused at a big spot for a pitch choice.
+        /// </summary>
+        bool RunPitcherGame(DayResult result)
+        {
+            var g = _game;
+            var sim = _sim;
+            if (DecideAtBats)
+            {
+                int asked = 0;
+                sim = new GameSimulator(new SeededRandom(g.Seed))
+                {
+                    DecideFor = g.Player,
+                    Decide = s => asked < g.Decisions.Count ? g.Decisions[asked++] : (Approach?)null,
+                };
+            }
+
+            bool atHome = g.Home == MyTeam;
+            var awayStarter = g.AwayStarter;
+            var homeStarter = g.HomeStarter;
+            List<Player> staff;
+            int slot;
+            if (Me.Role == PitcherRole.Starter)
+            {
+                staff = MyTeam.Rotation;
+                slot = staff.IndexOf(atHome ? homeStarter : awayStarter);
+                if (atHome) homeStarter = g.Player; else awayStarter = g.Player;
+            }
+            else
+            {
+                staff = MyTeam.Bullpen;
+                slot = staff.Count - (Me.Role == PitcherRole.Closer ? 1 : 2);
+            }
+            var replaced = staff[slot];
+            staff[slot] = g.Player;
             GameResult game;
             try
             {
-                game = _sim.Play(away, home, atHome ? awayStarter : mine, atHome ? mine : homeStarter);
-                // Record while my player is in the rotation, so his line is filed under my club.
-                League.Record(game);
+                game = sim.Play(g.Away, g.Home, awayStarter, homeStarter);
+                // Record while my player is on the staff, so his line is filed under my club.
+                if (game != null) League.Record(game);
             }
             finally
             {
-                MyTeam.Rotation[slot] = replaced;
+                staff[slot] = replaced;
             }
 
+            var events = game?.Events ?? sim.Partial.Events;
+            result.AtBatLog = events
+                .Where(e => e.Pitcher == g.Player && e.Note != null)
+                .Select(e => $"{Commentary.HalfInning(e.Inning, e.IsTopHalf)} {Commentary.Describe(e)} ({e.Note})")
+                .ToList();
+            if (game == null)
+            {
+                result.AtBat = sim.Suspended;
+                return false;
+            }
+
+            _game = null;
             result.MyGame = game;
-            result.MyGamePlayer = mine;
             result.RivalLine = game.Batting.FirstOrDefault(b => b.Key.Id == RivalState.PlayerId).Value;
-            var raw = game.Pitching.TryGetValue(mine, out var l) ? l : new PitchingLine();
-            int ours = atHome ? game.HomeScore : game.AwayScore, theirs = atHome ? game.AwayScore : game.HomeScore;
-            var (win, loss) = PitcherLine.Decision(raw, ours, theirs);
+            Me.ReadsRight += game.Events.Count(e => e.Pitcher == g.Player && e.Note != null && e.Note.EndsWith("적중!"));
+            if (!game.Pitching.TryGetValue(g.Player, out var raw))
+            {
+                // The bullpen wasn't needed in his role today.
+                result.BetweenStarts = true;
+                PayForGame(result);
+                return true;
+            }
+
+            result.MyGamePlayer = g.Player;
             var line = new PitcherLine();
-            line.Add(raw, true, win, loss);
+            if (Me.Role == PitcherRole.Starter)
+            {
+                int ours = atHome ? game.HomeScore : game.AwayScore, theirs = atHome ? game.AwayScore : game.HomeScore;
+                var (win, loss) = PitcherLine.Decision(raw, ours, theirs);
+                line.Add(raw, true, win, loss);
+            }
+            else line.Add(raw, false, false, false);
             FinishStart(result, line);
             return true;
         }
@@ -92,7 +176,8 @@ namespace BaseballSim.Career
         void FinishStart(DayResult result, PitcherLine line)
         {
             result.MyPitching = line;
-            HitlessStreak = line.Runs >= 4 ? HitlessStreak + 1 : 0;
+            bool bad = Me.Role == PitcherRole.Starter ? line.Runs >= 4 : line.Runs >= 2 || line.BlownSaves > 0;
+            HitlessStreak = bad ? HitlessStreak + 1 : 0;
             if (result.InFarm) FarmPitching.Add(line);
             else SeasonPitching.Add(line);
             StintPitching.Add(line);
@@ -102,7 +187,7 @@ namespace BaseballSim.Career
                 PayForGame(result);
                 FansForGame(null, line);
             }
-            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue * 4));
+            Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue * (Me.Role == PitcherRole.Starter ? 4 : 2)));
         }
 
         // Every start gives exp, even a bad one: going deep builds stamina, strikeouts velocity,
@@ -124,6 +209,13 @@ namespace BaseballSim.Career
             return 0.734 + (LeagueEra - ExpectedEra(p.Pitching.Velocity, p.Pitching.Control, p.Pitching.Breaking)) * 0.1;
         }
 
+        /// <summary>A reliever's season so far on the OPS scale once he's pitched a little, else what his stuff promises.</summary>
+        double ReliefRating(Player p)
+        {
+            if (League.Pitching.TryGetValue(p.Id, out var s) && s.Line.Outs >= Day / 2) return PitchingForm(s.Line);
+            return 0.734 + (LeagueEra - ExpectedEra(p.Pitching.Velocity, p.Pitching.Control, p.Pitching.Breaking)) * 0.1;
+        }
+
         /// <summary>
         /// A squad of the best from these clubs: hitters by OPS so far, starters by ERA so far, relievers
         /// by stuff. <paramref name="me"/> (my player's game copy, or null) is in the running as a hitter
@@ -133,14 +225,18 @@ namespace BaseballSim.Career
         {
             int minPa = Day * 2;
             double Ops(string id) => League.Batting.TryGetValue(id, out var s) && s.Line.PlateAppearances >= minPa ? Career.Ops(s.Line) : 0;
-            int Stuff(Player p) => p.Pitching.Velocity + p.Pitching.Control + p.Pitching.Breaking;
-
             var bats = teams.SelectMany(t => t.Lineup).Select(p => (Player: p, Score: Ops(p.Id))).ToList();
             var arms = teams.SelectMany(t => t.Rotation).Select(p => (Player: p, Score: ArmRating(p))).ToList();
-            if (me != null && me.IsPitcher)
+            var pen = teams.SelectMany(t => t.Bullpen).Select(p => (Player: p, Score: ReliefRating(p))).ToList();
+            if (me != null && me.IsPitcher && Me.Role == PitcherRole.Starter)
             {
                 bool pitched = League.Pitching.TryGetValue(Me.Id, out var s) && s.Line.Outs >= Day * 2;
                 arms.Add((me, pitched ? PitchingForm(s.Line) : 0));
+            }
+            else if (me != null && me.IsPitcher)
+            {
+                bool pitched = League.Pitching.TryGetValue(Me.Id, out var s) && s.Line.Outs >= Day / 2;
+                pen.Add((me, pitched ? PitchingForm(s.Line) : 0));
             }
             else if (me != null) bats.Add((me, Ops(Me.Id)));
 
@@ -148,9 +244,12 @@ namespace BaseballSim.Career
             {
                 Lineup = bats.OrderByDescending(c => c.Score).Take(hitters).Select(c => c.Player).ToList(),
                 Rotation = arms.OrderByDescending(c => c.Score).Take(starters).Select(c => c.Player).ToList(),
-                Bullpen = teams.SelectMany(t => t.Bullpen).OrderByDescending(Stuff).Take(relievers).ToList(),
+                Bullpen = pen.OrderByDescending(c => c.Score).Take(relievers).Select(c => c.Player).ToList(),
             };
-            mine = me != null && (team.Lineup.Contains(me) || team.Rotation.Contains(me)) ? me : null;
+            // My reliever, once picked, works his own job: the bullpen's last arm closes, the one before sets up.
+            if (team.Bullpen.Remove(me))
+                team.Bullpen.Insert(Me.Role == PitcherRole.Closer ? team.Bullpen.Count : Math.Max(0, team.Bullpen.Count - 1), me);
+            mine = me != null && (team.Lineup.Contains(me) || team.Rotation.Contains(me) || team.Bullpen.Contains(me)) ? me : null;
             return team;
         }
 
@@ -160,15 +259,15 @@ namespace BaseballSim.Career
         };
         const int FarmBatting = 42;
 
-        /// <summary>A 2군 start against weaker hitters, played out at bat by bat with a simple base tracker.</summary>
-        void PlayFarmStart(DayResult result)
+        /// <summary>A 2군 start (or an inning of relief) against weaker hitters, played out at bat by bat with a simple base tracker.</summary>
+        void PlayFarmStart(DayResult result, bool relief = false)
         {
             var me = Me.ForGame(_random);
             var raw = new PitchingLine();
-            int target = 15 + (me.Pitching.Stamina - 50) / 5;
+            int target = relief ? 3 : 15 + (me.Pitching.Stamina - 50) / 5;
             bool first = false, second = false, third = false;
             int outsThisInning = 0;
-            while (raw.OutsRecorded < target && raw.Runs < 7)
+            while (raw.OutsRecorded < target && raw.Runs < (relief ? 4 : 7))
             {
                 var outcome = PlateAppearanceModel.Compute(FarmHitter, me, FarmDefense, 0).Pick(_random);
                 int runs = 0;
@@ -210,9 +309,9 @@ namespace BaseballSim.Career
             }
             // The 2군 side scores like an average team, so the decision follows from the runs allowed.
             int ours = (int)Math.Round(_random.NextDouble() * 9);
-            var (win, loss) = PitcherLine.Decision(raw, ours, raw.Runs + (_random.NextDouble() < 0.5 ? 1 : 0));
+            var (win, loss) = relief ? (false, false) : PitcherLine.Decision(raw, ours, raw.Runs + (_random.NextDouble() < 0.5 ? 1 : 0));
             var line = new PitcherLine();
-            line.Add(raw, true, win, loss);
+            line.Add(raw, !relief, win, loss);
             result.FarmPitching = line;
             FinishStart(result, line);
         }

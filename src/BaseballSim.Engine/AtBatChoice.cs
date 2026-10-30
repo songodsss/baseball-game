@@ -17,6 +17,11 @@ namespace BaseballSim
         SitBreaking,
         /// <summary>Take pitches: more walks, less damage.</summary>
         Patient,
+        // When my player is the one pitching:
+        ThrowFastball,
+        ThrowBreaking,
+        /// <summary>Nibble at the corners: more walks, less damage.</summary>
+        PitchAround,
     }
 
     /// <summary>
@@ -32,6 +37,11 @@ namespace BaseballSim
         public bool[] Bases;
         public int MyRuns, TheirRuns;
         public Player Pitcher;
+        /// <summary>My player is pitching to <see cref="Batter"/>; the hunch is what the batter sits on.</summary>
+        public bool Pitching;
+        public Player Batter;
+        /// <summary>When pitching: how often this batter sits on the fastball in big spots.</summary>
+        public double SitsFastball;
         /// <summary>Share of fastballs this pitcher throws in big spots, from his ratings.</summary>
         public double FastballShare;
         /// <summary>My player's hunch for this pitch; right more often with a better eye.</summary>
@@ -75,6 +85,64 @@ namespace BaseballSim
                 HunchAccuracy = accuracy,
                 Hunch = random.NextDouble() < accuracy ? coming : other,
             };
+        }
+
+        /// <summary>A big spot for my pitcher: scoring position late and close, or the tying run aboard in the 9th.</summary>
+        public static bool IsBigForPitcher(int inning, bool[] bases, int lead) =>
+            inning >= 7 && Math.Abs(lead) <= 2 && (bases[1] || bases[2])
+            || inning >= 9 && lead >= 1 && lead <= 3 && (bases[0] || bases[1] || bases[2]);
+
+        /// <summary>Power hitters sit on the fastball, contact hitters on the breaking ball: 30% to 70%.</summary>
+        public static double SitsFastball(Player batter)
+        {
+            int lean = batter.Batting.Power - batter.Batting.Contact;
+            return Math.Max(0.3, Math.Min(0.7, 0.5 + lean / 100.0));
+        }
+
+        /// <summary>My pitcher's read on what the batter is sitting on; a sharper read with better control.</summary>
+        public static AtBatSituation ReadBatter(Player batter, Player pitcher, IRandom random)
+        {
+            double share = SitsFastball(batter);
+            var sitting = random.NextDouble() < share ? Pitch.Fastball : Pitch.Breaking;
+            double accuracy = Math.Min(0.95, HunchAccuracy(pitcher.Pitching.Control) + (pitcher.Traits.Contains(Reader) ? 0.15 : 0));
+            var other = sitting == Pitch.Fastball ? Pitch.Breaking : Pitch.Fastball;
+            return new AtBatSituation
+            {
+                Pitching = true,
+                Pitcher = pitcher,
+                Batter = batter,
+                SitsFastball = share,
+                Coming = sitting,
+                HunchAccuracy = accuracy,
+                Hunch = random.NextDouble() < accuracy ? sitting : other,
+            };
+        }
+
+        /// <summary>
+        /// The batter's side of the same duel: throw what he isn't sitting on and he's fooled; throw into
+        /// his guess and he's ahead. <paramref name="sitting"/> is what the batter looks for.
+        /// </summary>
+        public static void ApplyPitch(OutcomeOdds odds, Approach approach, Pitch sitting)
+        {
+            if (approach == Approach.PitchAround)
+                Scale(odds, strikeout: 0.9, walk: 1.9, homeRun: 0.5, single: 0.85, extra: 0.7);
+            else if (approach == Approach.ThrowFastball || approach == Approach.ThrowBreaking)
+            {
+                var thrown = approach == Approach.ThrowFastball ? Pitch.Fastball : Pitch.Breaking;
+                if (thrown == sitting) Scale(odds, strikeout: 0.55, walk: 0.8, homeRun: 1.9, single: 1.25, extra: 1.5);
+                else Scale(odds, strikeout: 1.6, walk: 1.0, homeRun: 0.5, single: 0.8, extra: 0.7);
+            }
+        }
+
+        public static string PitchNote(Approach approach, Pitch sitting)
+        {
+            switch (approach)
+            {
+                case Approach.PitchAround: return "어렵게 승부";
+                case Approach.ThrowFastball: return sitting == Pitch.Fastball ? "직구 승부, 타자가 노리고 있었다" : "직구 승부 적중!";
+                case Approach.ThrowBreaking: return sitting == Pitch.Breaking ? "변화구 승부, 타자가 노리고 있었다" : "변화구 승부 적중!";
+                default: return null;
+            }
         }
 
         public static bool GuessedRight(Approach approach, Pitch coming) =>
