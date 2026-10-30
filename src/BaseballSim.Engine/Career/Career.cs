@@ -68,6 +68,9 @@ namespace BaseballSim.Career
         public bool Released;
         /// <summary>The club's salary offer to negotiate; null in a year with a running deal, free agency or a release.</summary>
         public SalaryTalk SalaryTalk;
+        public SeasonGoal Goal;
+        public bool GoalMet;
+        public int GoalMoney;
         public List<Achievement> NewAchievements = new List<Achievement>();
     }
 
@@ -464,6 +467,7 @@ namespace BaseballSim.Career
             };
             if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
             Me.History.Add(summary.Record);
+            summary.GoalMet = SettleGoal(summary);
 
             // Salary moves halfway toward what this season's OPS is worth, so one fluke year
             // doesn't make or break a contract. OPS .800 is worth about 8,500, .950 about 24,000.

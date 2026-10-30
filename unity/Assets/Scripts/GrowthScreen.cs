@@ -50,6 +50,7 @@ namespace BaseballGame
         Button _seasonLengthButton, _watchButton, _adButton;
         GameObject _canvas;
         DayResult _lastDay;
+        int _goalSkippedSeason;
         bool _retired;
         RectTransform _overlay;
         readonly List<string> _logLines = new List<string>();
@@ -211,6 +212,11 @@ namespace BaseballGame
         void PlayDay(DailyAction action)
         {
             if (_overlay != null) return;
+            if (_career.GoalOffer != null && _goalSkippedSeason != _career.Season)
+            {
+                ShowGoalOffer(action);
+                return;
+            }
             var result = _career.PlayDay(action);
             if (result.AtBat != null) ShowAtBat(result);
             else AfterDay(result);
@@ -288,6 +294,36 @@ namespace BaseballGame
             var result = _career.ChooseApproach(approach);
             if (result.AtBat != null) ShowAtBat(result);
             else AfterDay(result);
+        }
+
+        // ---------- Season goals ----------
+
+        /// <summary>Before a season's first game: commit to a goal. Harder ones pay more.</summary>
+        void ShowGoalOffer(DailyAction then)
+        {
+            var card = OpenOverlay($"{_career.Year} 시즌 목표");
+            UiKit.Height(UiKit.Label(card, "이번 시즌 목표를 하나 골라요.\n어려울수록 보상이 커요. 시즌이 끝나면 정산해요.", 32, TextAnchor.MiddleCenter, UiKit.Muted), 140);
+            foreach (var goal in _career.GoalOffer)
+            {
+                var g = goal;
+                string label = $"[{SeasonGoal.TierNames[(int)g.Tier]}] {g.Text}\n<size=26>보상 {g.Money(_career.Me.Salary):N0}만원 + 모든 능력치 경험치 {g.Exp}</size>";
+                var color = g.Tier == GoalTier.Hard ? UiKit.Warning : g.Tier == GoalTier.Normal ? UiKit.Accent : UiKit.Muted;
+                UiKit.Height(UiKit.Button(card, label, () =>
+                {
+                    _career.ChooseGoal(g);
+                    Log($"<color=#FFD24D>시즌 목표</color> {g.Text} ({SeasonGoal.TierNames[(int)g.Tier]})");
+                    Save();
+                    CloseOverlay();
+                    Refresh();
+                    PlayDay(then);
+                }, color), 150);
+            }
+            UiKit.Height(UiKit.Button(card, "목표 없이 시작", () =>
+            {
+                _goalSkippedSeason = _career.Season;
+                CloseOverlay();
+                PlayDay(then);
+            }, UiKit.Background), 100);
         }
 
         // ---------- Traits ----------
@@ -722,6 +758,14 @@ namespace BaseballGame
                 Line(a.Mine ? $"<color=#FFD24D><b>{text}</b></color>" : text);
             }
 
+            if (summary.Goal != null)
+            {
+                Section("시즌 목표");
+                Line(summary.GoalMet
+                    ? $"<color=#FFD24D>달성!</color> {summary.Goal.Text}  ·  +{summary.GoalMoney:N0}만원, 모든 능력치 경험치 +{summary.Goal.Exp}"
+                    : $"<color=#F28C40>실패</color> {summary.Goal.Text}  (기록 {summary.Goal.Progress(line)})");
+            }
+
             Section("계약");
             if (summary.SalaryTalk != null)
                 Line($"구단 제시 연봉 {summary.OldSalary:N0} → <b>{summary.SalaryTalk.Offer:N0}</b>만원  (성적 시세 {summary.SalaryTalk.Worth:N0}만원)");
@@ -980,6 +1024,7 @@ namespace BaseballGame
             string morale = me.Morale > 0 ? $"  <color=#5FA8FF>사기 +{me.Morale}</color>" : me.Morale < 0 ? $"  <color=#F28C40>사기 {me.Morale}</color>" : "";
             var next = Traits.NextMilestone(me);
             string traits = me.Traits.Count == 0 ? "특성 없음" : "특성 " + string.Join(" · ", me.Traits.Select(id => Traits.Find(id)?.Name));
+            if (_career.Goal != null) traits = $"목표 {_career.Goal.Text} ({_career.Goal.Progress(l)})  ·  " + traits;
             _status.text = $"타율 {avg}  {l.HomeRuns}홈런  ·  보유 {me.Money:N0}만원{injury}{morale}\n" +
                 $"<size=24><color=#9EABC2>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
