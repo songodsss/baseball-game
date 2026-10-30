@@ -19,7 +19,8 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        public const int Version = 19;
+        /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
+        public const int Version = 20;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -66,6 +67,47 @@ namespace BaseballSim.Career
             }
         }
 
+        // ---------- Club and career apart (player slots) ----------
+
+        /// <summary>The club alone, shared by every slot.</summary>
+        public static byte[] ClubToBytes(Club club) => Wrap(w => WriteClub(w, club));
+
+        public static Club ClubFromBytes(byte[] data) => Unwrap(data, (r, version) => ReadClub(r, version));
+
+        /// <summary>One slot's career; the club it belongs to is saved separately.</summary>
+        public static byte[] CareerToBytes(Career career, Club club) => Wrap(w => WriteCareer(w, career, club));
+
+        public static Career CareerFromBytes(byte[] data, Club club, IRandom random) =>
+            Unwrap(data, (r, version) => ReadCareer(r, random, club, version));
+
+        static byte[] Wrap(Action<BinaryWriter> write)
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var w = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
+                {
+                    w.Write(Encoding.ASCII.GetBytes(Magic));
+                    w.Write(Version);
+                    write(w);
+                }
+                return stream.ToArray();
+            }
+        }
+
+        static T Unwrap<T>(byte[] data, Func<BinaryReader, int, T> read)
+        {
+            using (var stream = new MemoryStream(data))
+            using (var r = new BinaryReader(stream, Encoding.UTF8))
+            {
+                if (Encoding.ASCII.GetString(r.ReadBytes(Magic.Length)) != Magic)
+                    throw new InvalidDataException("Not a save file.");
+                int version = r.ReadInt32();
+                if (version > Version)
+                    throw new InvalidDataException($"Save version {version} is newer than this game ({Version}).");
+                return read(r, version);
+            }
+        }
+
         // ---------- Club ----------
 
         static void WriteClub(BinaryWriter w, Club club)
@@ -108,6 +150,24 @@ namespace BaseballSim.Career
             w.Write(club.ChallengeWins);
             // Added in version 19.
             WriteList(w, club.Roster, p => w.Write((int)p.Role));
+            // Added in version 20.
+            var d = club.Daily;
+            w.Write(d.Date);
+            WriteList(w, d.Today, m =>
+            {
+                w.Write((int)m.Kind);
+                w.Write(m.Goal);
+                w.Write(m.Progress);
+                w.Write(m.Claimed);
+                w.Write((int)m.Reward);
+                w.Write(m.Amount);
+            });
+            w.Write(d.LastCheckIn);
+            w.Write(d.Streak);
+            w.Write(d.TotalCheckIns);
+            w.Write(d.RecoveryTickets);
+            WriteList(w, club.LegendsMet.ToList(), w.Write);
+            WriteList(w, club.RivalsMet, w.Write);
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -174,6 +234,26 @@ namespace BaseballSim.Career
             {
                 int i = 0;
                 ReadList(r, () => club.Roster[i++].Role = (PitcherRole)r.ReadInt32());
+            }
+            if (version >= 20)
+            {
+                var d = club.Daily;
+                d.Date = r.ReadString();
+                d.Today = ReadList(r, () => new Mission
+                {
+                    Kind = (MissionKind)r.ReadInt32(),
+                    Goal = r.ReadInt32(),
+                    Progress = r.ReadInt32(),
+                    Claimed = r.ReadBoolean(),
+                    Reward = (RewardKind)r.ReadInt32(),
+                    Amount = r.ReadInt32(),
+                });
+                d.LastCheckIn = r.ReadString();
+                d.Streak = r.ReadInt32();
+                d.TotalCheckIns = r.ReadInt32();
+                d.RecoveryTickets = r.ReadInt32();
+                club.LegendsMet = new HashSet<string>(ReadList(r, r.ReadString));
+                club.RivalsMet = ReadList(r, r.ReadString);
             }
             return club;
         }

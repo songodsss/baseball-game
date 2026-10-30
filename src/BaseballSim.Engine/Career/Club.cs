@@ -72,6 +72,19 @@ namespace BaseballSim.Career
         /// <summary>Levels my team has beaten at least once, and wins overall.</summary>
         public HashSet<ChallengeTier> ChallengesWon = new HashSet<ChallengeTier>();
         public int ChallengeWins;
+        /// <summary>Real-calendar missions and check-ins, shared by every player slot.</summary>
+        public DailyMissions Daily = new DailyMissions();
+        /// <summary>Legend ids and rival names met by any player of mine, for the album.</summary>
+        public HashSet<string> LegendsMet = new HashSet<string>();
+        public List<string> RivalsMet = new List<string>();
+
+        /// <summary>Legends met so far, counting the career in progress.</summary>
+        public HashSet<string> AllLegendsMet(Career career)
+        {
+            var all = new HashSet<string>(LegendsMet);
+            if (career != null) all.UnionWith(career.Me.MetLegends);
+            return all;
+        }
 
         /// <summary>Added to every potential of the next new player, at most +8.</summary>
         public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
@@ -131,6 +144,9 @@ namespace BaseballSim.Career
             retired.Donation = Math.Max(0, me.Money);
             retired.DonationPoints = retired.Donation / DonationPerPoint;
             me.Money = 0;
+
+            LegendsMet.UnionWith(me.MetLegends);
+            if (career.Rival != null && !RivalsMet.Contains(career.Rival.Name)) RivalsMet.Add(career.Rival.Name);
 
             Roster.Add(retired);
             LegacyPoints += retired.LegacyPoints + retired.DonationPoints;
