@@ -70,6 +70,10 @@ namespace BaseballSim.Career
         public bool Released;
         /// <summary>The club's salary offer to negotiate; null in a year with a running deal, free agency or a release.</summary>
         public SalaryTalk SalaryTalk;
+        /// <summary>Military service starts next season (the age limit came).</summary>
+        public bool Enlisted;
+        /// <summary>The player may choose to serve next season (Career.Enlist).</summary>
+        public bool CanEnlist;
         public SeasonGoal Goal;
         public bool GoalMet;
         /// <summary>The rival's season, club and titles; null without a rival.</summary>
@@ -483,10 +487,12 @@ namespace BaseballSim.Career
             double ops = Ops(SeasonLine);
             double worth = MinSalary * Math.Exp((ops - 0.650) * 7);
             bool underContract = ContractSeasonsLeft > 0;
-            Released = ShouldRelease(underContract);
+            bool served = InMilitary;
+            Released = !served && ShouldRelease(underContract);
             summary.Released = Released;
             if (Released) summary.Record.Notes.Add("시즌 후 방출");
-            if (ContractSeasonsLeft > 0) ContractSeasonsLeft--;
+            if (served) { } // contract and salary wait for the return
+            else if (ContractSeasonsLeft > 0) ContractSeasonsLeft--;
             else
             {
                 int next = (int)((Me.Salary + worth) / 2 / 100) * 100;
@@ -526,9 +532,12 @@ namespace BaseballSim.Career
                 AgeRival();
             }
             League.ResetStandings();
-            PendingOffers = Released ? TryoutOffers() : FreeAgencyOffers(worth);
+            PendingOffers = Released ? TryoutOffers() : served ? new List<ContractOffer>() : FreeAgencyOffers(worth);
+            PendingSalary = served ? null : OpenSalaryTalk(summary, worth);
+            summary.Enlisted = SettleMilitary(summary, served);
             summary.Offers = new List<ContractOffer>(PendingOffers);
-            PendingSalary = summary.SalaryTalk = OpenSalaryTalk(summary, worth);
+            summary.SalaryTalk = PendingSalary;
+            summary.CanEnlist = CanEnlist;
             return summary;
         }
 
@@ -539,7 +548,7 @@ namespace BaseballSim.Career
         List<ContractOffer> FreeAgencyOffers(double worth)
         {
             var offers = new List<ContractOffer>();
-            if (ContractSeasonsLeft > 0 || Me.History.Count < FreeAgencySeasons || MustRetire) return offers;
+            if (ContractSeasonsLeft > 0 || SeasonsPlayed < FreeAgencySeasons || MustRetire) return offers;
 
             int years = Me.Age <= 30 ? 4 : Me.Age <= 34 ? 2 : 1;
             // Same midpoint as a yearly renegotiation, so free agency rewards form rather than compounding.

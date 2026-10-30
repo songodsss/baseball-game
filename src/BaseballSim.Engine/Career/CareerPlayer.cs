@@ -22,6 +22,8 @@ namespace BaseballSim.Career
         public List<string> Notes = new List<string>();
         /// <summary>Days spent in 2군.</summary>
         public int FarmDays;
+        /// <summary>A season of military service.</summary>
+        public bool Military;
         /// <summary>The rival's batting that season; null before rivals existed.</summary>
         public BattingLine RivalLine;
     }

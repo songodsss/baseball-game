@@ -93,8 +93,8 @@ namespace BaseballSim.Career
             Accumulate(FarmLine, line);
             Accumulate(StintLine, line);
             GainGameExp(result, line);
-            // 2군 pays the salary share but no hit bonuses.
-            result.MoneyEarned = Me.Salary / League.GamesPerSeason;
+            // 2군 pays the salary share but no hit bonuses; the army pays a token allowance.
+            result.MoneyEarned = InMilitary ? 20 : Me.Salary / League.GamesPerSeason;
             Me.Money += result.MoneyEarned;
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(GameFatigue));
         }
@@ -138,6 +138,7 @@ namespace BaseballSim.Career
         /// <summary>After each day: the club looks at form every few days, and the trade deadline comes once a season.</summary>
         void ReviewRoster(DayResult result)
         {
+            if (InMilitary) return;
             if (Day == TradeDeadline && !TradedThisSeason && Season > 1) TradeDeadlineDay(result);
             if (Day % ReviewEvery == 0 && !InFarm) result.OldSlot = UpdateBattingOrder();
             if (result.Move != null || Day < League.GamesPerSeason / 6 || Day % ReviewEvery != 0 || Me.IsInjured) return;
@@ -286,6 +287,7 @@ namespace BaseballSim.Career
         void PlayTournament(DayResult result)
         {
             result.Tournament = NationalTeam.Play(this, _random);
+            if (result.Tournament.Selected && result.Tournament.Medal == NationalTeam.Gold) ExemptByGold();
             if (result.Tournament.Selected)
                 SeasonNotes.Add($"{MonthText} {NationalTeam.Name} " + (result.Tournament.Medal ?? "대표 출전"));
         }

@@ -485,7 +485,7 @@ namespace BaseballGame
             else if (r.FarmLine != null)
             {
                 var f = r.FarmLine;
-                lines.Add($"<color=#9EABC2>2군 경기</color> {f.AtBats}타수 {f.Hits}안타 {f.HomeRuns}홈런 {f.Walks}볼넷  (+{r.MoneyEarned}만원)");
+                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} 경기</color> {f.AtBats}타수 {f.Hits}안타 {f.HomeRuns}홈런 {f.Walks}볼넷  (+{r.MoneyEarned}만원)");
             }
             else if (r.MyGame != null)
             {
@@ -508,7 +508,8 @@ namespace BaseballGame
                 lines.Add($"<color=#F28C40>한계 돌파! {StatNames[stat]} 잠재력 +{CareerPlayer.BreakthroughGain} → {_career.Me.Potential[stat]}</color>");
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
             if (r.Tournament != null)
-                lines.Add($"<color=#FFD24D>{NationalTeam.Name}</color> 대한민국 {r.Tournament.Medal ?? "조별리그 탈락"}" + (r.Tournament.Selected ? " (국가대표 출전)" : ""));
+                lines.Add($"<color=#FFD24D>{NationalTeam.Name}</color> 대한민국 {r.Tournament.Medal ?? "조별리그 탈락"}" + (r.Tournament.Selected ? " (국가대표 출전)" : "") +
+                    (r.Tournament.Selected && r.Tournament.Medal == NationalTeam.Gold ? "  <color=#5FA8FF>병역 면제!</color>" : ""));
             if (r.AllStar != null)
             {
                 var g = r.AllStar.Game;
@@ -777,6 +778,26 @@ namespace BaseballGame
                     : $"<color=#F28C40>실패</color> {summary.Goal.Text}  (기록 {summary.Goal.Progress(line)})");
             }
 
+            if (summary.Enlisted)
+            {
+                Section("병역");
+                Line($"{CareerState.EnlistByAge}세가 되어 입대해요. 다음 시즌은 {CareerState.MilitaryClub}에서 보내요.");
+                Line("<color=#9EABC2>연봉 없이 2군 수준 경기를 뛰고, 훈련과 성장은 계속돼요. 계약과 FA는 제대 후로 미뤄져요.</color>", 70);
+            }
+            else if (summary.CanEnlist)
+            {
+                int chances = Enumerable.Range(_career.Year, CareerState.EnlistByAge - _career.Me.Age).Count(NationalTeam.IsTournamentYear);
+                Section("병역");
+                Line($"{CareerState.EnlistByAge}세 전에 군 복무를 해야 해요. 남은 국제대회 {chances}번 (금메달이면 면제)");
+                UiKit.Height(UiKit.Button(body, $"다음 시즌 {CareerState.MilitaryClub} 입대", () =>
+                {
+                    _career.Enlist();
+                    Log($"<color=#FFD24D>입대 결정</color> 다음 시즌은 {CareerState.MilitaryClub}에서 뛰어요.");
+                    Save();
+                    ShowSeasonEndAfterEnlist();
+                }, UiKit.Muted), 100);
+            }
+
             Section("계약");
             if (summary.SalaryTalk != null)
                 Line($"구단 제시 연봉 {summary.OldSalary:N0} → <b>{summary.SalaryTalk.Offer:N0}</b>만원  (성적 시세 {summary.SalaryTalk.Worth:N0}만원)");
@@ -886,6 +907,13 @@ namespace BaseballGame
             Save();
             CloseOverlay();
             Refresh();
+        }
+
+        void ShowSeasonEndAfterEnlist()
+        {
+            var card = OpenOverlay("입대");
+            UiKit.Height(UiKit.Label(card, $"다음 시즌은 {CareerState.MilitaryClub}에서 보내요.\n연봉은 없지만 훈련과 성장은 계속돼요.\n제대하면 원래 팀으로 돌아와요.", 36, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "다음 시즌", CloseOverlay), 110);
         }
 
         string MyPostLine(PostseasonResult post)
@@ -1026,7 +1054,7 @@ namespace BaseballGame
             var me = _career.Me;
             var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
             _header.text = $"<b>{me.Name}</b>  {me.Age}세 · {_career.MyTeam.Name}\n" +
-                $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InFarm ? " · <color=#F28C40>2군</color>" : $" · {CareerState.SlotName(_career.LineupSlot)} 타자") +
+                $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InMilitary ? " · <color=#9EABC2>군 복무 중</color>" : _career.InFarm ? " · <color=#F28C40>2군</color>" : $" · {CareerState.SlotName(_career.LineupSlot)} 타자") +
                 (_career.ContractSeasonsLeft > 0 ? $" · 계약 {_career.ContractSeasonsLeft}년" : "") + "</color></size>";
 
             var l = _career.SeasonLine;
