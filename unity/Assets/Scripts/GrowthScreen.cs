@@ -814,6 +814,8 @@ namespace BaseballGame
         /// <summary>A new date brings new missions; the first visit of the day gets the check-in reward.</summary>
         void CheckIn()
         {
+            // Not before the screen is up (Unity also reports an unpause at startup), nor over the new-player card.
+            if (_club == null || _career == null || _canvas == null) return;
             var daily = _club.Daily;
             bool newDay = daily.Refresh(Today);
             var reward = daily.CheckIn(Today, _club, _career);
