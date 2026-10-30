@@ -1133,6 +1133,8 @@ namespace BaseballGame
             var finalGame = post.Series.Last().Games.LastOrDefault();
             if (finalGame != null)
                 UiKit.Height(UiKit.Button(card, "결정전 마지막 경기 보기", () => Watch(finalGame), UiKit.Muted), 100);
+            var record = summary.Record;
+            UiKit.Height(UiKit.Button(card, "이번 시즌 선수 카드", () => CareerCard.Show(_canvas.transform, SeasonCard(record)), UiKit.Muted), 100);
             if (_career.Me.Age >= 30 || _career.MustRetire)
                 UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 100);
             if (!_career.MustRetire && !mustPick && _career.PendingSalary != null)
@@ -1251,7 +1253,72 @@ namespace BaseballGame
                 $"명예 포인트 +{retired.LegacyPoints + retired.DonationPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n\n" +
                 $"내 팀 선수 {_club.Roster.Count}명";
             UiKit.Height(UiKit.Label(card, text, 30, TextAnchor.UpperCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "커리어 카드 보기", () => CareerCard.Show(_canvas.transform, RetiredCard(retired)), UiKit.Muted), 100);
             UiKit.Height(UiKit.Button(card, "새 선수 육성 시작", ShowNewPlayer), 110);
+        }
+
+        // ---------- Player cards ----------
+
+        CareerCard.Data SeasonCard(SeasonRecord record)
+        {
+            var me = _career.Me;
+            var data = new CareerCard.Data
+            {
+                Name = me.Name,
+                Number = me.Number,
+                Position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position),
+                Team = record.Club ?? _career.MyTeam.Name,
+                Subtitle = $"{CareerState.YearOf(record.Season)} 시즌 · {record.Age}세",
+                Titles = new List<string>(record.Titles),
+                FileName = $"{me.Name}_{CareerState.YearOf(record.Season)}",
+            };
+            foreach (var stat in me.MyStats) data.Ratings[stat] = record.Ratings != null && record.Ratings.TryGetValue(stat, out int v) ? v : me.Ratings[stat];
+            if (record.Pitching != null)
+            {
+                var p = record.Pitching;
+                data.Lines.Add(me.Role == PitcherRole.Starter ? $"{p.Wins}승 {p.Losses}패  평균자책 {p.EraText}" : $"{p.Saves}세이브 {p.Holds}홀드  평균자책 {p.EraText}");
+                data.Lines.Add($"{p.Innings}이닝  탈삼진 {p.Strikeouts}  WHIP {(p.Outs == 0 ? "-" : p.Whip.ToString("0.00"))}");
+            }
+            else
+            {
+                var l = record.Line;
+                string avg = l.AtBats == 0 ? ".000" : ((double)l.Hits / l.AtBats).ToString(".000");
+                data.Lines.Add($"타율 {avg}  {l.HomeRuns}홈런  {l.RunsBattedIn}타점");
+                data.Lines.Add($"{l.Hits}안타  OPS {CareerState.Ops(l):0.000}  연봉 {record.Salary:N0}만원");
+            }
+            return data;
+        }
+
+        static CareerCard.Data RetiredCard(RetiredPlayer retired)
+        {
+            var data = new CareerCard.Data
+            {
+                Name = retired.Name,
+                Number = retired.ShownNumber,
+                Position = retired.IsPitcher ? $"{Positions.RoleName(retired.Role)} 투수" : Positions.Name(retired.Position),
+                Team = retired.MainClub ?? "",
+                Subtitle = $"통산 {retired.Seasons}시즌 · 올스타 {retired.AllStars}회",
+                Banner = retired.HallOfFame ? "★ 명예의 전당 ★" : null,
+                FileName = $"{retired.Name}_커리어",
+            };
+            foreach (var pair in retired.PeakRatings) data.Ratings[pair.Key] = pair.Value;
+            if (retired.IsPitcher)
+            {
+                var a = retired.CareerPitching;
+                data.Lines.Add($"통산 {a.Wins}승 {a.Losses}패 {a.Saves}세이브 {a.Holds}홀드");
+                data.Lines.Add($"평균자책 {a.EraText}  탈삼진 {a.Strikeouts}");
+            }
+            else
+            {
+                var t = retired.CareerLine;
+                string avg = t.AtBats == 0 ? ".000" : ((double)t.Hits / t.AtBats).ToString(".000");
+                data.Lines.Add($"통산 타율 {avg}  {t.Hits}안타  {t.HomeRuns}홈런");
+                data.Lines.Add($"{t.RunsBattedIn}타점  OPS {CareerState.Ops(t):0.000}");
+            }
+            // Titles repeat across seasons: "홈런왕 ×3".
+            foreach (var g in retired.Titles.GroupBy(x => x).OrderByDescending(g => g.Count()))
+                data.Titles.Add(g.Count() > 1 ? $"{g.Key} ×{g.Count()}" : g.Key);
+            return data;
         }
 
         /// <summary>Name the next player and pick a season length. Shown on first launch and after each retirement.</summary>
