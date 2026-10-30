@@ -361,6 +361,18 @@ namespace BaseballSim.Career
             return true;
         }
 
+        /// <summary>Today's opponent and whether my team is at home; null once the season is over.</summary>
+        public (Team Opponent, bool Home)? TodaysGame()
+        {
+            if (IsSeasonOver) return null;
+            foreach (var (away, home) in League.Matchups(Day))
+            {
+                if (home == MyTeam) return (away, true);
+                if (away == MyTeam) return (home, false);
+            }
+            return null;
+        }
+
         /// <summary>Hook for rewarded ads and time-skip purchases: recover fatigue without spending a day.</summary>
         public void RecoverFatigue(int amount) => Me.Fatigue = Math.Max(0, Me.Fatigue - amount);
 

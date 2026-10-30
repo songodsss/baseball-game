@@ -22,6 +22,7 @@ namespace BaseballGame
         MatchField _field;
 
         int _speedIndex;
+        Color _uniform;
         bool _paused;
         /// <summary>Steps before this index are applied without animation.</summary>
         int _skipUntil = -1;
@@ -35,13 +36,21 @@ namespace BaseballGame
         Coroutine _popRoutine;
 
         /// <summary>Opens the screen; <paramref name="onClose"/> runs when the player leaves it.</summary>
-        public static MatchScreen Open(GameResult game, Player mine, Action onClose)
+        public const string SpeedPref = "match_speed";
+
+        /// <summary>Opens the screen; <paramref name="onClose"/> runs when the player leaves it. My player wears <paramref name="uniform"/>.</summary>
+        public static MatchScreen Open(GameResult game, Player mine, Action onClose, Color? uniform = null)
         {
             var screen = new GameObject("MatchScreen").AddComponent<MatchScreen>();
             screen._replay = new MatchReplay(game, mine);
             screen._onClose = onClose;
+            screen._uniform = uniform ?? Gold;
+            screen._speedIndex = Mathf.Clamp(PlayerPrefs.GetInt(SpeedPref, 0), 0, Speeds.Length - 1);
             return screen;
         }
+
+        public static string SpeedName(int index) => $"x{Speeds[index]:0}";
+        public static int SpeedCount => Speeds.Length;
 
         float Speed => Speeds[_speedIndex];
         bool Skipping => _replay.Position < _skipUntil;
@@ -51,6 +60,7 @@ namespace BaseballGame
         {
             _field = MatchField.Build(transform);
             _field.Mine = _replay.Mine;
+            _field.MineColor = _uniform;
             _field.Skipping = () => Skipping;
             BuildUi();
             StartCoroutine(Run());
@@ -186,7 +196,7 @@ namespace BaseballGame
             UiKit.Height(controls, 120);
             UiKit.Row(controls, 16);
             _pauseLabel = UiKit.Button(controls, "일시정지", TogglePause, UiKit.Card).GetComponentInChildren<Text>();
-            _speedLabel = UiKit.Button(controls, "속도 x1", CycleSpeed, UiKit.Card).GetComponentInChildren<Text>();
+            _speedLabel = UiKit.Button(controls, $"속도 {SpeedName(_speedIndex)}", CycleSpeed, UiKit.Card).GetComponentInChildren<Text>();
             UiKit.Button(controls, "내 타석으로", SkipToMyTurn, new Color(0.75f, 0.58f, 0.15f));
             UiKit.Button(controls, "결과 보기", SkipToEnd, UiKit.Accent);
 

@@ -42,12 +42,12 @@ namespace BaseballGame
         CareerState _career;
         Club _club = new Club();
 
-        Text _header, _status, _log, _seasonLengthLabel;
+        Text _header, _status, _log, _seasonLengthLabel, _todayText;
         RectTransform _fatigueFill;
         readonly Dictionary<Stat, Text> _ratingTexts = new Dictionary<Stat, Text>();
         readonly Dictionary<Stat, RectTransform> _expFills = new Dictionary<Stat, RectTransform>();
         readonly List<Button> _actionButtons = new List<Button>();
-        Button _seasonLengthButton, _watchButton;
+        Button _seasonLengthButton, _watchButton, _adButton;
         GameObject _canvas;
         DayResult _lastDay;
         bool _retired;
@@ -111,11 +111,24 @@ namespace BaseballGame
             var root = UiKit.SafeRoot(canvasGo.transform, UiKit.Background);
             UiKit.Column(root, 40, 20);
 
-            _header = UiKit.Label(root, "", 44);
-            UiKit.Height(_header, 120);
+            var top = UiKit.Empty(root, "Top");
+            UiKit.Height(top, 120);
+            var topRow = UiKit.Row(top, 16);
+            topRow.childForceExpandWidth = false;
+            _header = UiKit.Label(top, "", 44);
+            UiKit.Width(_header, 0, 1);
+            foreach (var (label, onClick) in new (string, UnityEngine.Events.UnityAction)[] { ("꾸미기", ShowWardrobe), ("설정", ShowSettings) })
+            {
+                var b = UiKit.Button(top, label, onClick, UiKit.Card);
+                b.GetComponentInChildren<Text>().fontSize = 28;
+                UiKit.Width(b, 150);
+            }
 
             BuildStatusCard(root);
             BuildRatingsCard(root);
+
+            _todayText = UiKit.Label(root, "", 30, TextAnchor.MiddleCenter, UiKit.Muted);
+            UiKit.Height(_todayText, 44);
 
             var actions = UiKit.Empty(root, "Actions");
             UiKit.Height(actions, 260);
@@ -153,17 +166,20 @@ namespace BaseballGame
         void BuildStatusCard(RectTransform root)
         {
             var card = UiKit.Panel(root, "Status", UiKit.Card);
-            UiKit.Height(card, 150);
+            UiKit.Height(card, 180);
             UiKit.Column(card, 24, 12);
             _status = UiKit.Label(card, "", 32);
             UiKit.Height(_status, 50);
             var fatigueRow = UiKit.Empty(card, "Fatigue");
-            UiKit.Height(fatigueRow, 30);
-            UiKit.Row(fatigueRow, 16);
+            UiKit.Height(fatigueRow, 66);
+            UiKit.Row(fatigueRow, 16).childForceExpandWidth = false;
             UiKit.Width(UiKit.Label(fatigueRow, "피로", 28, TextAnchor.MiddleLeft, UiKit.Muted), 90);
             var bar = UiKit.Bar(fatigueRow, UiKit.Warning);
             UiKit.Width(bar.parent, 0, 1);
             _fatigueFill = bar;
+            _adButton = UiKit.Button(fatigueRow, "", WatchAdForRecovery, new Color(0.2f, 0.6f, 0.45f));
+            _adButton.GetComponentInChildren<Text>().fontSize = 26;
+            UiKit.Width(_adButton, 280);
         }
 
         void BuildRatingsCard(RectTransform root)
@@ -293,7 +309,7 @@ namespace BaseballGame
         {
             if (_lastDay?.MyGame == null) return;
             _canvas.SetActive(false);
-            MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true));
+            MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true), UniformColor);
         }
 
         /// <summary>Replays any game; my player is found by id among its batters.</summary>
@@ -301,7 +317,125 @@ namespace BaseballGame
         {
             var mine = game.Batting.Keys.FirstOrDefault(p => p.Id == _career.Me.Id);
             _canvas.SetActive(false);
-            MatchScreen.Open(game, mine, () => _canvas.SetActive(true));
+            MatchScreen.Open(game, mine, () => _canvas.SetActive(true), UniformColor);
+        }
+
+        Color UniformColor => ColorUtility.TryParseHtmlString(Wardrobe.Find(_club.SelectedUniform).Color, out var c) ? c : Gold;
+
+        // ---------- Monetization hooks ----------
+
+        /// <summary>A rewarded ad takes fatigue down, a few times a day. Never touches ratings.</summary>
+        void WatchAdForRecovery()
+        {
+            if (_overlay != null || Monetization.AdsLeftToday <= 0 || !Monetization.Ads.IsReady) return;
+            Monetization.Ads.Show(watched =>
+            {
+                if (!watched) return;
+                Monetization.CountAdWatched();
+                int before = _career.Me.Fatigue;
+                _career.RecoverFatigue(Monetization.AdFatigueRecovery);
+                Log($"광고 보상: 피로 {before} → {_career.Me.Fatigue}");
+                Save();
+                Refresh();
+            });
+        }
+
+        /// <summary>Uniform colours for my player: three free, the rest sold in the store. Looks only.</summary>
+        void ShowWardrobe()
+        {
+            if (_career == null) return;
+            var card = OpenOverlay("꾸미기");
+            UiKit.Height(UiKit.Label(card, "유니폼은 경기 화면에서 내 선수 색으로 보여요. 능력치에는 영향이 없어요.", 28, TextAnchor.MiddleCenter, UiKit.Muted), 80);
+            foreach (var uniform in Wardrobe.All)
+            {
+                var u = uniform;
+                var row = UiKit.Empty(card, u.Id);
+                UiKit.Height(row, 100);
+                UiKit.Row(row, 20).childForceExpandWidth = false;
+                ColorUtility.TryParseHtmlString(u.Color, out var color);
+                UiKit.Width(UiKit.Panel(row, "Swatch", color), 80);
+                UiKit.Width(UiKit.Label(row, u.Name, 32), 0, 1);
+
+                Button button;
+                if (_club.SelectedUniform == u.Id)
+                    button = UiKit.Button(row, "착용 중", () => { }, UiKit.Background);
+                else if (_club.OwnsUniform(u))
+                    button = UiKit.Button(row, "입기", () => { _club.SelectUniform(u.Id); Save(); ShowWardrobe(); });
+                else
+                    button = UiKit.Button(row, $"구매 {Monetization.Store.PriceOf(u.ProductId)}", () =>
+                        Monetization.Store.Buy(u.ProductId, ok =>
+                        {
+                            if (!ok) return;
+                            _club.GrantUniform(u.Id);
+                            _club.SelectUniform(u.Id);
+                            Log($"{u.Name} 유니폼 구매!");
+                            Save();
+                            ShowWardrobe();
+                        }), new Color(0.75f, 0.58f, 0.15f));
+                UiKit.Width(button, 260);
+            }
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+        }
+
+        // ---------- Settings ----------
+
+        static readonly string[] TipKeys = { "start", "watch", "fatigue", "shop", "records", "event", "season_end" };
+
+        void ShowSettings()
+        {
+            var card = OpenOverlay("설정");
+
+            UiKit.Height(UiKit.Label(card, "경기 보기 기본 속도", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+            var speeds = UiKit.Empty(card, "Speeds");
+            UiKit.Height(speeds, 110);
+            UiKit.Row(speeds, 16);
+            int current = PlayerPrefs.GetInt(MatchScreen.SpeedPref, 0);
+            for (int i = 0; i < MatchScreen.SpeedCount; i++)
+            {
+                int index = i;
+                UiKit.Button(speeds, MatchScreen.SpeedName(i), () =>
+                {
+                    PlayerPrefs.SetInt(MatchScreen.SpeedPref, index);
+                    PlayerPrefs.Save();
+                    ShowSettings();
+                }, i == current ? UiKit.Accent : UiKit.Background);
+            }
+
+            UiKit.Height(UiKit.Label(card, "도움말", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+            UiKit.Height(UiKit.Button(card, "도움말 처음부터 다시 보기", () =>
+            {
+                foreach (var key in TipKeys) PlayerPrefs.DeleteKey("tip_" + key);
+                PlayerPrefs.Save();
+                CloseOverlay();
+                ShowTips();
+            }, UiKit.Background), 110);
+
+            UiKit.Height(UiKit.Label(card, "데이터", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+            UiKit.Height(UiKit.Button(card, "모든 데이터 지우고 처음부터", ConfirmReset, UiKit.Warning), 110);
+
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Label(card, "프로토타입 0.1 · 결제와 광고는 아직 테스트용이라 실제로 청구되지 않아요.", 24, TextAnchor.MiddleCenter, UiKit.Muted), 60);
+            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+        }
+
+        void ConfirmReset()
+        {
+            var card = OpenOverlay("정말 지울까요?");
+            UiKit.Height(UiKit.Label(card, "진행 중인 선수, 내 팀 은퇴 선수, 업적, 구매한 유니폼 기록이 모두 사라져요.\n되돌릴 수 없어요.", 32, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "지우기", () =>
+            {
+                SaveStore.Delete();
+                PlayerPrefs.DeleteAll();
+                PlayerPrefs.Save();
+                // Nothing of the old game may be saved on the way out.
+                _retired = true;
+                _club = new Club();
+                var fresh = new GameObject("GrowthScreen").AddComponent<GrowthScreen>();
+                fresh.name = "GrowthScreen";
+                Destroy(gameObject);
+            }, UiKit.Warning), 110);
+            UiKit.Height(UiKit.Button(card, "취소", ShowSettings, UiKit.Muted), 110);
         }
 
         void CycleSeasonLength()
@@ -579,6 +713,11 @@ namespace BaseballGame
                 ? $"{_career.League.GamesPerSeason}경기 (변경)"
                 : $"{_career.League.GamesPerSeason}경기 시즌";
             _seasonLengthButton.interactable = _career.Day == 0;
+            var today = _career.TodaysGame();
+            _todayText.text = today == null ? "" : $"오늘 경기  vs {today.Value.Opponent.Name} ({(today.Value.Home ? "홈" : "원정")})";
+            int adsLeft = Monetization.AdsLeftToday;
+            UiKit.SetButtonLabel(_adButton, $"광고 보고 회복 ({adsLeft})");
+            _adButton.interactable = adsLeft > 0 && me.Fatigue > 0;
             _watchButton.interactable = _lastDay?.MyGame != null;
         }
     }

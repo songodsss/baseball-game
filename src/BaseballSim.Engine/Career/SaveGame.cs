@@ -17,9 +17,9 @@ namespace BaseballSim.Career
         const string Magic = "BBSV";
         /// <summary>
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
-        /// 5: legends met; the coach slot is no longer written.
+        /// 5: legends met; the coach slot is no longer written. 6: uniforms.
         /// </summary>
-        public const int Version = 5;
+        public const int Version = 6;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -85,6 +85,9 @@ namespace BaseballSim.Career
                 WriteList(w, p.Achievements, w.Write);
                 WriteList(w, p.Titles, w.Write);
             });
+            // Added in version 6.
+            WriteList(w, club.OwnedUniforms, w.Write);
+            w.Write(club.SelectedUniform);
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -108,6 +111,11 @@ namespace BaseballSim.Career
                     p.Titles = ReadList(r, r.ReadString);
                     return p;
                 });
+            }
+            if (version >= 6)
+            {
+                club.OwnedUniforms = ReadList(r, r.ReadString);
+                club.SelectedUniform = r.ReadString();
             }
             return club;
         }

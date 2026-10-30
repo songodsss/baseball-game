@@ -29,6 +29,19 @@ namespace BaseballGame
             }
         }
 
+        /// <summary>Removes the save, for a fresh start from the settings screen.</summary>
+        public static void Delete()
+        {
+            try
+            {
+                if (File.Exists(FilePath)) File.Delete(FilePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Save could not be deleted: {e.Message}");
+            }
+        }
+
         /// <summary>False when there's no save yet. A damaged save is set aside as .bad and treated as none.</summary>
         public static bool TryLoad(IRandom random, out Club club, out CareerState career)
         {

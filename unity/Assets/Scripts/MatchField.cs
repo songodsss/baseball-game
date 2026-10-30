@@ -36,6 +36,7 @@ namespace BaseballGame
         /// <summary>While true, animations end at once and the screen snaps to the result.</summary>
         public Func<bool> Skipping = () => false;
         public Player Mine;
+        public Color MineColor = Gold;
 
         Camera _camera;
         Transform _ball;
@@ -207,10 +208,10 @@ namespace BaseballGame
             if (_runners.TryGetValue(p, out var t))
             {
                 t.localScale = new Vector3(0.9f, 1f, 0.9f);
-                Tint(t, p == Mine ? Gold : _battingColor);
+                Tint(t, p == Mine ? MineColor : _battingColor);
                 return t;
             }
-            t = Person(p.Name, p == Mine ? Gold : _battingColor, BattersBox);
+            t = Person(p.Name, p == Mine ? MineColor : _battingColor, BattersBox);
             _runners[p] = t;
             return t;
         }
