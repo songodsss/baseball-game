@@ -439,6 +439,11 @@ namespace BaseballGame
                     lines.Add($"  {Commentary.HalfInning(ev.Inning, ev.IsTopHalf)} {Commentary.Describe(ev)}");
             }
             foreach (var atBat in r.AtBatLog) lines.Add($"  찬스: {atBat}");
+            if (r.OldSlot != null)
+            {
+                bool up = CareerState.SlotStanding(_career.LineupSlot) < CareerState.SlotStanding(r.OldSlot.Value);
+                lines.Add($"<color={(up ? "#5FA8FF" : "#F28C40")}>타순 변경: {CareerState.SlotName(r.OldSlot.Value)} → {CareerState.SlotName(_career.LineupSlot)}</color>");
+            }
             foreach (var stat in r.Breakthroughs)
                 lines.Add($"<color=#F28C40>한계 돌파! {StatNames[stat]} 잠재력 +{CareerPlayer.BreakthroughGain} → {_career.Me.Potential[stat]}</color>");
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
@@ -909,7 +914,7 @@ namespace BaseballGame
             var me = _career.Me;
             var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
             _header.text = $"<b>{me.Name}</b>  {me.Age}세 · {_career.MyTeam.Name}\n" +
-                $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InFarm ? " · <color=#F28C40>2군</color>" : "") +
+                $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InFarm ? " · <color=#F28C40>2군</color>" : $" · {CareerState.SlotName(_career.LineupSlot)} 타자") +
                 (_career.ContractSeasonsLeft > 0 ? $" · 계약 {_career.ContractSeasonsLeft}년" : "") + "</color></size>";
 
             var l = _career.SeasonLine;

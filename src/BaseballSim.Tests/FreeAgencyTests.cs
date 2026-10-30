@@ -10,7 +10,10 @@ public class FreeAgencyTests
     {
         var random = new SeededRandom(seed);
         var league = new League(new RosterGenerator(random), 36);
-        return new CareerState(CareerState.NewPlayer("테스트", random), league, league.Teams[0], random);
+        var career = new CareerState(CareerState.NewPlayer("테스트", random), league, league.Teams[0], random);
+        // A solid regular, so no release gets in the way of free agency.
+        foreach (var stat in CareerPlayer.AllStats) career.Me.Ratings[stat] = career.Me.Potential[stat] = 70;
+        return career;
     }
 
     static SeasonSummary PlaySeason(CareerState career)

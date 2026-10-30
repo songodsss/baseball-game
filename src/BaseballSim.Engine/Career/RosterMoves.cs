@@ -139,6 +139,7 @@ namespace BaseballSim.Career
         void ReviewRoster(DayResult result)
         {
             if (Day == TradeDeadline && !TradedThisSeason && Season > 1) TradeDeadlineDay(result);
+            if (Day % ReviewEvery == 0 && !InFarm) result.OldSlot = UpdateBattingOrder();
             if (result.Move != null || Day < League.GamesPerSeason / 6 || Day % ReviewEvery != 0 || Me.IsInjured) return;
 
             int games = League.GamesPerSeason;

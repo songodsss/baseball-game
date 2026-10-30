@@ -43,6 +43,8 @@ namespace BaseballSim.Career
         public List<Stat> Breakthroughs = new List<Stat>();
         /// <summary>A trait slot opened: pick one with ChooseTrait. Stays on offer until picked.</summary>
         public List<Trait> TraitOffer;
+        /// <summary>Set when the batting order changed today: the slot I batted in before. LineupSlot is the new one.</summary>
+        public int? OldSlot;
         /// <summary>My big at bats so far today with the approach taken, e.g. "7회 ... 2루타 (직구 노림 적중!)".</summary>
         public List<string> AtBatLog = new List<string>();
         /// <summary>The all-star game, played on the midseason day; null on other days.</summary>
@@ -111,8 +113,8 @@ namespace BaseballSim.Career
         public int Day;
         public BattingLine SeasonLine = new BattingLine();
 
-        /// <summary>My player bats here; the regular in that spot sits for the game.</summary>
-        public int LineupSlot = 5;
+        /// <summary>My player bats here (0 = leadoff); the regular in that spot sits. Rookies start 9th; see BattingOrder.</summary>
+        public int LineupSlot = 8;
 
         /// <summary>Games in a row with at bats and no hit. Story events react to slumps.</summary>
         public int HitlessStreak;
