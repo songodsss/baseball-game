@@ -24,6 +24,8 @@ namespace BaseballSim.Career
         public int Season;
         public int Day;
         public DailyAction Action;
+        /// <summary>Condition stars when training today (0 on a rest day); 4–5 stars train better.</summary>
+        public int ConditionStars;
         /// <summary>Rating points gained today, from training and from the game.</summary>
         public Dictionary<Stat, int> PointsGained = new Dictionary<Stat, int>();
         public bool GotInjured;
@@ -308,7 +310,8 @@ namespace BaseballSim.Career
             }
 
             var (main, side) = TrainingTargets(action);
-            double mult = AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
+            result.ConditionStars = ConditionStars;
+            double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
             AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult)));
             AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult)));
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
@@ -418,7 +421,7 @@ namespace BaseballSim.Career
                 Home = home,
                 AwayStarter = awayStarter,
                 HomeStarter = homeStarter,
-                Player = Me.ForGame(_random),
+                Player = Me.ForGame(_random, TodayForm),
                 Seed = (int)(_random.NextDouble() * int.MaxValue),
                 Result = result,
             };

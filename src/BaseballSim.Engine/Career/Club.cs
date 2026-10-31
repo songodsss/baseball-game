@@ -92,7 +92,7 @@ namespace BaseballSim.Career
         /// <summary>Added to every potential of the next new player, at most +8.</summary>
         public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
 
-        public const int HallOfFameLine = 400;
+        public const int HallOfFameLine = 650;
         const int HallOfFamePoints = 100;
         /// <summary>만원 of leftover money per legacy point when donated at retirement.</summary>
         public const int DonationPerPoint = 10000;

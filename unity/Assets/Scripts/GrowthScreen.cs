@@ -51,6 +51,7 @@ namespace BaseballGame
         RectTransform _fatigueFill;
         readonly Dictionary<Stat, Text> _ratingTexts = new Dictionary<Stat, Text>();
         readonly Dictionary<Stat, RectTransform> _expFills = new Dictionary<Stat, RectTransform>();
+        Text _condition;
         readonly List<Button> _actionButtons = new List<Button>();
         readonly Dictionary<Stat, GameObject> _ratingRows = new Dictionary<Stat, GameObject>();
         Button _seasonLengthButton, _watchButton, _adButton;
@@ -88,10 +89,25 @@ namespace BaseballGame
 
         void OnApplicationQuit() => Save();
 
+        /// <summary>
+        /// Hands the phone reminders what they need (they live in their own assembly and read PlayerPrefs). Also
+        /// called on every save and refresh, since which object hears about the app pausing first isn't fixed.
+        /// </summary>
+        void TellNotifications()
+        {
+            PlayerPrefs.SetString(NotifyPlayerKey, _career != null && !_retired ? _career.Me.Name : "");
+            string today = DailyMissions.DateOf(System.DateTime.Now);
+            if (_club.Daily.CheckedInToday(today)) PlayerPrefs.SetString(NotifyCheckInKey, today);
+        }
+
+        // Same keys as PhoneNotifications (Notifications folder), which this assembly doesn't reference.
+        const string NotifyEnabledKey = "notify_enabled", NotifyPlayerKey = "notify_player", NotifyCheckInKey = "notify_checkin";
+
         /// <summary>Between retiring and starting the next player there's no career to save.</summary>
         void Save()
         {
             // Mid-game the day is half played; the last save (before the day) stands, and the day replays on restart.
+            TellNotifications();
             if (_career != null && _career.IsMidGame) return;
             SaveStore.Save(_club, _retired ? null : _career);
         }
@@ -198,6 +214,9 @@ namespace BaseballGame
             UiKit.Column(card, 24, 12);
             _status = UiKit.Label(card, "", 32);
             UiKit.Height(_status, 90);
+            _condition = UiKit.Label(card, "", 28, TextAnchor.MiddleLeft);
+            UiKit.Height(_condition, 38);
+            card.GetComponent<LayoutElement>().preferredHeight += 50; // room for the condition line
             var fatigueRow = UiKit.Empty(card, "Fatigue");
             UiKit.Height(fatigueRow, 66);
             UiKit.Row(fatigueRow, 16).childForceExpandWidth = false;
@@ -725,8 +744,20 @@ namespace BaseballGame
                 Tip("fatigue", "피로가 80을 넘으면 훈련 효과가 반으로 줄고 부상 위험이 생겨요. 휴식으로 회복하세요.");
             if (_career.Me.Money >= 200)
                 Tip("shop", "연봉이 쌓였어요. 상점에서 장비를 사면 능력치가 올라가요. 장비를 다 모으면 개인 시설에 투자할 수 있어요.");
+            if (_career.ConditionStars >= 4)
+                Tip("condition", "컨디션이 좋은 날(★4 이상)엔 훈련 효과가 올라가요. 컨디션은 매일 바뀌고, 피로가 쌓이면 떨어지고 사기가 높으면 올라가요.");
             if (_career.Day >= 5)
                 Tip("records", "'기록'에서 리그 순위와 내 성적을 볼 수 있어요.");
+        }
+
+        /// <summary>"오늘 컨디션 ★★★★☆ 좋음 · 훈련 효과 +10%"</summary>
+        static string ConditionText(int stars)
+        {
+            string color = stars >= 5 ? "#FFD24D" : stars == 4 ? "#5FA8FF" : stars <= 2 ? "#F28C40" : "#C8D2E6";
+            string filled = new string('★', stars) + "<color=#4A5468>" + new string('☆', CareerState.MaxConditionStars - stars) + "</color>";
+            double bonus = CareerState.ConditionTraining(stars) - 1;
+            string extra = bonus > 0 ? $" · 훈련 효과 +{Mathf.RoundToInt((float)bonus * 100)}%" : stars <= 2 ? " · 경기력이 떨어질 수 있어요" : "";
+            return $"<color=#9EABC2>오늘 컨디션</color>  <color={color}>{filled}  {CareerState.ConditionLabel(stars)}{extra}</color>";
         }
 
         void DescribeDay(DayResult r)
@@ -735,6 +766,8 @@ namespace BaseballGame
             var lines = new List<string> { $"<b>{r.Day + 1}일차</b> {label}" };
             if (r.GotInjured) lines.Add($"<color=#F28C40>무리하다 부상! {Injuries.Name(r.Injury)}로 {_career.Me.InjuryDaysLeft}일 쉬어야 합니다. 복귀 후에도 한동안 {StatNames[_career.Me.RoleStat(Injuries.StatOf(r.Injury))]}이(가) 조금 떨어져요.</color>");
             foreach (var a in r.NewAchievements) lines.Add($"<color=#5FA8FF>업적 달성: {a.Name}</color>");
+            if (r.ConditionStars >= 4 && !r.GotInjured)
+                lines.Add($"<color={(r.ConditionStars >= 5 ? "#FFD24D" : "#5FA8FF")}>컨디션 {CareerState.ConditionLabel(r.ConditionStars)}! 훈련 효과 +{Mathf.RoundToInt((float)(CareerState.ConditionTraining(r.ConditionStars) - 1) * 100)}%</color>");
             if (r.PointsGained.Count > 0)
                 lines.Add("능력치 상승: " + string.Join(", ", r.PointsGained.Select(p => $"{StatNames[p.Key]} +{p.Value}")));
 
@@ -896,6 +929,15 @@ namespace BaseballGame
                 CloseOverlay();
                 ShowTips();
             }, UiKit.Background), 110);
+
+            UiKit.Height(UiKit.Label(card, "폰 알림", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+            bool notify = PlayerPrefs.GetInt(NotifyEnabledKey, 1) == 1;
+            UiKit.Height(UiKit.Button(card, notify ? "출석·훈련 알림: 켜짐 (안드로이드)" : "출석·훈련 알림: 꺼짐", () =>
+            {
+                PlayerPrefs.SetInt(NotifyEnabledKey, notify ? 0 : 1);
+                PlayerPrefs.Save();
+                ShowSettings();
+            }, notify ? UiKit.Accent : UiKit.Background), 110);
 
             UiKit.Height(UiKit.Label(card, "데이터", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
             UiKit.Height(UiKit.Button(card, "모든 데이터 지우고 처음부터", ConfirmReset, UiKit.Warning), 110);
@@ -1516,6 +1558,7 @@ namespace BaseballGame
         void Refresh()
         {
             if (_career == null) return; // first launch, still on the new-player card
+            TellNotifications();
             var me = _career.Me;
             var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
             string role = me.IsPitcher && me.Role != PitcherRole.Starter
@@ -1551,6 +1594,7 @@ namespace BaseballGame
             _status.text = $"{season}  ·  보유 {me.Money:N0}만원  ·  인기 {me.Popularity}{injury}{morale}\n" +
                 $"<size=24><color=#9EABC2>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
+            _condition.text = ConditionText(_career.ConditionStars);
 
             foreach (var row in _ratingRows) row.Value.SetActive(me.MyStats.Contains(row.Key));
             foreach (var stat in me.MyStats)

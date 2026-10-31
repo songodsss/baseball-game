@@ -53,7 +53,7 @@ public class RivalTests
     [Fact]
     public void HeadToHeadGamesShowTheRival()
     {
-        var career = NewCareer(3);
+        var career = NewCareer(6);
         for (int i = 0; i < 36; i++)
         {
             var day = career.PlayDay(DailyAction.Rest);

@@ -80,7 +80,7 @@ public class AllStarTests
     [Fact]
     public void GreatCareerMakesTheHallAndRetiresTheNumber()
     {
-        var career = RetiringCareer(12, 200, "부산 마린스타즈");
+        var career = RetiringCareer(17, 220, "부산 마린스타즈");
         career.Me.Money = 123_456;
         var club = new Club();
         var retired = club.Retire(career);
@@ -105,7 +105,7 @@ public class AllStarTests
     [Fact]
     public void HonoursSurviveSaving()
     {
-        var career = RetiringCareer(12, 200, "부산 마린스타즈");
+        var career = RetiringCareer(17, 220, "부산 마린스타즈");
         career.Me.Money = 50_000;
         var club = new Club();
         club.Retire(career);
