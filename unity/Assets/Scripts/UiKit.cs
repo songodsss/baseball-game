@@ -109,6 +109,7 @@ namespace BaseballGame
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0.5f;
+            scaler.gameObject.AddComponent<FitScaler>();
             UiAnim.FadeIn(go.transform, 0.2f); // screens fade in rather than pop
             return go;
         }
@@ -395,6 +396,23 @@ namespace BaseballGame
                 Width(cell, widths[i], widths[i] == 0 ? 1 : 0);
             }
             return row;
+        }
+    }
+
+    /// <summary>
+    /// Scales a canvas so the whole 1080x1920 layout always fits: by width on tall phones, by height
+    /// on wider screens (tablets, a landscape editor window), so nothing gets squashed.
+    /// </summary>
+    public class FitScaler : MonoBehaviour
+    {
+        CanvasScaler _scaler;
+
+        void Awake() => _scaler = GetComponent<CanvasScaler>();
+
+        void Update()
+        {
+            if (_scaler == null || Screen.height == 0) return;
+            _scaler.matchWidthOrHeight = (float)Screen.width / Screen.height > 1080f / 1920f ? 1f : 0f;
         }
     }
 }

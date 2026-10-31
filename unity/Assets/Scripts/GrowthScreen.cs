@@ -138,6 +138,7 @@ namespace BaseballGame
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0.5f;
+            scaler.gameObject.AddComponent<FitScaler>();
 
             var root = UiKit.SafeRoot(canvasGo.transform, UiKit.Background);
             UiKit.Column(root, 40, 20);
@@ -148,6 +149,7 @@ namespace BaseballGame
             var top = UiKit.Panel(root, "Top", UiKit.Card);
             _headerBand = top.GetComponent<Image>();
             UiKit.Height(top, 140);
+            Keep(top);
             var topRow = UiKit.Row(top, 16);
             topRow.childForceExpandWidth = false;
             topRow.childControlHeight = false;
@@ -159,6 +161,8 @@ namespace BaseballGame
             Tappable(_header, () => ProfileScreen.Open(_career));
             _header.rectTransform.sizeDelta = new Vector2(0, 120);
             UiKit.Width(_header, 0, 1);
+            var change = HeaderButton(top, "선수\n변경", ConfirmSwitchPlayer);
+            change.GetComponentInChildren<Text>().fontSize = 24;
             _missionButton = HeaderButton(top, "미션", ShowMissions);
             HeaderButton(top, "도감", () => CollectionScreen.Open(_career, _club));
             HeaderButton(top, "설정", ShowSettings);
@@ -178,6 +182,7 @@ namespace BaseballGame
 
             var actions = UiKit.Empty(root, "Actions");
             UiKit.Height(actions, 260);
+            Keep(actions);
             var grid = actions.gameObject.AddComponent<GridLayoutGroup>();
             grid.cellSize = new Vector2(320, 115);
             grid.spacing = new Vector2(20, 20);
@@ -195,7 +200,7 @@ namespace BaseballGame
             }
 
             var logCard = UiKit.Panel(root, "Log", UiKit.Card);
-            UiKit.Height(logCard, 400, 1);
+            UiKit.Height(logCard, 400, 1).minHeight = 120; // the log gives way first on a short screen
             _log = UiKit.Label(logCard, "", 30, TextAnchor.UpperLeft);
             UiKit.Stretch(_log.rectTransform);
             _log.rectTransform.offsetMin = new Vector2(24, 24);
@@ -203,6 +208,7 @@ namespace BaseballGame
 
             var bottom = UiKit.Empty(root, "Bottom");
             UiKit.Height(bottom, 110);
+            Keep(bottom);
             UiKit.Row(bottom, 20);
             _watchButton = UiKit.Button(bottom, "오늘 경기 보기", WatchGame);
             UiKit.ButtonIcon(_watchButton, ArtLibrary.Get("Icons/UI/watch"), 50);
@@ -242,6 +248,7 @@ namespace BaseballGame
             _condition = UiKit.Label(card, "", 28, TextAnchor.MiddleLeft);
             UiKit.Height(_condition, 38);
             card.GetComponent<LayoutElement>().preferredHeight += 50; // room for the condition line
+            Keep(card);
             var fatigueRow = UiKit.Empty(card, "Fatigue");
             UiKit.Height(fatigueRow, 66);
             UiKit.Row(fatigueRow, 16).childForceExpandWidth = false;
@@ -266,6 +273,13 @@ namespace BaseballGame
             button.onClick.AddListener(() => { if (_overlay == null && _career != null) onClick(); });
         }
 
+        /// <summary>Never squash this below its height; the log shrinks instead.</summary>
+        static void Keep(Component c)
+        {
+            var layout = c.GetComponent<LayoutElement>();
+            if (layout != null) layout.minHeight = layout.preferredHeight;
+        }
+
         Button HeaderButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick)
         {
             var button = UiKit.Button(parent, label, onClick, UiKit.Card);
@@ -278,16 +292,20 @@ namespace BaseballGame
         void BuildRatingsCard(RectTransform root)
         {
             var card = UiKit.Panel(root, "Ratings", UiKit.Card);
-            UiKit.Height(card, 380);
-            UiKit.Column(card, 24, 10);
+            UiKit.Height(card, 440);
+            Keep(card);
+            UiKit.Column(card, 24, 8);
+            UiKit.Height(UiKit.Label(card, "<b>능력치</b>  <size=24><color=#9EABC2>지금 / 최대(잠재력) · 막대: 다음 +1까지 경험치</color></size>", 32, TextAnchor.MiddleLeft, Gold), 48);
             foreach (var stat in StatNames.Keys)
             {
                 var row = UiKit.Empty(card, StatNames[stat]);
                 _ratingRows[stat] = row.gameObject;
                 UiKit.Height(row, 60);
                 UiKit.Row(row, 16);
-                UiKit.Width(UiKit.Label(row, StatNames[stat], 32, TextAnchor.MiddleLeft, UiKit.Muted), 140);
-                var value = UiKit.Label(row, "", 32);
+                var name = UiKit.Label(row, StatNames[stat], 34, TextAnchor.MiddleLeft);
+                name.fontStyle = FontStyle.Bold;
+                UiKit.Width(name, 150);
+                var value = UiKit.Label(row, "", 36);
                 UiKit.Width(value, 300);
                 _ratingTexts[stat] = value;
                 var bar = UiKit.Bar(row, UiKit.Accent);
@@ -1169,6 +1187,19 @@ namespace BaseballGame
                 Destroy(gameObject);
             }, UiKit.Warning), 110);
             UiKit.Height(UiKit.Button(card, "취소", ShowSettings, UiKit.Muted), 110);
+        }
+
+        /// <summary>Back to the slot screen to play another player; this one is saved where it stands.</summary>
+        void ConfirmSwitchPlayer()
+        {
+            // Not over a decision card (season end, offers, a big at bat); the new-player card may leave.
+            if (_career == null) { BackToTitle(); return; }
+            if (_overlay != null) return;
+            var card = OpenOverlay("다른 선수 키우기");
+            UiKit.Height(UiKit.Label(card, $"{_career.Me.Name} 선수는 지금 상태 그대로 슬롯 {SaveStore.CurrentSlot}에 저장돼요.\n" +
+                "슬롯 화면에서 다른 슬롯을 고르거나 새 선수를 만들 수 있어요.\n언제든 다시 돌아와서 이어 할 수 있어요.", 32, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "슬롯 화면으로", BackToTitle, UiKit.Accent), 110);
+            UiKit.Height(UiKit.Button(card, "취소", CloseOverlay, UiKit.Muted), 110);
         }
 
         void BackToTitle()

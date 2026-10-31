@@ -175,6 +175,7 @@ namespace BaseballGame
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0.5f;
+            scaler.gameObject.AddComponent<FitScaler>();
             _canvas = (RectTransform)canvasGo.transform;
 
             var root = UiKit.SafeRoot(_canvas);
