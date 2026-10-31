@@ -13,6 +13,7 @@ namespace BaseballGame
     /// </summary>
     public class TitleScreen : MonoBehaviour
     {
+        static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
         public const string GameTitle = "나의 야구 인생";
 
         // Press Play in any scene and the prototype starts here.
@@ -40,33 +41,97 @@ namespace BaseballGame
 
         void Build()
         {
+            CloseOverlay();
             foreach (Transform child in _root) Destroy(child.gameObject);
             _club = SaveStore.LoadClub(_random);
+            if (_club.Daily.Refresh(Today)) SaveStore.SaveClub(_club);
 
             BuildLogo();
 
             int legends = _club.AllLegendsMet(null).Count;
             string club = _club.Roster.Count == 0
-                ? "첫 선수를 키워 보세요. 은퇴한 선수는 모든 슬롯이 함께 쓰는 내 팀에 들어와요."
-                : $"내 팀 {_club.Roster.Count}명  ·  명예 포인트 {_club.LegacyPoints:N0}  ·  만난 레전드 {legends}/{Legends.All.Count}";
-            UiKit.Height(UiKit.Label(_root, club, 28, TextAnchor.MiddleCenter, UiKit.Muted), 80);
+                ? "첫 선수를 키워 보세요. 은퇴한 선수는 모든 슬롯이 함께 쓰는 나만의 팀에 들어와요."
+                : $"나만의 팀 {_club.Roster.Count}명  ·  명예 포인트 {_club.LegacyPoints:N0}  ·  만난 레전드 {legends}/{Legends.All.Count}";
+            UiKit.Height(UiKit.Label(_root, club, 28, TextAnchor.MiddleCenter, UiKit.Muted), 60);
 
+            UiKit.Height(UiKit.Label(_root, "내 선수", 34, TextAnchor.LowerLeft, Gold), 56);
             for (int slot = 1; slot <= SaveStore.SlotCount; slot++) SlotCard(SaveStore.Peek(slot, _club, _random));
             if (!Premium.Owns(Premium.ExtraSlots))
             {
                 var more = UiKit.Button(_root, $"+ 슬롯 {Premium.ExtraSlotCount}개 더 (유료 테스트)", () => PremiumScreen.Open(Build), UiKit.Shade(UiKit.Card, 1.2f));
-                more.GetComponentInChildren<Text>().fontSize = 28;
-                UiKit.Height(more, 90);
+                more.GetComponentInChildren<Text>().fontSize = 26;
+                UiKit.Height(more, 80);
             }
 
+            // The hub: things that belong to me rather than to one player.
+            var daily = _club.Daily;
+            int done = daily.Today.Count(m => m.Done);
+            var grid = UiKit.Empty(_root, "Hub");
+            UiKit.Height(grid, 330);
+            var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
+            layout.cellSize = new Vector2(486, 155);
+            layout.spacing = new Vector2(20, 20);
+            layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            layout.constraintCount = 2;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            HubButton(grid, "나만의 팀", $"은퇴 선수 {_club.Roster.Count}명 · 도전 경기", ArtLibrary.Get("Icons/UI/records"),
+                new Color(0.85f, 0.45f, 0.2f), () => RecordsScreen.OpenMyTeam(_club, Build));
+            HubButton(grid, "도감", "레전드 · 라이벌 · 트로피", null, UiKit.Accent, () => CollectionScreen.Open(null, _club));
+            HubButton(grid, "오늘의 미션", $"완료 {done}/{daily.Today.Count} · 출석 {daily.Streak}일 연속", null,
+                new Color(0.2f, 0.6f, 0.45f), ShowMissions);
+            HubButton(grid, "상점", "유료 상품 (테스트)", ArtLibrary.Get("Icons/UI/shop"), new Color(0.55f, 0.4f, 0.8f), () => PremiumScreen.Open(Build));
+
             UiKit.Height(UiKit.Empty(_root, "Spacer"), 0, 1);
-            var bottom = UiKit.Empty(_root, "Bottom");
-            UiKit.Height(bottom, 110);
-            UiKit.Row(bottom, 20);
-            UiKit.ButtonIcon(UiKit.Button(bottom, "도감", () => CollectionScreen.Open(null, _club), UiKit.Card), ArtLibrary.Get("Icons/UI/records"), 50);
-            UiKit.Button(bottom, "유료 상품 (테스트)", () => PremiumScreen.Open(Build), new Color(0.55f, 0.4f, 0.8f));
-            foreach (var label in bottom.GetComponentsInChildren<Text>()) label.fontSize = 30;
-            UiKit.Height(UiKit.Label(_root, "프로토타입 0.1", 22, TextAnchor.MiddleCenter, UiKit.Muted), 40);
+            UiKit.Height(UiKit.Label(_root, "프로토타입 0.1", 22, TextAnchor.MiddleCenter, UiKit.Muted), 36);
+        }
+
+        static string Today => DailyMissions.DateOf(System.DateTime.Now);
+
+        void HubButton(Transform parent, string title, string sub, Sprite icon, Color color, UnityEngine.Events.UnityAction onClick)
+        {
+            var button = UiKit.Button(parent, $"{title}\n<size=24><color=#E8ECF4>{sub}</color></size>", onClick, color);
+            button.GetComponentInChildren<Text>().fontSize = 38;
+            UiKit.ButtonIcon(button, icon, 70);
+        }
+
+        /// <summary>Today's missions from home. Rewards that are money need a player, so those wait for the growth screen.</summary>
+        void ShowMissions()
+        {
+            CloseOverlay();
+            _overlay = UiKit.Dim(_root.parent.parent);
+            var card = UiKit.PopupCard(_overlay, new Vector2(0.05f, 0.15f), new Vector2(0.95f, 0.85f));
+            UiKit.Column(card, 40, 18);
+            var heading = UiKit.Label(card, "오늘의 미션", 48, TextAnchor.MiddleCenter);
+            heading.fontStyle = FontStyle.Bold;
+            UiKit.Height(heading, 90);
+            var daily = _club.Daily;
+            UiKit.Height(UiKit.Label(card, $"출석 {daily.Streak}일 연속 · 피로 회복권 {daily.RecoveryTickets}장\n선수를 골라 들어가면 출석 보상을 받아요. 돈 보상은 육성 화면에서 받아요.",
+                26, TextAnchor.MiddleCenter, UiKit.Muted), 90);
+            for (int i = 0; i < daily.Today.Count; i++)
+            {
+                int index = i;
+                var m = daily.Today[i];
+                bool money = m.Reward == RewardKind.Money;
+                var row = UiKit.Panel(card, "Mission", UiKit.Shade(UiKit.Card, 1.3f));
+                UiKit.Height(row, 140);
+                var rowLayout = UiKit.Row(row, 16);
+                rowLayout.padding = new RectOffset(24, 24, 14, 14);
+                rowLayout.childForceExpandWidth = false;
+                var text = UiKit.Label(row, $"<b>{m.Text}</b>\n<size=24><color=#9EABC2>보상 {m.RewardText} · {m.Progress}/{m.Goal}</color></size>", 30);
+                UiKit.Width(text, 0, 1);
+                bool canClaim = m.Done && !m.Claimed && !money;
+                var claim = UiKit.Button(row, m.Claimed ? "받음" : !m.Done ? "진행 중" : money ? "육성에서" : "받기", () =>
+                {
+                    if (!daily.Claim(index, _club, null)) return;
+                    SaveStore.SaveClub(_club);
+                    ShowMissions();
+                }, canClaim ? new Color(0.2f, 0.75f, 0.45f) : UiKit.Background);
+                claim.interactable = canClaim;
+                claim.GetComponentInChildren<Text>().fontSize = 26;
+                UiKit.Width(claim, 180);
+            }
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Button(card, "닫기", Build, UiKit.Muted), 110);
         }
 
         void BuildLogo()
@@ -74,27 +139,27 @@ namespace BaseballGame
             var logo = ArtLibrary.Get("UI/logo");
             if (logo != null)
             {
-                ArtLibrary.Banner(_root, logo, 420).preserveAspect = true;
+                ArtLibrary.Banner(_root, logo, 300).preserveAspect = true;
                 return;
             }
             // Until there's a logo picture: a ball, the name and a tagline.
             var top = UiKit.Empty(_root, "Logo");
-            UiKit.Height(top, 420);
+            UiKit.Height(top, 300);
             UiKit.Column(top, 0, 8).childAlignment = TextAnchor.MiddleCenter;
             var ball = UiKit.Empty(top, "Ball");
-            UiKit.Height(ball, 170);
+            UiKit.Height(ball, 120);
             var disc = UiKit.Panel(ball, "Disc", Color.white);
             disc.GetComponent<Image>().sprite = UiKit.CircleSprite;
             disc.GetComponent<Image>().type = Image.Type.Simple;
             disc.anchorMin = disc.anchorMax = new Vector2(0.5f, 0.5f);
-            disc.sizeDelta = new Vector2(160, 160);
-            var seams = UiKit.Label(disc, "(   )", 92, TextAnchor.MiddleCenter, new Color(0.85f, 0.2f, 0.25f));
+            disc.sizeDelta = new Vector2(110, 110);
+            var seams = UiKit.Label(disc, "(   )", 64, TextAnchor.MiddleCenter, new Color(0.85f, 0.2f, 0.25f));
             UiKit.Stretch(seams.rectTransform);
             UiAnim.PopIn(disc, 0.4f);
-            var title = UiKit.Label(top, GameTitle, 96, TextAnchor.MiddleCenter);
+            var title = UiKit.Label(top, GameTitle, 84, TextAnchor.MiddleCenter);
             title.fontStyle = FontStyle.Bold;
             title.gameObject.AddComponent<Outline>().effectColor = new Color(0.1f, 0.25f, 0.6f, 0.9f);
-            UiKit.Height(title, 140);
+            UiKit.Height(title, 110);
             UiKit.Height(UiKit.Label(top, "신인부터 레전드까지, 한 선수의 야구 인생", 32, TextAnchor.MiddleCenter, new Color(1f, 0.82f, 0.3f)), 60);
         }
 
@@ -103,7 +168,7 @@ namespace BaseballGame
             var career = summary.Career;
             Color team = career == null ? UiKit.Muted : UiKit.TeamColor(career.MyTeam.Name);
             var card = UiKit.Panel(_root, $"Slot {summary.Slot}", UiKit.Card);
-            UiKit.Height(card, 190);
+            UiKit.Height(card, 170);
             var row = UiKit.Row(card, 18);
             row.padding = new RectOffset(0, 24, 0, 0);
             row.childForceExpandWidth = false;

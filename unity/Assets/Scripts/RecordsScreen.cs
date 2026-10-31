@@ -33,7 +33,19 @@ namespace BaseballGame
             screen.Show(Tab.Standings);
         }
 
-        void Build()
+        /// <summary>Just my team (challenge games, roster, numbers), from the home screen with no career.</summary>
+        public static void OpenMyTeam(Club club, System.Action onClose)
+        {
+            var screen = new GameObject("MyTeamScreen").AddComponent<RecordsScreen>();
+            screen._club = club;
+            screen._onClose = onClose;
+            screen.Build(teamOnly: true);
+            screen.Show(Tab.MyTeam);
+        }
+
+        System.Action _onClose;
+
+        void Build(bool teamOnly = false)
         {
             var canvasGo = new GameObject("RecordsCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
@@ -52,9 +64,10 @@ namespace BaseballGame
             UiKit.Column(root, 40, 20);
             UiKit.Backdrop(root, ArtLibrary.Background("records"));
 
-            UiKit.Height(UiKit.Label(root, "기록", 48), 80);
+            UiKit.Height(UiKit.Label(root, teamOnly ? "나만의 팀" : "기록", 48), 80);
 
             var tabs = UiKit.Empty(root, "Tabs");
+            tabs.gameObject.SetActive(!teamOnly);
             UiKit.Height(tabs, 100);
             UiKit.Row(tabs, 16);
             _tabs[Tab.Standings] = UiKit.Button(tabs, "리그 순위", () => Show(Tab.Standings), UiKit.Card);
@@ -71,7 +84,7 @@ namespace BaseballGame
             UiKit.Height(scroll.parent, 0, 1);
             _content = scroll;
 
-            UiKit.Height(UiKit.Button(root, "닫기", () => Destroy(gameObject), UiKit.Muted), 110);
+            UiKit.Height(UiKit.Button(root, "닫기", () => { _onClose?.Invoke(); Destroy(gameObject); }, UiKit.Muted), 110);
         }
 
         void Show(Tab tab)
@@ -487,7 +500,8 @@ namespace BaseballGame
         /// <summary>My team lives in the club, which the growth screen saves too; save here so a result can't be lost.</summary>
         void Save()
         {
-            if (_career != null && _career.IsMidGame) return;
+            if (_career == null) { SaveStore.SaveClub(_club); return; } // from home: the slots stay as they are
+            if (_career.IsMidGame) return;
             SaveStore.Save(_club, _career);
         }
 

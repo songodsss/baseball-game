@@ -162,8 +162,7 @@ namespace BaseballGame
             Tappable(_header, () => ProfileScreen.Open(_career));
             _header.rectTransform.sizeDelta = new Vector2(0, 120);
             UiKit.Width(_header, 0, 1);
-            var change = HeaderButton(top, "선수\n변경", ConfirmSwitchPlayer);
-            change.GetComponentInChildren<Text>().fontSize = 24;
+            HeaderButton(top, "홈", ConfirmSwitchPlayer);
             _missionButton = HeaderButton(top, "미션", ShowMissions);
             HeaderButton(top, "도감", () => CollectionScreen.Open(_career, _club));
             HeaderButton(top, "설정", ShowSettings);
@@ -1197,10 +1196,10 @@ namespace BaseballGame
             // Not over a decision card (season end, offers, a big at bat); the new-player card may leave.
             if (_career == null) { BackToTitle(); return; }
             if (_overlay != null) return;
-            var card = OpenOverlay("다른 선수 키우기");
-            UiKit.Height(UiKit.Label(card, $"{_career.Me.Name} 선수는 지금 상태 그대로 슬롯 {SaveStore.CurrentSlot}에 저장돼요.\n" +
-                "슬롯 화면에서 다른 슬롯을 고르거나 새 선수를 만들 수 있어요.\n언제든 다시 돌아와서 이어 할 수 있어요.", 32, TextAnchor.MiddleCenter), 0, 1);
-            UiKit.Height(UiKit.Button(card, "슬롯 화면으로", BackToTitle, UiKit.Accent), 110);
+            var card = OpenOverlay("홈으로 갈까요?");
+            UiKit.Height(UiKit.Label(card, $"{_career.Me.Name} 선수는 지금 상태 그대로 슬롯 {SaveStore.CurrentSlot}에 저장돼요.\n\n" +
+                "홈에서 다른 선수를 키우거나 새 선수를 만들 수 있고,\n나만의 팀·도감·미션도 볼 수 있어요.\n언제든 돌아와서 이어 할 수 있어요.", 32, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "홈으로", BackToTitle, UiKit.Accent), 110);
             UiKit.Height(UiKit.Button(card, "취소", CloseOverlay, UiKit.Muted), 110);
         }
 
