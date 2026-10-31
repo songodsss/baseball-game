@@ -47,10 +47,11 @@ namespace BaseballGame
         RectTransform _emblem;
         string _emblemTeam;
         readonly Dictionary<Stat, int> _shownRatings = new Dictionary<Stat, int>();
-        Text _header, _status, _log, _seasonLengthLabel, _todayText, _condition;
+        Text _header, _status, _log, _seasonLengthLabel, _todayText;
         RectTransform _fatigueFill;
         readonly Dictionary<Stat, Text> _ratingTexts = new Dictionary<Stat, Text>();
         readonly Dictionary<Stat, RectTransform> _expFills = new Dictionary<Stat, RectTransform>();
+        Text _condition;
         readonly List<Button> _actionButtons = new List<Button>();
         readonly Dictionary<Stat, GameObject> _ratingRows = new Dictionary<Stat, GameObject>();
         Button _seasonLengthButton, _watchButton, _adButton;
@@ -88,10 +89,25 @@ namespace BaseballGame
 
         void OnApplicationQuit() => Save();
 
+        /// <summary>
+        /// Hands the phone reminders what they need (they live in their own assembly and read PlayerPrefs). Also
+        /// called on every save and refresh, since which object hears about the app pausing first isn't fixed.
+        /// </summary>
+        void TellNotifications()
+        {
+            PlayerPrefs.SetString(NotifyPlayerKey, _career != null && !_retired ? _career.Me.Name : "");
+            string today = DailyMissions.DateOf(System.DateTime.Now);
+            if (_club.Daily.CheckedInToday(today)) PlayerPrefs.SetString(NotifyCheckInKey, today);
+        }
+
+        // Same keys as PhoneNotifications (Notifications folder), which this assembly doesn't reference.
+        const string NotifyEnabledKey = "notify_enabled", NotifyPlayerKey = "notify_player", NotifyCheckInKey = "notify_checkin";
+
         /// <summary>Between retiring and starting the next player there's no career to save.</summary>
         void Save()
         {
             // Mid-game the day is half played; the last save (before the day) stands, and the day replays on restart.
+            TellNotifications();
             if (_career != null && _career.IsMidGame) return;
             SaveStore.Save(_club, _retired ? null : _career);
         }
@@ -192,12 +208,13 @@ namespace BaseballGame
         void BuildStatusCard(RectTransform root)
         {
             var card = UiKit.Panel(root, "Status", UiKit.Card);
-            UiKit.Height(card, 230);
+            UiKit.Height(card, 180);
             UiKit.Column(card, 24, 12);
             _status = UiKit.Label(card, "", 32);
             UiKit.Height(_status, 90);
             _condition = UiKit.Label(card, "", 28, TextAnchor.MiddleLeft);
             UiKit.Height(_condition, 38);
+            card.GetComponent<LayoutElement>().preferredHeight += 50; // room for the condition line
             var fatigueRow = UiKit.Empty(card, "Fatigue");
             UiKit.Height(fatigueRow, 66);
             UiKit.Row(fatigueRow, 16).childForceExpandWidth = false;
@@ -904,6 +921,15 @@ namespace BaseballGame
                 ShowTips();
             }, UiKit.Background), 110);
 
+            UiKit.Height(UiKit.Label(card, "폰 알림", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
+            bool notify = PlayerPrefs.GetInt(NotifyEnabledKey, 1) == 1;
+            UiKit.Height(UiKit.Button(card, notify ? "출석·훈련 알림: 켜짐 (안드로이드)" : "출석·훈련 알림: 꺼짐", () =>
+            {
+                PlayerPrefs.SetInt(NotifyEnabledKey, notify ? 0 : 1);
+                PlayerPrefs.Save();
+                ShowSettings();
+            }, notify ? UiKit.Accent : UiKit.Background), 110);
+
             UiKit.Height(UiKit.Label(card, "데이터", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
             UiKit.Height(UiKit.Button(card, "모든 데이터 지우고 처음부터", ConfirmReset, UiKit.Warning), 110);
 
@@ -1519,6 +1545,7 @@ namespace BaseballGame
         void Refresh()
         {
             if (_career == null) return; // first launch, still on the new-player card
+            TellNotifications();
             var me = _career.Me;
             var rank = _career.League.Ranked().FindIndex(s => s.Team == _career.MyTeam) + 1;
             string role = me.IsPitcher && me.Role != PitcherRole.Starter
