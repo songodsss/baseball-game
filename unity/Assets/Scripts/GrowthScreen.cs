@@ -438,6 +438,7 @@ namespace BaseballGame
         /// <summary>The game is paused at my big at bat: read the pitcher and pick an approach.</summary>
         void ShowAtBat(DayResult result)
         {
+            _shownAtBatLog = result.AtBatLog.Count;
             _club.Daily.Count(MissionKind.BigMoment);
             if (result.AtBat.Pitching) { ShowPitchChoice(result); return; }
             var s = result.AtBat;
@@ -671,10 +672,39 @@ namespace BaseballGame
 
         void Answer(Approach approach)
         {
-            CloseOverlay();
+            int before = _shownAtBatLog;
             var result = _career.ChooseApproach(approach);
-            if (result.AtBat != null) ShowAtBat(result);
-            else AfterDay(result);
+            var fresh = result.AtBatLog.Skip(before).ToList();
+            void Continue()
+            {
+                CloseOverlay();
+                if (result.AtBat != null) ShowAtBat(result);
+                else AfterDay(result);
+            }
+            if (fresh.Count == 0) { Continue(); return; }
+            ShowChoiceResult(fresh, Continue);
+        }
+
+        /// <summary>How many of today's AtBatLog entries the paused game had already settled when the choice popped up.</summary>
+        int _shownAtBatLog;
+
+        /// <summary>Right after a choice: did the read land, and what happened. Entries look like "7회말 2루타 (직구 노림 적중!)".</summary>
+        void ShowChoiceResult(List<string> entries, System.Action next)
+        {
+            var card = OpenOverlay(_career.Me.IsPitcher ? "승부 결과" : "노림수 결과");
+            foreach (var entry in entries)
+            {
+                int open = entry.LastIndexOf('(');
+                string play = open > 0 ? entry.Substring(0, open).Trim() : entry;
+                string note = open > 0 ? entry.Substring(open + 1).TrimEnd(')') : "";
+                bool good = note.Contains("적중") || note.Contains("성공") || note.Contains("안타");
+                string color = good ? "#FFD24D" : "#F28C40";
+                var label = UiKit.Label(card, $"<size=44><color={color}><b>{note}</b></color></size>\n<size=34>{play}</size>", 34, TextAnchor.MiddleCenter);
+                UiKit.Height(label, 180);
+                if (good) UiAnim.PopIn(label);
+            }
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Button(card, "계속", () => next()), 120);
         }
 
         // ---------- Season goals ----------
