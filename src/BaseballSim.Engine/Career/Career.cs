@@ -260,11 +260,11 @@ namespace BaseballSim.Career
             WriteNews(result);
 
             // A main story scene, when its moment has come, takes the place of the day's random event.
+            // The random one is still rolled, so the story doesn't shift the rest of the day's luck.
             if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
             {
-                PendingEvent = MainStory.Next(this, result);
-                if (PendingEvent == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
-                    PendingEvent = StoryEvents.Pick(this, result, _random);
+                var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
+                PendingEvent = MainStory.Next(this, result) ?? random;
             }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
