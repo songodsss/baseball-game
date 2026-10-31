@@ -22,7 +22,7 @@ namespace BaseballSim.Career
         /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
         /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
         /// 23: the league paper. 24: monthly pay.
-        public const int Version = 24;
+        public const int Version = 25;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -451,6 +451,9 @@ namespace BaseballSim.Career
             // Added in version 24.
             w.Write(career.PaidMonths);
             w.Write(career.PendingBonus);
+
+            // Added in version 25.
+            WriteList(w, career.Me.History, h => WriteList(w, h.Postseason, w.Write));
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -624,6 +627,11 @@ namespace BaseballSim.Career
             }
             // Older saves were paid per game: count the months already played as paid.
             else career.PaidMonths = career.Day * Career.Paydays / career.League.GamesPerSeason;
+            if (version >= 25)
+            {
+                int k = 0;
+                ReadList(r, () => { var h = me.History[k++]; h.Postseason = ReadList(r, r.ReadString); return h; });
+            }
             return career;
         }
 

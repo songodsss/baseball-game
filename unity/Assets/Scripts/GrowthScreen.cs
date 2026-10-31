@@ -1344,7 +1344,57 @@ namespace BaseballGame
                 UiKit.Width(upgrade, 420);
             }
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
-            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+            var buttons = UiKit.Empty(card, "Buttons");
+            UiKit.Height(buttons, 110);
+            UiKit.Row(buttons, 16);
+            UiKit.Button(buttons, "전체 가격표", ShowPriceList, UiKit.Card);
+            UiKit.Button(buttons, "닫기", CloseOverlay, UiKit.Muted);
+        }
+
+        /// <summary>Every gear tier and facility level with its price, so saving up has a target.</summary>
+        void ShowPriceList()
+        {
+            var card = OpenOverlay("전체 가격표");
+            var body = UiKit.ScrollList(card, 4);
+            UiKit.Height(body.parent, 0, 1);
+            void Section(string title) => UiKit.Height(UiKit.Label(body, title, 32, TextAnchor.LowerLeft, Gold), 70);
+            void Line(string text) => UiKit.Height(UiKit.Label(body, text, 28, TextAnchor.MiddleLeft), 46);
+            string Won(int manwon) => manwon >= 10000
+                ? $"{manwon / 10000}억" + (manwon % 10000 > 0 ? $" {manwon % 10000:N0}만원" : "원")
+                : $"{manwon:N0}만원";
+
+            Section("장비 (부위마다 4단계)");
+            var gear = EquipmentCatalog.All;
+            foreach (var group in gear.GroupBy(e => e.Slot))
+            {
+                _career.Me.Equipped.TryGetValue(group.Key, out var current);
+                var tiers = group.OrderBy(e => e.Price).Select(e =>
+                {
+                    string bonus = string.Join(" ", e.Bonus.Select(b => $"{StatNames[_career.Me.RoleStat(b.Key)]}+{b.Value}"));
+                    string text = $"{e.Name.Split(' ')[0]} {Won(e.Price)} ({bonus})";
+                    return current != null && e.Price <= current.Price ? $"<color=#5FA8FF>{text} (보유)</color>" : text;
+                });
+                Line($"<b>{group.First().Name.Substring(group.First().Name.IndexOf(' ') + 1)}</b>");
+                foreach (var t in tiers) Line("   " + t);
+            }
+            Line($"<color=#9EABC2>장비 전부 명품까지: {Won(gear.Sum(e => e.Price))}</color>");
+
+            Section("개인 시설 (장비를 다 모으면 열려요)");
+            foreach (var f in Facilities.All)
+            {
+                int have = _career.Me.FacilityLevel(f);
+                Line($"<b>{Facilities.Name(f)}</b>");
+                for (int lv = 1; lv <= Facilities.MaxLevel; lv++)
+                {
+                    string text = $"Lv.{lv} {Won(Facilities.Price(lv))} · {Facilities.Describe(f, lv)}";
+                    Line("   " + (lv <= have ? $"<color=#5FA8FF>{text} (보유)</color>" : text));
+                }
+            }
+            int total = 0;
+            for (int lv = 1; lv <= Facilities.MaxLevel; lv++) total += Facilities.Price(lv);
+            Line($"<color=#9EABC2>시설 한 곳 끝까지: {Won(total)}</color>");
+
+            UiKit.Height(UiKit.Button(card, "상점으로", ShowShop, UiKit.Muted), 110);
         }
 
         void ShowSeasonEnd()

@@ -549,6 +549,7 @@ namespace BaseballSim.Career
                 Club = MyTeam.Name,
                 Notes = SeasonNotes,
                 FarmDays = FarmDays,
+                Postseason = BaseballSim.Career.Postseason.Describe(summary.Postseason, MyTeam),
             };
             if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
             Me.History.Add(summary.Record);

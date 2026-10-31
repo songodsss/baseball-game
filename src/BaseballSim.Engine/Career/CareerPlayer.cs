@@ -22,6 +22,8 @@ namespace BaseballSim.Career
         public string Club;
         /// <summary>Moves this season: "5월 2군 강등", trades, a release.</summary>
         public List<string> Notes = new List<string>();
+        /// <summary>That autumn: my team's result first ("플레이오프 탈락 · 서울 블루윙스 우승"), then each series.</summary>
+        public List<string> Postseason = new List<string>();
         /// <summary>Days spent in 2군.</summary>
         public int FarmDays;
         /// <summary>A season of military service.</summary>

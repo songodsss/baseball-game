@@ -339,6 +339,19 @@ namespace BaseballGame
                 foreach (var h in titled) Note($"{CareerState.YearOf(h.Season)}  {string.Join(", ", h.Titles)}", TextAnchor.MiddleLeft, 60);
             }
 
+            var autumns = me.History.Where(h => h.Postseason.Count > 0).ToList();
+            if (autumns.Count > 0)
+            {
+                Section("가을야구");
+                foreach (var h in Enumerable.Reverse(autumns))
+                {
+                    bool won = h.Postseason[0].StartsWith("우승");
+                    Note($"{CareerState.YearOf(h.Season)}  " + (won ? $"<color=#FFD24D><b>{h.Postseason[0]}</b></color>" : h.Postseason[0]) + $"  <size=22>({h.Club})</size>",
+                        TextAnchor.MiddleLeft, 56);
+                    foreach (var series in h.Postseason.Skip(1)) Note("      " + series, TextAnchor.MiddleLeft, 44);
+                }
+            }
+
             var moved = me.History.Where(h => h.Notes.Count > 0 || h.FarmDays > 0).ToList();
             if (moved.Count > 0)
             {
