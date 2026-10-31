@@ -259,8 +259,13 @@ namespace BaseballSim.Career
             PayMonths(result);
             WriteNews(result);
 
-            if (PendingTrade == null && result.AllStar == null && result.Tournament == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
-                PendingEvent = StoryEvents.Pick(this, result, _random);
+            // A main story scene, when its moment has come, takes the place of the day's random event.
+            // The random one is still rolled, so the story doesn't shift the rest of the day's luck.
+            if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
+            {
+                var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
+                PendingEvent = MainStory.Next(this, result) ?? random;
+            }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
             result.Breakthroughs = new List<Stat>(Me.NewBreakthroughs);
