@@ -194,10 +194,11 @@ namespace BaseballSim.Career
         }
 
         /// <summary>Builds the match-engine player for one game: ratings plus gear, form from fatigue.</summary>
-        public Player ForGame(IRandom random)
+        public Player ForGame(IRandom random, int? todayForm = null)
         {
             var p = new Player(Id, Name);
-            int form = (int)Math.Round(random.NextDouble() * 8 - 4);
+            int form = (int)Math.Round(random.NextDouble() * 8 - 4); // drawn either way so the random stream stays put
+            if (todayForm.HasValue) form = todayForm.Value;
             int tiredness = Math.Max(0, (Fatigue - 50) / 6);
             p.Condition = form - tiredness + Morale / 2;
             p.Traits = new HashSet<string>(Traits);
