@@ -11,6 +11,15 @@ namespace BaseballSim.Career
         public double WinPct => Wins + Losses == 0 ? 0 : (double)Wins / (Wins + Losses);
     }
 
+    /// <summary>One batter's numbers for the season so far, for leaderboards and awards.</summary>
+    public class BatterSeason
+    {
+        public string Id;
+        public string Name;
+        public Team Team;
+        public BattingLine Line = new BattingLine();
+    }
+
     /// <summary>Ten fictional teams, every team playing once a day. One season is one year.</summary>
     public class League
     {
@@ -27,8 +36,30 @@ namespace BaseballSim.Career
             "대전 이글아이즈", "수원 나이츠", "창원 다이노스톰", "고양 레드폭스", "울산 웨일스",
         };
 
+        /// <summary>Each club's own uniform colour, "#RRGGBB", by team name.</summary>
+        public static readonly Dictionary<string, string> TeamColors = new Dictionary<string, string>
+        {
+            { "서울 블루윙스", "#2F6FE0" }, { "부산 마린스타즈", "#12A3A3" }, { "인천 시호크스", "#8C5A3C" },
+            { "대구 썬더볼츠", "#F2C230" }, { "광주 타이거릴리", "#F07A1A" }, { "대전 이글아이즈", "#7B4FCF" },
+            { "수원 나이츠", "#2A2F3A" }, { "창원 다이노스톰", "#2FA84F" }, { "고양 레드폭스", "#D63A3A" },
+            { "울산 웨일스", "#1E3A8A" },
+            { AllStar.EastName, "#E0475B" },
+            { AllStar.WestName, "#3E8EDE" },
+            { "대한민국", "#1F4FB4" },
+            { "일본", "#E8E8E8" },
+            { "대만", "#2E7D32" },
+            { "중국", "#C62828" },
+            { "홍콩", "#B71C5A" },
+        };
+
+        public static string ColorOf(Team team) => TeamColors.TryGetValue(team.Name, out var c) ? c : "#888888";
+
         public List<Team> Teams = new List<Team>();
         public Dictionary<Team, Standing> Standings = new Dictionary<Team, Standing>();
+        /// <summary>Every batter's season line, by player id. Reset with the standings.</summary>
+        public Dictionary<string, BatterSeason> Batting = new Dictionary<string, BatterSeason>();
+        /// <summary>Every pitcher's season line, by player id. Reset with the standings.</summary>
+        public Dictionary<string, PitcherSeason> Pitching = new Dictionary<string, PitcherSeason>();
         readonly Dictionary<Team, int> _nextStarter = new Dictionary<Team, int>();
 
         public League(RosterGenerator generator, int gamesPerSeason = 36)
@@ -37,6 +68,18 @@ namespace BaseballSim.Career
             foreach (var name in DefaultTeamNames) Teams.Add(generator.CreateTeam(name));
             ResetStandings();
         }
+
+        /// <summary>Rebuilds a saved league; SaveGame restores standings and rotations afterwards.</summary>
+        internal League(List<Team> teams, int gamesPerSeason)
+        {
+            SetSeasonLength(gamesPerSeason);
+            Teams = teams;
+            ResetStandings();
+        }
+
+        /// <summary>Starts handed out so far this season; SaveGame keeps rotations where they were.</summary>
+        internal int StartsMade(Team team) => _nextStarter[team];
+        internal void SetStartsMade(Team team, int starts) => _nextStarter[team] = starts;
 
         /// <summary>Only between seasons; Career.ChangeSeasonLength checks that.</summary>
         public void SetSeasonLength(int games)
@@ -49,6 +92,8 @@ namespace BaseballSim.Career
         public void ResetStandings()
         {
             Standings = Teams.ToDictionary(t => t, t => new Standing { Team = t });
+            Batting = new Dictionary<string, BatterSeason>();
+            Pitching = new Dictionary<string, PitcherSeason>();
             foreach (var t in Teams) _nextStarter[t] = 0;
         }
 
@@ -88,8 +133,41 @@ namespace BaseballSim.Career
             if (result.IsTie) { home.Ties++; away.Ties++; }
             else if (result.Winner == result.Home) { home.Wins++; away.Losses++; }
             else { away.Wins++; home.Losses++; }
+
+            // Call while the lineups are as they were for the game, so every batter is found on a team.
+            foreach (var pair in result.Batting)
+            {
+                var team = result.Away.Lineup.Contains(pair.Key) ? result.Away : result.Home;
+                if (!Batting.TryGetValue(pair.Key.Id, out var season))
+                    Batting[pair.Key.Id] = season = new BatterSeason { Id = pair.Key.Id, Name = pair.Key.Name, Team = team };
+                Career.Accumulate(season.Line, pair.Value);
+            }
+            foreach (var pair in result.Pitching)
+            {
+                bool awayArm = result.Away.Rotation.Contains(pair.Key) || result.Away.Bullpen.Contains(pair.Key);
+                var team = awayArm ? result.Away : result.Home;
+                bool start = team.Rotation.Contains(pair.Key);
+                int ours = awayArm ? result.AwayScore : result.HomeScore, theirs = awayArm ? result.HomeScore : result.AwayScore;
+                var (win, loss) = start ? PitcherLine.Decision(pair.Value, ours, theirs) : (false, false);
+                if (!Pitching.TryGetValue(pair.Key.Id, out var season))
+                    Pitching[pair.Key.Id] = season = new PitcherSeason { Id = pair.Key.Id, Name = pair.Key.Name, Team = team };
+                season.Line.Add(pair.Value, start, win, loss);
+            }
         }
 
+        /// <summary>Innings needed to qualify for the ERA title: one per team game, as in pro leagues.</summary>
+        public int QualifyingOuts => 3 * GamesPerSeason;
+
+        /// <summary>Plate appearances needed to qualify for rate titles: 3.1 per team game, as in pro leagues.</summary>
+        public int QualifyingPa => (int)Math.Ceiling(3.1 * GamesPerSeason);
+
         public List<Standing> Ranked() => Standings.Values.OrderByDescending(s => s.WinPct).ToList();
+
+        /// <summary>Games behind the leader: half the difference in wins plus half the difference in losses.</summary>
+        public double GamesBehind(Standing standing)
+        {
+            var leader = Ranked()[0];
+            return ((leader.Wins - standing.Wins) + (standing.Losses - leader.Losses)) / 2.0;
+        }
     }
 }

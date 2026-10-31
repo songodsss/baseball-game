@@ -56,7 +56,7 @@ namespace BaseballSim
 
         string NextId() => $"p{++_nextId}";
 
-        string RandomName() =>
+        public string RandomName() =>
             FamilyNames[(int)(_random.NextDouble() * FamilyNames.Length)]
             + GivenNames[(int)(_random.NextDouble() * GivenNames.Length)];
 

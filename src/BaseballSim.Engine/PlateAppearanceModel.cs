@@ -70,14 +70,14 @@ namespace BaseballSim
 
             var odds = new OutcomeOdds
             {
-                Strikeout = BaseStrikeout * Math.Exp(0.6 * velocity + 0.25 * breaking - 0.6 * contact),
+                Strikeout = BaseStrikeout * Math.Exp(0.6 * velocity + 0.25 * breaking - 0.52 * contact),
                 Walk = BaseWalk * Math.Exp(0.6 * eye - 0.7 * control),
                 HitByPitch = BaseHitByPitch * Math.Exp(-0.3 * control),
                 HomeRun = BaseHomeRun * Math.Exp(1.0 * power - 0.4 * breaking - 0.2 * velocity),
             };
 
             double inPlay = Math.Max(0.2, 1 - odds.Strikeout - odds.Walk - odds.HitByPitch - odds.HomeRun);
-            double babip = Clamp(BaseBabip * Math.Exp(0.25 * contact + 0.1 * speed - 0.2 * breaking - 0.15 * defense), 0.18, 0.42);
+            double babip = Clamp(BaseBabip * Math.Exp(0.18 * contact + 0.08 * speed - 0.2 * breaking - 0.15 * defense), 0.18, 0.42);
             double hits = inPlay * babip;
             double outs = inPlay - hits;
 
@@ -97,7 +97,16 @@ namespace BaseballSim
             return odds;
         }
 
-        static double Centre(int rating, int condition) => (Clamp(rating + condition, 1, 100) - 50) / 50.0;
+        // Above SoftCap each point counts for less, so a maxed-out star still has bad days.
+        public const int SoftCap = 70;
+        const double OverCapWeight = 0.55;
+
+        static double Centre(int rating, int condition)
+        {
+            double r = Clamp(rating + condition, 1, 100);
+            if (r > SoftCap) r = SoftCap + (r - SoftCap) * OverCapWeight;
+            return (r - 50) / 50.0;
+        }
 
         static double Clamp(double value, double min, double max) => value < min ? min : value > max ? max : value;
 
