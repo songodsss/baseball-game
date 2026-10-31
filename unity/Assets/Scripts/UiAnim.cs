@@ -28,6 +28,43 @@ namespace BaseballGame
         public static void Pulse(Component c, float scale = 1.25f, float seconds = 0.35f) =>
             On(c).Run(Swell(c.transform, scale, seconds));
 
+        /// <summary>
+        /// A short text that rises from a spot and fades away, like "+12" over a stat that grew.
+        /// It is parented to the canvas so layouts don't move it, and removes itself.
+        /// </summary>
+        public static void FloatUp(RectTransform anchor, string text, Color color, int size = 34, float delay = 0f)
+        {
+            var canvas = anchor.GetComponentInParent<Canvas>();
+            if (canvas == null) return;
+            var label = UiKit.Label(canvas.transform, text, size, TextAnchor.MiddleCenter, color);
+            label.fontStyle = FontStyle.Bold;
+            label.raycastTarget = false;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            var outline = label.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectColor = new Color(0, 0, 0, 0.7f);
+            var rt = label.rectTransform;
+            rt.sizeDelta = new Vector2(300, 60);
+            rt.position = anchor.TransformPoint(anchor.rect.center);
+            var group = label.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 0;
+            label.gameObject.AddComponent<UiAnim>().Run(Rise(rt, group, delay));
+        }
+
+        static IEnumerator Rise(RectTransform rt, CanvasGroup group, float delay)
+        {
+            for (float t = 0; t < delay; t += Time.unscaledDeltaTime) yield return null;
+            Vector3 start = rt.localPosition;
+            const float seconds = 1.1f;
+            for (float t = 0; t < seconds; t += Time.unscaledDeltaTime)
+            {
+                float k = t / seconds;
+                rt.localPosition = start + Vector3.up * (90 * Mathf.Sqrt(k));
+                group.alpha = k < 0.15f ? k / 0.15f : 1 - Mathf.Clamp01((k - 0.6f) / 0.4f);
+                yield return null;
+            }
+            Destroy(rt.gameObject);
+        }
+
         void Run(IEnumerator routine)
         {
             if (!isActiveAndEnabled) return;

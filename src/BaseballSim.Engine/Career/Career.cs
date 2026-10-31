@@ -24,6 +24,8 @@ namespace BaseballSim.Career
         public int Season;
         public int Day;
         public DailyAction Action;
+        /// <summary>Condition stars when training today (0 on a rest day); 4–5 stars train better.</summary>
+        public int ConditionStars;
         /// <summary>Rating points gained today, from training and from the game.</summary>
         public Dictionary<Stat, int> PointsGained = new Dictionary<Stat, int>();
         public bool GotInjured;
@@ -38,7 +40,10 @@ namespace BaseballSim.Career
         public List<string> Milestones = new List<string>();
         /// <summary>A pitcher resting between starts while his club played.</summary>
         public bool BetweenStarts;
+        /// <summary>Money paid today: only on a payday (see <see cref="Payday"/>).</summary>
         public int MoneyEarned;
+        /// <summary>Set on the day a monthly salary is paid.</summary>
+        public Payday Payday;
         /// <summary>A story event to answer before the next day, or null.</summary>
         public StoryEvent Event;
         public List<Achievement> NewAchievements = new List<Achievement>();
@@ -251,9 +256,16 @@ namespace BaseballSim.Career
             ReviewRoster(result);
             if (Day == AllStarDay) PlayAllStar(result);
             if (Day == TournamentDay && NationalTeam.IsTournamentYear(Year)) PlayTournament(result);
+            PayMonths(result);
+            WriteNews(result);
 
-            if (PendingTrade == null && result.AllStar == null && result.Tournament == null && _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight))
-                PendingEvent = StoryEvents.Pick(this, result, _random);
+            // A main story scene, when its moment has come, takes the place of the day's random event.
+            // The random one is still rolled, so the story doesn't shift the rest of the day's luck.
+            if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
+            {
+                var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
+                PendingEvent = MainStory.Next(this, result) ?? random;
+            }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
             result.Breakthroughs = new List<Stat>(Me.NewBreakthroughs);
@@ -298,7 +310,8 @@ namespace BaseballSim.Career
             }
 
             var (main, side) = TrainingTargets(action);
-            double mult = AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
+            result.ConditionStars = ConditionStars;
+            double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
             AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult)));
             AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult)));
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
@@ -383,6 +396,8 @@ namespace BaseballSim.Career
         MyGameState _game;
         public bool IsMidGame => _game != null;
         public AtBatSituation PendingAtBat => _game?.Result.AtBat;
+        /// <summary>The club my team is playing in the paused game, or null.</summary>
+        public Team MidGameOpponent => _game == null ? null : _game.Home == MyTeam ? _game.Away : _game.Home;
 
         /// <summary>Returns false if the game paused at a big at bat.</summary>
         bool StartMyGame(Team away, Team home, DayResult result)
@@ -406,7 +421,7 @@ namespace BaseballSim.Career
                 Home = home,
                 AwayStarter = awayStarter,
                 HomeStarter = homeStarter,
-                Player = Me.ForGame(_random),
+                Player = Me.ForGame(_random, TodayForm),
                 Seed = (int)(_random.NextDouble() * int.MaxValue),
                 Result = result,
             };
@@ -467,6 +482,7 @@ namespace BaseballSim.Career
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
             if (result.MyLine.AtBats > 0) HitlessStreak = result.MyLine.Hits == 0 ? HitlessStreak + 1 : 0;
             Accumulate(SeasonLine, result.MyLine);
+            Me.CareerStolenBases += result.MyLine.StolenBases;
             Accumulate(StintLine, result.MyLine);
             StintDays++;
             GainGameExp(result, result.MyLine);
@@ -489,15 +505,18 @@ namespace BaseballSim.Career
             AddPoints(result, Stat.Speed, Me.GainExp(Stat.Speed, Exp(l.Runs + 2 * l.Triples)));
         }
 
+        /// <summary>
+        /// Banks today's performance bonuses (contract incentives) toward the next payday; nothing is
+        /// paid on the day itself.
+        /// </summary>
         void PayForGame(DayResult result)
         {
-            int pay = Me.Salary / League.GamesPerSeason;
             var l = result.MyLine;
             var p = result.MyPitching;
-            if (l != null) pay += DayWeight * (5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn);
-            if (p != null) pay += DayWeight * (60 * p.Wins + 40 * p.Saves + 25 * p.Holds + 5 * p.Strikeouts);
-            Me.Money += pay;
-            result.MoneyEarned = pay;
+            int bonus = 0;
+            if (l != null) bonus += DayWeight * (5 * l.Hits + 30 * l.HomeRuns + 5 * l.RunsBattedIn);
+            if (p != null) bonus += DayWeight * (60 * p.Wins + 40 * p.Saves + 25 * p.Holds + 5 * p.Strikeouts);
+            PendingBonus += bonus;
         }
 
         /// <summary>
@@ -577,6 +596,8 @@ namespace BaseballSim.Career
             Day = 0;
             InjuredThisSeason = false;
             SeasonLine = new BattingLine();
+            PaidMonths = 0;
+            PendingBonus = 0;
             SeasonPitching = new PitcherLine();
             DaysSinceStart = StartEvery - 1;
             ResetSeasonMoves();
@@ -595,6 +616,7 @@ namespace BaseballSim.Career
             summary.Offers = new List<ContractOffer>(PendingOffers);
             summary.SalaryTalk = PendingSalary;
             summary.CanEnlist = CanEnlist;
+            WriteSeasonNews(summary);
             return summary;
         }
 
@@ -700,6 +722,7 @@ namespace BaseballSim.Career
             total.Doubles += add.Doubles; total.Triples += add.Triples; total.HomeRuns += add.HomeRuns;
             total.Walks += add.Walks; total.Strikeouts += add.Strikeouts; total.Runs += add.Runs;
             total.RunsBattedIn += add.RunsBattedIn;
+            total.StolenBases += add.StolenBases; total.CaughtStealing += add.CaughtStealing;
         }
 
         static double Normal(IRandom random, double mean, double sd)

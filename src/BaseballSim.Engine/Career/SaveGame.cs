@@ -19,7 +19,10 @@ namespace BaseballSim.Career
         /// 2: morale, slump streak, coach slot. 3: facilities. 4: titles, achievements, league batting.
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
-        public const int Version = 19;
+        /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
+        /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
+        /// 23: the league paper. 24: monthly pay.
+        public const int Version = 24;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -66,6 +69,47 @@ namespace BaseballSim.Career
             }
         }
 
+        // ---------- Club and career apart (player slots) ----------
+
+        /// <summary>The club alone, shared by every slot.</summary>
+        public static byte[] ClubToBytes(Club club) => Wrap(w => WriteClub(w, club));
+
+        public static Club ClubFromBytes(byte[] data) => Unwrap(data, (r, version) => ReadClub(r, version));
+
+        /// <summary>One slot's career; the club it belongs to is saved separately.</summary>
+        public static byte[] CareerToBytes(Career career, Club club) => Wrap(w => WriteCareer(w, career, club));
+
+        public static Career CareerFromBytes(byte[] data, Club club, IRandom random) =>
+            Unwrap(data, (r, version) => ReadCareer(r, random, club, version));
+
+        static byte[] Wrap(Action<BinaryWriter> write)
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var w = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
+                {
+                    w.Write(Encoding.ASCII.GetBytes(Magic));
+                    w.Write(Version);
+                    write(w);
+                }
+                return stream.ToArray();
+            }
+        }
+
+        static T Unwrap<T>(byte[] data, Func<BinaryReader, int, T> read)
+        {
+            using (var stream = new MemoryStream(data))
+            using (var r = new BinaryReader(stream, Encoding.UTF8))
+            {
+                if (Encoding.ASCII.GetString(r.ReadBytes(Magic.Length)) != Magic)
+                    throw new InvalidDataException("Not a save file.");
+                int version = r.ReadInt32();
+                if (version > Version)
+                    throw new InvalidDataException($"Save version {version} is newer than this game ({Version}).");
+                return read(r, version);
+            }
+        }
+
         // ---------- Club ----------
 
         static void WriteClub(BinaryWriter w, Club club)
@@ -108,6 +152,26 @@ namespace BaseballSim.Career
             w.Write(club.ChallengeWins);
             // Added in version 19.
             WriteList(w, club.Roster, p => w.Write((int)p.Role));
+            // Added in version 20.
+            var d = club.Daily;
+            w.Write(d.Date);
+            WriteList(w, d.Today, m =>
+            {
+                w.Write((int)m.Kind);
+                w.Write(m.Goal);
+                w.Write(m.Progress);
+                w.Write(m.Claimed);
+                w.Write((int)m.Reward);
+                w.Write(m.Amount);
+            });
+            w.Write(d.LastCheckIn);
+            w.Write(d.Streak);
+            w.Write(d.TotalCheckIns);
+            w.Write(d.RecoveryTickets);
+            WriteList(w, club.LegendsMet.ToList(), w.Write);
+            WriteList(w, club.RivalsMet, w.Write);
+            // Added in version 22.
+            WriteList(w, club.Roster, p => { w.Write((int)p.Ending); w.Write((int)p.Route); });
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -174,6 +238,37 @@ namespace BaseballSim.Career
             {
                 int i = 0;
                 ReadList(r, () => club.Roster[i++].Role = (PitcherRole)r.ReadInt32());
+            }
+            if (version >= 20)
+            {
+                var d = club.Daily;
+                d.Date = r.ReadString();
+                d.Today = ReadList(r, () => new Mission
+                {
+                    Kind = (MissionKind)r.ReadInt32(),
+                    Goal = r.ReadInt32(),
+                    Progress = r.ReadInt32(),
+                    Claimed = r.ReadBoolean(),
+                    Reward = (RewardKind)r.ReadInt32(),
+                    Amount = r.ReadInt32(),
+                });
+                d.LastCheckIn = r.ReadString();
+                d.Streak = r.ReadInt32();
+                d.TotalCheckIns = r.ReadInt32();
+                d.RecoveryTickets = r.ReadInt32();
+                club.LegendsMet = new HashSet<string>(ReadList(r, r.ReadString));
+                club.RivalsMet = ReadList(r, r.ReadString);
+            }
+            if (version >= 22)
+            {
+                int e = 0;
+                ReadList(r, () =>
+                {
+                    var p = club.Roster[e++];
+                    p.Ending = (StoryEnding)r.ReadInt32();
+                    p.Route = (StoryRoute)r.ReadInt32();
+                    return p;
+                });
             }
             return club;
         }
@@ -328,6 +423,34 @@ namespace BaseballSim.Career
 
             // Added in version 19.
             w.Write((int)me.Role);
+
+            // Added in version 21.
+            w.Write(career.SeasonLine.StolenBases);
+            w.Write(career.SeasonLine.CaughtStealing);
+            w.Write(me.CareerStolenBases);
+
+            // Added in version 22.
+            var story = career.Story;
+            w.Write((int)story.Route);
+            WriteList(w, story.Seen, w.Write);
+            foreach (var b in MainStory.AllBonds) w.Write(story.BondOf(b));
+            WriteList(w, story.Flags, w.Write);
+            WriteList(w, story.Log, w.Write);
+            w.Write(story.LastSeason);
+            w.Write(story.LastDay);
+
+            // Added in version 23.
+            WriteList(w, career.News, n =>
+            {
+                w.Write(n.Season);
+                w.Write(n.Day);
+                w.Write((int)n.Kind);
+                w.Write(n.Headline);
+            });
+
+            // Added in version 24.
+            w.Write(career.PaidMonths);
+            w.Write(career.PendingBonus);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -475,6 +598,32 @@ namespace BaseballSim.Career
                     career.League.Pitching[p.Id] = p;
             }
             if (version >= 19) me.Role = (PitcherRole)r.ReadInt32();
+            if (version >= 21)
+            {
+                career.SeasonLine.StolenBases = r.ReadInt32();
+                career.SeasonLine.CaughtStealing = r.ReadInt32();
+                me.CareerStolenBases = r.ReadInt32();
+            }
+            if (version >= 22)
+            {
+                var story = career.Story;
+                story.Route = (StoryRoute)r.ReadInt32();
+                story.Seen = ReadList(r, r.ReadString);
+                foreach (var b in MainStory.AllBonds) story.Bonds[b] = r.ReadInt32();
+                story.Flags = ReadList(r, r.ReadString);
+                story.Log = ReadList(r, r.ReadString);
+                story.LastSeason = r.ReadInt32();
+                story.LastDay = r.ReadInt32();
+            }
+            if (version >= 23)
+                career.News = ReadList(r, () => new NewsItem { Season = r.ReadInt32(), Day = r.ReadInt32(), Kind = (NewsKind)r.ReadInt32(), Headline = r.ReadString() });
+            if (version >= 24)
+            {
+                career.PaidMonths = r.ReadInt32();
+                career.PendingBonus = r.ReadInt32();
+            }
+            // Older saves were paid per game: count the months already played as paid.
+            else career.PaidMonths = career.Day * Career.Paydays / career.League.GamesPerSeason;
             return career;
         }
 

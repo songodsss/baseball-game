@@ -36,6 +36,9 @@ namespace BaseballSim.Career
         public PitcherLine CareerPitching;
 
         public PitcherRole Role = PitcherRole.Starter;
+        /// <summary>Main story ending this career reached; None for players retired before the story existed.</summary>
+        public StoryEnding Ending;
+        public StoryRoute Route;
         public bool IsPitcher => Position == Position.Pitcher;
         public int Overall => (int)Math.Round(PeakRatings.Values.Average());
 
@@ -72,11 +75,24 @@ namespace BaseballSim.Career
         /// <summary>Levels my team has beaten at least once, and wins overall.</summary>
         public HashSet<ChallengeTier> ChallengesWon = new HashSet<ChallengeTier>();
         public int ChallengeWins;
+        /// <summary>Real-calendar missions and check-ins, shared by every player slot.</summary>
+        public DailyMissions Daily = new DailyMissions();
+        /// <summary>Legend ids and rival names met by any player of mine, for the album.</summary>
+        public HashSet<string> LegendsMet = new HashSet<string>();
+        public List<string> RivalsMet = new List<string>();
+
+        /// <summary>Legends met so far, counting the career in progress.</summary>
+        public HashSet<string> AllLegendsMet(Career career)
+        {
+            var all = new HashSet<string>(LegendsMet);
+            if (career != null) all.UnionWith(career.Me.MetLegends);
+            return all;
+        }
 
         /// <summary>Added to every potential of the next new player, at most +8.</summary>
         public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
 
-        public const int HallOfFameLine = 400;
+        public const int HallOfFameLine = 650;
         const int HallOfFamePoints = 100;
         /// <summary>만원 of leftover money per legacy point when donated at retirement.</summary>
         public const int DonationPerPoint = 10000;
@@ -132,6 +148,11 @@ namespace BaseballSim.Career
             retired.DonationPoints = retired.Donation / DonationPerPoint;
             me.Money = 0;
 
+            LegendsMet.UnionWith(me.MetLegends);
+            if (career.Rival != null && !RivalsMet.Contains(career.Rival.Name)) RivalsMet.Add(career.Rival.Name);
+
+            retired.Ending = MainStory.EndingFor(career, retired);
+            retired.Route = career.Story.Route;
             Roster.Add(retired);
             LegacyPoints += retired.LegacyPoints + retired.DonationPoints;
             return retired;

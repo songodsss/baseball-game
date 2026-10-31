@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace BaseballGame
@@ -76,6 +77,42 @@ namespace BaseballGame
 
         public static Color TeamColor(string teamName) =>
             ColorUtility.TryParseHtmlString(BaseballSim.Career.League.TeamColors.TryGetValue(teamName, out var hex) ? hex : "#888888", out var c) ? c : Color.gray;
+
+        // ---------- Screens ----------
+
+        /// <summary>
+        /// The event system that turns taps into button clicks, made once. It reads the new Input
+        /// System when the project uses it, and the old Input Manager otherwise.
+        /// </summary>
+        public static void EnsureEventSystem()
+        {
+            if (Object.FindAnyObjectByType<EventSystem>() != null) return;
+#if ENABLE_INPUT_SYSTEM && HAS_INPUT_SYSTEM
+            var module = typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule);
+#else
+            var module = typeof(StandaloneInputModule);
+#endif
+            var go = new GameObject("EventSystem", typeof(EventSystem), module);
+            Object.DontDestroyOnLoad(go);
+        }
+
+        /// <summary>A full-screen canvas laid out for a 1080x1920 phone, drawn above lower sorting orders.</summary>
+        public static GameObject Canvas(Transform parent, string name, int sortingOrder = 0)
+        {
+            EnsureEventSystem();
+            var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            go.transform.SetParent(parent, false);
+            var canvas = go.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = sortingOrder;
+            var scaler = go.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.matchWidthOrHeight = 0.5f;
+            scaler.gameObject.AddComponent<FitScaler>();
+            UiAnim.FadeIn(go.transform, 0.2f); // screens fade in rather than pop
+            return go;
+        }
 
         // ---------- Elements ----------
 
@@ -359,6 +396,23 @@ namespace BaseballGame
                 Width(cell, widths[i], widths[i] == 0 ? 1 : 0);
             }
             return row;
+        }
+    }
+
+    /// <summary>
+    /// Scales a canvas so the whole 1080x1920 layout always fits: by width on tall phones, by height
+    /// on wider screens (tablets, a landscape editor window), so nothing gets squashed.
+    /// </summary>
+    public class FitScaler : MonoBehaviour
+    {
+        CanvasScaler _scaler;
+
+        void Awake() => _scaler = GetComponent<CanvasScaler>();
+
+        void Update()
+        {
+            if (_scaler == null || Screen.height == 0) return;
+            _scaler.matchWidthOrHeight = (float)Screen.width / Screen.height > 1080f / 1920f ? 1f : 0f;
         }
     }
 }
