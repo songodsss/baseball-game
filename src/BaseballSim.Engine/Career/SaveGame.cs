@@ -20,7 +20,8 @@ namespace BaseballSim.Career
         /// 5: legends met; the coach slot is no longer written. 6: uniforms. 7: uniforms dropped again.
         /// </summary>
         /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
-        /// 21: stolen bases. 22: main story (on its own branch). 23: the league paper. 24: monthly pay.
+        /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
+        /// 23: the league paper. 24: monthly pay.
         public const int Version = 24;
 
         public static byte[] ToBytes(Club club, Career career)
@@ -169,6 +170,8 @@ namespace BaseballSim.Career
             w.Write(d.RecoveryTickets);
             WriteList(w, club.LegendsMet.ToList(), w.Write);
             WriteList(w, club.RivalsMet, w.Write);
+            // Added in version 22.
+            WriteList(w, club.Roster, p => { w.Write((int)p.Ending); w.Write((int)p.Route); });
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -255,6 +258,17 @@ namespace BaseballSim.Career
                 d.RecoveryTickets = r.ReadInt32();
                 club.LegendsMet = new HashSet<string>(ReadList(r, r.ReadString));
                 club.RivalsMet = ReadList(r, r.ReadString);
+            }
+            if (version >= 22)
+            {
+                int e = 0;
+                ReadList(r, () =>
+                {
+                    var p = club.Roster[e++];
+                    p.Ending = (StoryEnding)r.ReadInt32();
+                    p.Route = (StoryRoute)r.ReadInt32();
+                    return p;
+                });
             }
             return club;
         }
@@ -415,7 +429,17 @@ namespace BaseballSim.Career
             w.Write(career.SeasonLine.CaughtStealing);
             w.Write(me.CareerStolenBases);
 
-            // Added in version 23 (22 is the main story's block, which goes before this one).
+            // Added in version 22.
+            var story = career.Story;
+            w.Write((int)story.Route);
+            WriteList(w, story.Seen, w.Write);
+            foreach (var b in MainStory.AllBonds) w.Write(story.BondOf(b));
+            WriteList(w, story.Flags, w.Write);
+            WriteList(w, story.Log, w.Write);
+            w.Write(story.LastSeason);
+            w.Write(story.LastDay);
+
+            // Added in version 23.
             WriteList(w, career.News, n =>
             {
                 w.Write(n.Season);
@@ -579,6 +603,17 @@ namespace BaseballSim.Career
                 career.SeasonLine.StolenBases = r.ReadInt32();
                 career.SeasonLine.CaughtStealing = r.ReadInt32();
                 me.CareerStolenBases = r.ReadInt32();
+            }
+            if (version >= 22)
+            {
+                var story = career.Story;
+                story.Route = (StoryRoute)r.ReadInt32();
+                story.Seen = ReadList(r, r.ReadString);
+                foreach (var b in MainStory.AllBonds) story.Bonds[b] = r.ReadInt32();
+                story.Flags = ReadList(r, r.ReadString);
+                story.Log = ReadList(r, r.ReadString);
+                story.LastSeason = r.ReadInt32();
+                story.LastDay = r.ReadInt32();
             }
             if (version >= 23)
                 career.News = ReadList(r, () => new NewsItem { Season = r.ReadInt32(), Day = r.ReadInt32(), Kind = (NewsKind)r.ReadInt32(), Headline = r.ReadString() });
