@@ -104,6 +104,48 @@ namespace BaseballGame
                 Row(widths, i, mine, $"{i + 1}  {s.Team.Name}", s.Wins.ToString(), s.Losses.ToString(), s.Ties.ToString(),
                     Stats.Rate(s.WinPct), gb == 0 ? "-" : gb.ToString("0.#"));
             }
+            ShowLeaders();
+        }
+
+        string _board = Leaderboard.HomeRuns;
+
+        /// <summary>Top 10 in one category, picked from a row of chips; my line is gold, and shown under the ten if I'm lower.</summary>
+        void ShowLeaders()
+        {
+            Section("개인 순위 TOP 10");
+            var chips = UiKit.Empty(_content, "Boards");
+            UiKit.Height(chips, 80);
+            UiKit.Row(chips, 8);
+            foreach (var name in Leaderboard.Boards)
+            {
+                string board = name;
+                var chip = UiKit.Button(chips, board, () => { _board = board; Show(Tab.Standings); },
+                    board == _board ? UiKit.Accent : UiKit.Background);
+                chip.GetComponentInChildren<Text>().fontSize = 24;
+            }
+
+            var lb = Leaderboard.For(_career.League, _board, _career.Me.Id);
+            if (lb.Top.Count == 0)
+            {
+                Note(_board == Leaderboard.Average || _board == Leaderboard.Era
+                    ? "아직 규정 " + (_board == Leaderboard.Era ? "이닝" : "타석") + "을 채운 선수가 없어요."
+                    : "아직 기록이 없어요.");
+                return;
+            }
+            float[] widths = { 90, 0, 260, 170 };
+            Header(widths, "순위", "선수", "팀", _board);
+            for (int i = 0; i < lb.Top.Count; i++)
+            {
+                var r = lb.Top[i];
+                Row(widths, i, r.Mine, r.Rank.ToString(), r.Mine ? $"<color=#FFD24D>{r.Name}</color>" : r.Name, r.Team, r.Value);
+            }
+            if (lb.Me != null)
+            {
+                Note("· · ·", TextAnchor.MiddleCenter, 40);
+                Row(widths, 0, true, lb.Me.Rank.ToString(), $"<color=#FFD24D>{lb.Me.Name}</color>", lb.Me.Team, lb.Me.Value);
+            }
+            else if (!lb.Top.Any(r => r.Mine))
+                Note(_board == Leaderboard.Average || _board == Leaderboard.Era ? "내 선수는 아직 규정 기록 미달이에요." : "내 선수는 아직 이 순위에 없어요.", TextAnchor.MiddleCenter, 70);
         }
 
         void ShowMyRecord()

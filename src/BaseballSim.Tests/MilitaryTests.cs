@@ -97,6 +97,7 @@ public class MilitaryTests
     public void ServiceSeasonsDontCountTowardFreeAgency()
     {
         var career = NewCareer(5, 19);
+        career.Season = 2; // 2027: no tournament gold to exempt him
         PlaySeason(career);
         career.Enlist();
         for (int i = 0; i < CareerState.FreeAgencySeasons - 1; i++) Assert.Empty(PlaySeason(career).Offers.Where(o => !o.Tryout));
