@@ -903,6 +903,8 @@ namespace BaseballGame
                 Tip("shop", "연봉이 쌓였어요. 상점에서 장비를 사면 능력치가 올라가요. 장비를 다 모으면 개인 시설에 투자할 수 있어요.");
             if (_career.ConditionStars >= 4)
                 Tip("condition", "컨디션이 좋은 날(★4 이상)엔 훈련 효과가 올라가요. 컨디션은 매일 바뀌고, 피로가 쌓이면 떨어지고 사기가 높으면 올라가요.");
+            if (_career.ComebackYear)
+                Tip("comeback", "지난 시즌에 크게 다쳤거나 성적이 안 좋았어요. 이번 시즌은 '재기의 해'라서 훈련과 경기로 얻는 성장이 30% 늘어나요.");
             if (_career.Day >= 5)
                 Tip("records", "'기록'에서 리그 순위와 내 성적을 볼 수 있어요.");
         }
@@ -2003,7 +2005,8 @@ namespace BaseballGame
             _status.text = $"{season}  ·  인기 {me.Popularity}{injury}{morale}\n" +
                 $"<size=24><color=#BAC4D8>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
-            _condition.text = ConditionText(_career.ConditionStars);
+            _condition.text = ConditionText(_career.ConditionStars) + (_career.ComebackYear
+                ? $"  <color=#7CD992>재기의 해 +{Mathf.RoundToInt((float)(CareerState.ComebackGrowth - 1) * 100)}%</color>" : "");
 
             foreach (var row in _ratingRows) row.Value.SetActive(me.MyStats.Contains(row.Key));
             foreach (var stat in me.MyStats)
@@ -2020,7 +2023,7 @@ namespace BaseballGame
                 // At the limit the bar shows progress toward the next breakthrough instead.
                 UiKit.SetBar(_expFills[stat], canBreak
                     ? (float)me.BreakthroughProgress(stat) / me.BreakthroughNeed(stat)
-                    : maxed ? 1f : (float)me.Exp[stat] / CareerPlayer.ExpToNext(me.Ratings[stat]));
+                    : maxed ? 1f : (float)me.Exp[stat] / me.ExpToNext(stat));
             }
 
             var choices = _career.TrainingChoices;

@@ -195,7 +195,8 @@ namespace BaseballSim.Career
             foreach (var stat in me.MyStats)
             {
                 int start = 30 + (int)(random.NextDouble() * 16);
-                int potential = (int)Math.Round(Normal(random, 68, 10)) + potentialBonus;
+                // A narrow spread: the start is a small roll, breakthroughs (effort) make the real difference.
+                int potential = (int)Math.Round(Normal(random, PotentialMean, PotentialSpread)) + potentialBonus;
                 potential = Math.Max(start + 10, Math.Min(99, potential));
                 me.Ratings[stat] = start;
                 me.PeakRatings[stat] = start;
@@ -248,7 +249,7 @@ namespace BaseballSim.Career
         {
             result.AtBat = null;
             Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery - Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom)));
-            if (Me.InjuryDaysLeft > 0) Me.InjuryDaysLeft--;
+            if (Me.InjuryDaysLeft > 0) { Me.InjuryDaysLeft--; InjuryDays++; }
             else if (Me.LingerDays > 0) Me.LingerDays--;
             Me.Morale -= Math.Sign(Me.Morale);
             Day++;
@@ -340,10 +341,30 @@ namespace BaseballSim.Career
             }
         }
 
+        /// <summary>Starting potential: mean and spread of the roll at registration.</summary>
+        public const double PotentialMean = 68, PotentialSpread = 6;
+
+        /// <summary>Growth bonus (training and game exp) in a comeback year, so one unlucky season doesn't sink a career.</summary>
+        public const double ComebackGrowth = 1.3;
+
+        /// <summary>
+        /// True in the season after a bad one: a big injury (out for a twelfth of the season or more), a
+        /// poor line (OPS under .700, or a pitcher's equivalent) or half the year in 2군. Not after military service.
+        /// </summary>
+        public bool ComebackYear => Me.History.Count > 0 && WasUnlucky(Me.History[Me.History.Count - 1]);
+
+        bool WasUnlucky(SeasonRecord last) =>
+            !last.Military && (last.InjuryDays * 12 >= last.Games || last.FarmDays * 2 >= last.Games || Form(last.Line, last.Pitching) < ComebackForm);
+        const double ComebackForm = 0.700;
+
+        /// <summary>Days missed hurt this season.</summary>
+        public int InjuryDays;
+
         double AgeGrowth()
         {
             int age = Me.Age;
             double growth = age <= 22 ? 1.3 : age <= 27 ? 1.0 : age <= 31 ? 0.7 : 0.4;
+            if (ComebackYear) growth *= ComebackGrowth;
             return age >= 28 && Me.Traits.Contains(Traits.LateBloomer) ? growth * 1.6 : growth;
         }
 
@@ -546,6 +567,7 @@ namespace BaseballSim.Career
                 Salary = Me.Salary,
                 Titles = summary.Awards.Where(a => a.Mine).Select(a => a.Title).ToList(),
                 InjuryFree = !InjuredThisSeason,
+                InjuryDays = InjuryDays,
                 Club = MyTeam.Name,
                 Notes = SeasonNotes,
                 FarmDays = FarmDays,
@@ -596,6 +618,7 @@ namespace BaseballSim.Career
             Season++;
             Day = 0;
             InjuredThisSeason = false;
+            InjuryDays = 0;
             SeasonLine = new BattingLine();
             PaidMonths = 0;
             PendingBonus = 0;
