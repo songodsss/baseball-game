@@ -8,8 +8,8 @@ using CareerState = BaseballSim.Career.Career;
 namespace BaseballGame
 {
     /// <summary>
-    /// The first screen: the game's name, the save slots (one player each, all sharing my team),
-    /// and the way into the collection and the paid product tests.
+    /// Home: the player in focus with one big button, every save slot as a small card, and
+    /// four tiles for what belongs to the whole club (my team, collection, missions, shop).
     /// </summary>
     public class TitleScreen : MonoBehaviour
     {
@@ -34,10 +34,12 @@ namespace BaseballGame
             _random = new SeededRandom(System.Environment.TickCount);
             var canvas = UiKit.Canvas(transform, "TitleCanvas");
             _root = UiKit.SafeRoot(canvas.transform, UiKit.Background);
-            UiKit.Backdrop(_root, ArtLibrary.Background("title"), 0.45f);
-            UiKit.Column(_root, 48, 22);
+            UiKit.Backdrop(_root, ArtLibrary.Background("title") ?? ArtLibrary.Background("growth"), 0.75f);
+            UiKit.Column(_root, 40, 18);
             Build();
         }
+
+        int _selected;
 
         void Build()
         {
@@ -46,53 +48,263 @@ namespace BaseballGame
             _club = SaveStore.LoadClub(_random);
             if (_club.Daily.Refresh(Today)) SaveStore.SaveClub(_club);
 
-            BuildLogo();
+            var slots = Enumerable.Range(1, SaveStore.SlotCount).Select(slot => SaveStore.Peek(slot, _club, _random)).ToList();
+            // The player in focus: the one picked, else the last one played, else the first with a player.
+            if (_selected < 1 || _selected > slots.Count)
+                _selected = !slots[Mathf.Clamp(SaveStore.CurrentSlot, 1, slots.Count) - 1].IsEmpty ? Mathf.Clamp(SaveStore.CurrentSlot, 1, slots.Count)
+                    : (slots.FirstOrDefault(x => !x.IsEmpty)?.Slot ?? 1);
+            var hero = slots[_selected - 1];
 
-            int legends = _club.AllLegendsMet(null).Count;
-            string club = _club.Roster.Count == 0
-                ? "첫 선수를 키워 보세요. 은퇴한 선수는 모든 슬롯이 함께 쓰는 나만의 팀에 들어와요."
-                : $"나만의 팀 {_club.Roster.Count}명  ·  명예 포인트 {_club.LegacyPoints:N0}  ·  만난 레전드 {legends}/{Legends.All.Count}";
-            UiKit.Height(UiKit.Label(_root, club, 28, TextAnchor.MiddleCenter, UiKit.Muted), 60);
+            TopBar();
+            HeroCard(hero);
+            Heading("선수 슬롯", $"{slots.Count(x => !x.IsEmpty)}/{slots.Count}명");
+            SlotStrip(slots);
+            Heading("메뉴", null);
+            Menu();
+            UiKit.Height(UiKit.Empty(_root, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Label(_root, "프로토타입 0.1", 24, TextAnchor.MiddleCenter, UiKit.Muted), 34);
+        }
 
-            UiKit.Height(UiKit.Label(_root, "내 선수", 34, TextAnchor.LowerLeft, Gold), 56);
-            for (int slot = 1; slot <= SaveStore.SlotCount; slot++) SlotCard(SaveStore.Peek(slot, _club, _random));
-            if (!Premium.Owns(Premium.ExtraSlots))
+        // ---------- Home pieces ----------
+
+        /// <summary>Game name on the left; what my whole club holds on the right.</summary>
+        void TopBar()
+        {
+            var bar = UiKit.Empty(_root, "TopBar");
+            UiKit.Height(bar, 100);
+            var row = UiKit.Row(bar, 14);
+            row.childForceExpandWidth = false;
+            row.childAlignment = TextAnchor.MiddleLeft;
+            ArtLibrary.Icon(bar, ArtLibrary.Get("App/app_icon"), 84);
+            var title = UiKit.Label(bar, GameTitle, 46);
+            title.fontStyle = FontStyle.Bold;
+            UiKit.Width(title, 0, 1);
+            Chip(bar, $"명예 {_club.LegacyPoints:N0}", Gold);
+            Chip(bar, $"회복권 {_club.Daily.RecoveryTickets}", new Color(0.75f, 0.62f, 1f));
+        }
+
+        static void Chip(Transform parent, string text, Color color)
+        {
+            var chip = UiKit.Panel(parent, "Chip", new Color(0, 0, 0, 0.35f));
+            UiKit.Width(chip, 200);
+            UiKit.Height(chip, 64);
+            var label = UiKit.Label(chip, text, 26, TextAnchor.MiddleCenter, color);
+            label.fontStyle = FontStyle.Bold;
+            UiKit.Stretch(label.rectTransform);
+        }
+
+        void Heading(string title, string note)
+        {
+            var label = UiKit.Label(_root, $"<b>{title}</b>" + (note == null ? "" : $"  <size=24><color=#BAC4D8>{note}</color></size>"), 32, TextAnchor.LowerLeft, Gold);
+            UiKit.Height(label, 46);
+        }
+
+        /// <summary>The player in focus, big, in the club's colours, with the one button that matters.</summary>
+        void HeroCard(SlotSummary summary)
+        {
+            var career = summary.Career;
+            Color team = career == null ? UiKit.Accent : UiKit.TeamColor(career.MyTeam.Name);
+            // A rounded card in the club colour, darkening toward the bottom so the button stands out.
+            var card = UiKit.Panel(_root, "Hero", UiKit.Shade(team, 0.8f));
+            card.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+            var shade = UiKit.Empty(card, "Shade");
+            UiKit.Stretch(shade);
+            shade.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            var shadeImage = shade.gameObject.AddComponent<Image>();
+            shadeImage.sprite = UiKit.GradientSprite(new Color(1, 1, 1, 0.08f), new Color(0, 0, 0, 0.6f));
+            shadeImage.raycastTarget = false;
+            UiKit.Height(card, 520);
+            UiKit.Column(card, 0, 0);
+            UiAnim.PopIn(card, 0.3f);
+
+            // The upper part: portrait on the left, who and where on the right, badge in the corner.
+            var upper = UiKit.Empty(card, "Upper");
+            UiKit.Height(upper, 0, 1);
+            var row = UiKit.Row(upper, 20);
+            row.padding = new RectOffset(28, 28, 28, 0);
+            row.childForceExpandWidth = false;
+            row.childAlignment = TextAnchor.MiddleLeft;
+
+            var face = UiKit.Panel(upper, "Face", new Color(0, 0, 0, 0.25f));
+            UiKit.Width(face, 300);
+            var art = career == null ? null : ArtLibrary.Portrait(career.Me);
+            var pic = UiKit.Empty(face, "Picture");
+            UiKit.Stretch(pic);
+            var picImage = pic.gameObject.AddComponent<Image>();
+            picImage.raycastTarget = false;
+            picImage.preserveAspect = true;
+            if (art != null) picImage.sprite = art;
+            else
             {
-                var more = UiKit.Button(_root, $"+ 슬롯 {Premium.ExtraSlotCount}개 더 (유료 테스트)", () => PremiumScreen.Open(Build), UiKit.Shade(UiKit.Card, 1.2f));
-                more.GetComponentInChildren<Text>().fontSize = 26;
-                UiKit.Height(more, 80);
+                picImage.enabled = false;
+                var plus = UiKit.Label(face, career == null ? "+" : career.Me.Name.Substring(0, 1), 140, TextAnchor.MiddleCenter, new Color(1, 1, 1, 0.8f));
+                UiKit.Stretch(plus.rectTransform);
             }
 
-            // The hub: things that belong to me rather than to one player.
+            var info = UiKit.Empty(upper, "Info");
+            UiKit.Width(info, 0, 1);
+            var column = UiKit.Column(info, 0, 6);
+            column.childAlignment = TextAnchor.MiddleLeft;
+            if (career == null)
+            {
+                Line(info, $"<b>슬롯 {summary.Slot}</b>", 30, new Color(1, 1, 1, 0.7f), 44);
+                Line(info, "<b>새 선수 만들기</b>", 54, Color.white, 80);
+                Line(info, "이름, 포지션, 입단할 구단을 정하고\n신인 선수부터 키워요.", 28, new Color(1, 1, 1, 0.85f), 90);
+            }
+            else
+            {
+                var me = career.Me;
+                string position = me.IsPitcher ? Positions.RoleName(me.Role) : Positions.Name(me.Position);
+                string where = career.InMilitary ? "군 복무 중" : career.InFarm ? "2군" : career.MyTeam.Name;
+                var top = UiKit.Empty(info, "Top");
+                UiKit.Height(top, 90);
+                var topRow = UiKit.Row(top, 12);
+                topRow.childForceExpandWidth = false;
+                topRow.childAlignment = TextAnchor.MiddleLeft;
+                var slotLabel = UiKit.Label(top, $"<b>슬롯 {summary.Slot}</b>", 28, TextAnchor.MiddleLeft, new Color(1, 1, 1, 0.7f));
+                UiKit.Width(slotLabel, 0, 1);
+                ArtLibrary.Emblem(top, career.MyTeam.Name, 86);
+                Line(info, $"<b>{me.Name}</b>" + (me.Number > 0 ? $"  <size=36>#{me.Number}</size>" : ""), 58, Color.white, 80);
+                Line(info, $"{position} · {me.Age}세 · {where}", 30, new Color(1, 1, 1, 0.9f), 46);
+                Line(info, $"{career.Year} 시즌 {career.Day + 1}일차 · 프로 {me.History.Count + 1}년차", 26, new Color(1, 1, 1, 0.75f), 40);
+                Line(info, $"보유 {me.Money:N0}만원 · 인기 {me.Popularity}", 26, Gold, 40);
+            }
+
+            // The lower part: the main button, and a quiet delete for a filled slot.
+            var lower = UiKit.Empty(card, "Lower");
+            UiKit.Height(lower, 150);
+            var buttons = UiKit.Row(lower, 16);
+            buttons.padding = new RectOffset(28, 28, 18, 28);
+            buttons.childForceExpandWidth = false;
+            int slot = summary.Slot;
+            var play = UiKit.Button(lower, career == null ? "새 선수 등록" : "이어하기", () => Play(slot), career == null ? UiKit.Accent : new Color(0.2f, 0.65f, 0.45f));
+            play.GetComponentInChildren<Text>().fontSize = 40;
+            UiKit.Width(play, 0, 1);
+            UiAnim.Pulse(play, 1.04f, 0.6f);
+            if (career != null)
+            {
+                var delete = UiKit.Button(lower, "삭제", () => ConfirmDelete(slot, career.Me.Name), new Color(0, 0, 0, 0.35f));
+                delete.GetComponentInChildren<Text>().fontSize = 26;
+                UiKit.Width(delete, 130);
+            }
+        }
+
+        static void Line(Transform parent, string text, int size, Color color, float height) =>
+            UiKit.Height(UiKit.Label(parent, text, size, TextAnchor.MiddleLeft, color), height);
+
+        /// <summary>Every slot as a small card; tap one to bring it into focus above.</summary>
+        void SlotStrip(System.Collections.Generic.List<SlotSummary> slots)
+        {
+            var strip = UiKit.Empty(_root, "Slots");
+            UiKit.Height(strip, 160);
+            UiKit.Row(strip, 14);
+            foreach (var summary in slots)
+            {
+                var s = summary;
+                bool selected = s.Slot == _selected;
+                Color team = s.IsEmpty ? UiKit.Muted : UiKit.TeamColor(s.Career.MyTeam.Name);
+                var button = UiKit.Button(strip, "", () => { _selected = s.Slot; Build(); }, selected ? UiKit.Shade(UiKit.Card, 1.6f) : UiKit.Card);
+                var bar = UiKit.Panel(button.transform, "Team", s.IsEmpty ? UiKit.Background : team);
+                bar.anchorMin = new Vector2(0, 1);
+                bar.anchorMax = new Vector2(1, 1);
+                bar.offsetMin = new Vector2(10, -16);
+                bar.offsetMax = new Vector2(-10, -6);
+                var label = button.GetComponentInChildren<Text>();
+                label.fontSize = 28;
+                label.text = s.IsEmpty ? $"<size=24><color=#BAC4D8>슬롯 {s.Slot}</color></size>\n+ 새 선수"
+                    : $"<size=24><color=#BAC4D8>슬롯 {s.Slot}</color></size>\n<b>{s.Career.Me.Name}</b>\n<size=22>{s.Career.Me.Age}세 · {Short(s.Career.MyTeam.Name)}</size>";
+                if (selected) button.gameObject.AddComponent<Outline>().effectColor = Gold;
+            }
+            if (!Premium.Owns(Premium.ExtraSlots))
+            {
+                var more = UiKit.Button(strip, $"+{Premium.ExtraSlotCount}\n<size=22>슬롯 추가</size>", () => PremiumScreen.Open(Build), new Color(0.55f, 0.4f, 0.8f, 0.6f));
+                more.GetComponentInChildren<Text>().fontSize = 30;
+                UiKit.Width(more, 150);
+            }
+        }
+
+        /// <summary>"서울 블루윙스" → "블루윙스".</summary>
+        static string Short(string team)
+        {
+            int space = team.IndexOf(' ');
+            return space >= 0 && space + 1 < team.Length ? team.Substring(space + 1) : team;
+        }
+
+        /// <summary>Things that belong to me rather than to one player, as four even tiles.</summary>
+        void Menu()
+        {
             var daily = _club.Daily;
             int done = daily.Today.Count(m => m.Done);
-            var grid = UiKit.Empty(_root, "Hub");
-            UiKit.Height(grid, 330);
+            int claimable = daily.Today.Count(m => m.Done && !m.Claimed && m.Reward != RewardKind.Money);
+            var grid = UiKit.Empty(_root, "Menu");
+            UiKit.Height(grid, 400);
             var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
-            layout.cellSize = new Vector2(486, 155);
+            layout.cellSize = new Vector2(482, 190);
             layout.spacing = new Vector2(20, 20);
             layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             layout.constraintCount = 2;
-            layout.childAlignment = TextAnchor.MiddleCenter;
-            HubButton(grid, "나만의 팀", $"은퇴 선수 {_club.Roster.Count}명 · 도전 경기", ArtLibrary.Get("Icons/UI/records"),
-                new Color(0.85f, 0.45f, 0.2f), () => RecordsScreen.OpenMyTeam(_club, Build));
-            HubButton(grid, "도감", "레전드 · 라이벌 · 트로피", null, UiKit.Accent, () => CollectionScreen.Open(null, _club));
-            HubButton(grid, "오늘의 미션", $"완료 {done}/{daily.Today.Count} · 출석 {daily.Streak}일 연속", null,
-                new Color(0.2f, 0.6f, 0.45f), ShowMissions);
-            HubButton(grid, "상점", "유료 상품 (테스트)", ArtLibrary.Get("Icons/UI/shop"), new Color(0.55f, 0.4f, 0.8f), () => PremiumScreen.Open(Build));
+            layout.childAlignment = TextAnchor.UpperCenter;
+            Tile(grid, "나만의 팀", $"은퇴 선수 {_club.Roster.Count}명", "팀", new Color(0.95f, 0.55f, 0.25f), ArtLibrary.Get("Icons/UI/records"),
+                () => RecordsScreen.OpenMyTeam(_club, Build));
+            Tile(grid, "도감", $"레전드 {_club.AllLegendsMet(null).Count}/{Legends.All.Count}", "도", new Color(0.35f, 0.65f, 1f), null,
+                () => CollectionScreen.Open(null, _club));
+            Tile(grid, "오늘의 미션", $"완료 {done}/{daily.Today.Count} · 출석 {daily.Streak}일", "M", new Color(0.3f, 0.8f, 0.5f), null,
+                ShowMissions, claimable);
+            Tile(grid, "상점", "유료 상품 (테스트)", "₩", new Color(0.7f, 0.5f, 1f), ArtLibrary.Get("Icons/UI/shop"),
+                () => PremiumScreen.Open(Build));
+        }
 
-            UiKit.Height(UiKit.Empty(_root, "Spacer"), 0, 1);
-            UiKit.Height(UiKit.Label(_root, "프로토타입 0.1", 22, TextAnchor.MiddleCenter, UiKit.Muted), 36);
+        /// <summary>A dark tile with a coloured icon disc, a title, a one-line status and an optional badge.</summary>
+        void Tile(Transform parent, string title, string sub, string letter, Color color, Sprite icon, UnityEngine.Events.UnityAction onClick, int badge = 0)
+        {
+            var button = UiKit.Button(parent, "", onClick, UiKit.Card);
+            var text = button.GetComponentInChildren<Text>();
+            text.alignment = TextAnchor.MiddleLeft;
+            text.fontSize = 36;
+            text.text = $"<b>{title}</b>\n<size=24><color=#BAC4D8>{sub}</color></size>";
+            text.rectTransform.offsetMin = new Vector2(150, 0);
+
+            var disc = UiKit.Panel(button.transform, "Disc", UiKit.Shade(color, 0.85f));
+            disc.GetComponent<Image>().sprite = UiKit.CircleSprite;
+            disc.GetComponent<Image>().type = Image.Type.Simple;
+            disc.anchorMin = disc.anchorMax = new Vector2(0, 0.5f);
+            disc.pivot = new Vector2(0, 0.5f);
+            disc.anchoredPosition = new Vector2(26, 0);
+            disc.sizeDelta = new Vector2(104, 104);
+            if (icon != null)
+            {
+                var img = UiKit.Empty(disc, "Icon").gameObject.AddComponent<Image>();
+                img.sprite = icon;
+                img.preserveAspect = true;
+                img.raycastTarget = false;
+                var rt = img.rectTransform;
+                UiKit.Stretch(rt);
+                rt.offsetMin = new Vector2(20, 20);
+                rt.offsetMax = new Vector2(-20, -20);
+            }
+            else
+            {
+                var l = UiKit.Label(disc, letter, 46, TextAnchor.MiddleCenter);
+                l.fontStyle = FontStyle.Bold;
+                UiKit.Stretch(l.rectTransform);
+            }
+
+            if (badge > 0)
+            {
+                var dot = UiKit.Panel(button.transform, "Badge", new Color(0.9f, 0.25f, 0.3f));
+                dot.GetComponent<Image>().sprite = UiKit.CircleSprite;
+                dot.GetComponent<Image>().type = Image.Type.Simple;
+                dot.anchorMin = dot.anchorMax = new Vector2(1, 1);
+                dot.anchoredPosition = new Vector2(-30, -30);
+                dot.sizeDelta = new Vector2(48, 48);
+                var n = UiKit.Label(dot, badge.ToString(), 28, TextAnchor.MiddleCenter);
+                n.fontStyle = FontStyle.Bold;
+                UiKit.Stretch(n.rectTransform);
+                UiAnim.Pulse(dot, 1.2f, 0.5f);
+            }
         }
 
         static string Today => DailyMissions.DateOf(System.DateTime.Now);
-
-        void HubButton(Transform parent, string title, string sub, Sprite icon, Color color, UnityEngine.Events.UnityAction onClick)
-        {
-            var button = UiKit.Button(parent, $"{title}\n<size=24><color=#E8ECF4>{sub}</color></size>", onClick, color);
-            button.GetComponentInChildren<Text>().fontSize = 38;
-            UiKit.ButtonIcon(button, icon, 70);
-        }
 
         /// <summary>Today's missions from home. Rewards that are money need a player, so those wait for the growth screen.</summary>
         void ShowMissions()
@@ -132,81 +344,6 @@ namespace BaseballGame
             }
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Button(card, "닫기", Build, UiKit.Muted), 110);
-        }
-
-        void BuildLogo()
-        {
-            var logo = ArtLibrary.Get("UI/logo");
-            if (logo != null)
-            {
-                ArtLibrary.Banner(_root, logo, 300).preserveAspect = true;
-                return;
-            }
-            // Until there's a logo picture: a ball, the name and a tagline.
-            var top = UiKit.Empty(_root, "Logo");
-            UiKit.Height(top, 300);
-            UiKit.Column(top, 0, 8).childAlignment = TextAnchor.MiddleCenter;
-            var ball = UiKit.Empty(top, "Ball");
-            UiKit.Height(ball, 120);
-            var disc = UiKit.Panel(ball, "Disc", Color.white);
-            disc.GetComponent<Image>().sprite = UiKit.CircleSprite;
-            disc.GetComponent<Image>().type = Image.Type.Simple;
-            disc.anchorMin = disc.anchorMax = new Vector2(0.5f, 0.5f);
-            disc.sizeDelta = new Vector2(110, 110);
-            var seams = UiKit.Label(disc, "(   )", 64, TextAnchor.MiddleCenter, new Color(0.85f, 0.2f, 0.25f));
-            UiKit.Stretch(seams.rectTransform);
-            UiAnim.PopIn(disc, 0.4f);
-            var title = UiKit.Label(top, GameTitle, 84, TextAnchor.MiddleCenter);
-            title.fontStyle = FontStyle.Bold;
-            title.gameObject.AddComponent<Outline>().effectColor = new Color(0.1f, 0.25f, 0.6f, 0.9f);
-            UiKit.Height(title, 110);
-            UiKit.Height(UiKit.Label(top, "신인부터 레전드까지, 한 선수의 야구 인생", 32, TextAnchor.MiddleCenter, new Color(1f, 0.82f, 0.3f)), 60);
-        }
-
-        void SlotCard(SlotSummary summary)
-        {
-            var career = summary.Career;
-            Color team = career == null ? UiKit.Muted : UiKit.TeamColor(career.MyTeam.Name);
-            var card = UiKit.Panel(_root, $"Slot {summary.Slot}", UiKit.Card);
-            UiKit.Height(card, 170);
-            var row = UiKit.Row(card, 18);
-            row.padding = new RectOffset(0, 24, 0, 0);
-            row.childForceExpandWidth = false;
-            row.childAlignment = TextAnchor.MiddleLeft;
-
-            // A strip in the club colour down the left edge, with the slot number.
-            var strip = UiKit.Panel(card, "Strip", career == null ? UiKit.Background : UiKit.Shade(team, 0.8f));
-            UiKit.Width(strip, 110);
-            var number = UiKit.Label(strip, summary.Slot.ToString(), 56, TextAnchor.MiddleCenter);
-            number.fontStyle = FontStyle.Bold;
-            UiKit.Stretch(number.rectTransform);
-
-            string text;
-            if (career == null) text = $"<b>빈 슬롯</b>\n<size=26><color=#BAC4D8>새 선수를 등록해서 시작해요</color></size>";
-            else
-            {
-                var me = career.Me;
-                string position = me.IsPitcher ? Positions.RoleName(me.Role) : Positions.Name(me.Position);
-                string where = career.InMilitary ? "군 복무 중" : career.InFarm ? "2군" : career.MyTeam.Name;
-                text = $"<b>{me.Name}</b>  <size=28>{position} · {me.Age}세</size>\n" +
-                       $"<size=26><color=#BAC4D8>{where} · {career.Year} 시즌 {career.Day + 1}일차 · {me.History.Count + 1}년차</color></size>";
-            }
-            var label = UiKit.Label(card, text, 38);
-            UiKit.Width(label, 0, 1);
-
-            int slot = summary.Slot;
-            var play = UiKit.Button(card, career == null ? "새로 시작" : "이어하기", () => Play(slot), career == null ? UiKit.Accent : new Color(0.2f, 0.6f, 0.45f));
-            play.GetComponentInChildren<Text>().fontSize = 30;
-            UiKit.Width(play, 210);
-            UiKit.Height(play, 110);
-            if (career != null)
-            {
-                var delete = UiKit.Button(card, "삭제", () => ConfirmDelete(slot, career.Me.Name), UiKit.Background);
-                delete.GetComponentInChildren<Text>().fontSize = 26;
-                UiKit.Width(delete, 110);
-                UiKit.Height(delete, 110);
-            }
-            UiAnim.FadeIn(card, 0.15f + 0.07f * slot);
         }
 
         void Play(int slot)
