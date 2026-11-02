@@ -45,7 +45,11 @@ public class MilitaryTests
         var day = career.PlayDay(DailyAction.TrainPower);
         Assert.True(day.InFarm);
         Assert.Null(day.MyGame);
-        Assert.Equal(20, day.MoneyEarned);
+        Assert.Equal(0, day.MoneyEarned); // the allowance comes monthly
+        // Play to the end of the first month: the army pays an allowance, not the salary.
+        while (day.Payday == null) day = career.PlayDay(DailyAction.TrainPower);
+        Assert.Equal(20 * career.League.GamesPerSeason / CareerState.Paydays, day.Payday.Salary);
+        Assert.Equal(0, day.Payday.Bonus);
 
         var back = PlaySeason(career);
         Assert.True(back.Record.Military);
@@ -93,6 +97,7 @@ public class MilitaryTests
     public void ServiceSeasonsDontCountTowardFreeAgency()
     {
         var career = NewCareer(5, 19);
+        career.Season = 2; // 2027: no tournament gold to exempt him
         PlaySeason(career);
         career.Enlist();
         for (int i = 0; i < CareerState.FreeAgencySeasons - 1; i++) Assert.Empty(PlaySeason(career).Offers.Where(o => !o.Tryout));

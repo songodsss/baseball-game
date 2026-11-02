@@ -27,7 +27,7 @@ public class StoryEventTests
                 var day = career.PlayDay(career.Me.Fatigue > 60 ? DailyAction.Rest : DailyAction.TrainContact);
                 Assert.Same(day.Event, career.PendingEvent);
                 if (day.Event == null) continue;
-                events++;
+                if (!MainStory.IsMain(day.Event)) events++; // main story scenes come on top
                 career.ResolveEvent(0);
                 Assert.Null(career.PendingEvent);
             }

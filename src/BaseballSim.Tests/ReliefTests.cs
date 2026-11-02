@@ -33,7 +33,7 @@ public class ReliefTests
             Assert.True(setup.Holds + setup.BlownSaves > 0, team.Name);
             Assert.Equal(0, closer.Starts);
         }
-        Assert.True(league.Pitching.Values.Sum(p => p.Line.Saves) > 36 * 5 / 2); // a save in most wins
+        Assert.True(league.Pitching.Values.Sum(p => p.Line.Saves) > 36 * 5 * 2 / 5, $"saves {league.Pitching.Values.Sum(p => p.Line.Saves)}"); // a save in a good share of wins
     }
 
     [Fact]

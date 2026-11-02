@@ -100,8 +100,11 @@ namespace BaseballGame
                         yield return Wait(0.8f);
                     }
 
-                    if (ev.Kind == EventKind.PitchingChange)
+                    if (ev.Kind != EventKind.PlateAppearance)
                     {
+                        // Pitching changes and steals: no pitch to animate; the runners snap below.
+                        if (ev.Kind == EventKind.StolenBase && !Skipping)
+                            Pop(ev.OutsAfter > ev.OutsBefore ? "도루 실패" : "도루 성공!", ev.OutsAfter > ev.OutsBefore ? Color.gray : Gold);
                         yield return Wait(0.6f);
                     }
                     else
@@ -116,7 +119,7 @@ namespace BaseballGame
                 _field.Snap(ev.OutsAfter >= 3 ? new Player[3] : ev.BasesAfter, null);
                 ShowSituation(ev, ev.OutsAfter, ev.BasesAfter);
                 RefreshBoard(step.Index);
-                string text = $"<color=#9EABC2>{step.HalfLabel}</color> {step.Text}";
+                string text = $"<color=#BAC4D8>{step.HalfLabel}</color> {step.Text}";
                 Log(step.IsMine ? $"<color=#FFD24D>{text}</color>" : text);
 
                 if (animate) yield return Wait(0.6f);
@@ -172,6 +175,7 @@ namespace BaseballGame
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0.5f;
+            scaler.gameObject.AddComponent<FitScaler>();
             _canvas = (RectTransform)canvasGo.transform;
 
             var root = UiKit.SafeRoot(_canvas);

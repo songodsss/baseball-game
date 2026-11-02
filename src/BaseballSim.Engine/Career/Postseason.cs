@@ -35,6 +35,18 @@ namespace BaseballSim.Career
     /// </summary>
     public static class Postseason
     {
+        /// <summary>Lines for the records: my team's result first, then each series as "준플레이오프  A 2 : 1 B".</summary>
+        public static List<string> Describe(PostseasonResult post, Team myTeam)
+        {
+            var lines = new List<string>();
+            var lost = post.Series.FirstOrDefault(s => s.Loser == myTeam);
+            lines.Add(post.MyTeamWon ? "우승!"
+                : lost != null ? $"{lost.Name} 탈락 · {post.Champion?.Name} 우승"
+                : $"진출 실패 · {post.Champion?.Name} 우승");
+            foreach (var s in post.Series) lines.Add($"{s.Name}  {s.High.Name} {s.HighWins} : {s.LowWins} {s.Low.Name}");
+            return lines;
+        }
+
         public const int Teams = 4;
         public const string ChampionTitle = "챔피언 결정전 우승";
         const int MaxGamesPerSeries = 9; // ties replay, but never forever

@@ -97,7 +97,16 @@ namespace BaseballSim
             return odds;
         }
 
-        static double Centre(int rating, int condition) => (Clamp(rating + condition, 1, 100) - 50) / 50.0;
+        // Above SoftCap each point counts for less, so a maxed-out star still has bad days.
+        public const int SoftCap = 70;
+        const double OverCapWeight = 0.55;
+
+        static double Centre(int rating, int condition)
+        {
+            double r = Clamp(rating + condition, 1, 100);
+            if (r > SoftCap) r = SoftCap + (r - SoftCap) * OverCapWeight;
+            return (r - 50) / 50.0;
+        }
 
         static double Clamp(double value, double min, double max) => value < min ? min : value > max ? max : value;
 

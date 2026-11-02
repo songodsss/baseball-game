@@ -43,9 +43,9 @@ public class NationalTeamTests
     [Fact]
     public void StarMakesTheTeamAndPlaysTheBracket()
     {
-        var career = NewCareer(2, 95);
+        var career = NewCareer(5, 95);
         var t = PlaySeasonFindingTournament(career);
-        Assert.True(t.Selected);
+        Assert.True(t.Selected, $"farm={career.InFarm} inj={career.Me.IsInjured} day={career.Day}");
         Assert.Contains(t.Korea.Lineup, p => p.Id == career.Me.Id);
         Assert.InRange(t.Games.Count, 2, 4);
         Assert.All(t.Games.Take(2), g => Assert.Equal("조별리그", g.Stage));

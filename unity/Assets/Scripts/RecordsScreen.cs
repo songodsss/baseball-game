@@ -11,7 +11,7 @@ namespace BaseballGame
     /// <summary>League standings, my season and career numbers, and the retired players on my team.</summary>
     public class RecordsScreen : MonoBehaviour
     {
-        enum Tab { Standings, MyRecord, Achievements, MyTeam }
+        enum Tab { Standings, MyRecord, Achievements, MyTeam, News }
 
         static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
         static readonly Color Highlight = new Color(0.25f, 0.55f, 0.95f, 0.25f);
@@ -33,11 +33,24 @@ namespace BaseballGame
             screen.Show(Tab.Standings);
         }
 
-        void Build()
+        /// <summary>Just my team (challenge games, roster, numbers), from the home screen with no career.</summary>
+        public static void OpenMyTeam(Club club, System.Action onClose)
+        {
+            var screen = new GameObject("MyTeamScreen").AddComponent<RecordsScreen>();
+            screen._club = club;
+            screen._onClose = onClose;
+            screen.Build(teamOnly: true);
+            screen.Show(Tab.MyTeam);
+        }
+
+        System.Action _onClose;
+
+        void Build(bool teamOnly = false)
         {
             var canvasGo = new GameObject("RecordsCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
             _canvas = canvasGo;
+            UiAnim.FadeIn(canvasGo.transform, 0.2f);
             var canvas = canvasGo.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 5;
@@ -45,20 +58,24 @@ namespace BaseballGame
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0.5f;
+            scaler.gameObject.AddComponent<FitScaler>();
 
             var root = UiKit.SafeRoot(canvasGo.transform, UiKit.Background);
             UiKit.Column(root, 40, 20);
             UiKit.Backdrop(root, ArtLibrary.Background("records"));
 
-            UiKit.Height(UiKit.Label(root, "기록", 48), 80);
+            UiKit.Height(UiKit.Label(root, teamOnly ? "나만의 팀" : "기록", 48), 80);
 
             var tabs = UiKit.Empty(root, "Tabs");
+            tabs.gameObject.SetActive(!teamOnly);
             UiKit.Height(tabs, 100);
             UiKit.Row(tabs, 16);
             _tabs[Tab.Standings] = UiKit.Button(tabs, "리그 순위", () => Show(Tab.Standings), UiKit.Card);
             _tabs[Tab.MyRecord] = UiKit.Button(tabs, "내 기록", () => Show(Tab.MyRecord), UiKit.Card);
             _tabs[Tab.Achievements] = UiKit.Button(tabs, "업적", () => Show(Tab.Achievements), UiKit.Card);
             _tabs[Tab.MyTeam] = UiKit.Button(tabs, "내 팀", () => Show(Tab.MyTeam), UiKit.Card);
+            _tabs[Tab.News] = UiKit.Button(tabs, "뉴스", () => Show(Tab.News), UiKit.Card);
+            foreach (var tab in _tabs.Values) tab.GetComponentInChildren<Text>().fontSize = 28;
 
             var card = UiKit.Panel(root, "Card", UiKit.Card);
             UiKit.Height(card, 0, 1);
@@ -67,7 +84,7 @@ namespace BaseballGame
             UiKit.Height(scroll.parent, 0, 1);
             _content = scroll;
 
-            UiKit.Height(UiKit.Button(root, "닫기", () => Destroy(gameObject), UiKit.Muted), 110);
+            UiKit.Height(UiKit.Button(root, "닫기", () => { _onClose?.Invoke(); Destroy(gameObject); }, UiKit.Muted), 110);
         }
 
         void Show(Tab tab)
@@ -79,6 +96,7 @@ namespace BaseballGame
                 case Tab.Standings: ShowStandings(); break;
                 case Tab.MyRecord: ShowMyRecord(); break;
                 case Tab.Achievements: ShowAchievements(); break;
+                case Tab.News: ShowNews(); break;
                 default: ShowMyTeam(); break;
             }
         }
@@ -100,13 +118,128 @@ namespace BaseballGame
                 Row(widths, i, mine, $"{i + 1}  {s.Team.Name}", s.Wins.ToString(), s.Losses.ToString(), s.Ties.ToString(),
                     Stats.Rate(s.WinPct), gb == 0 ? "-" : gb.ToString("0.#"));
             }
+            ShowLeaders();
+        }
+
+        string _board = Leaderboard.HomeRuns;
+
+        /// <summary>Top 10 in one category, picked from a row of chips; my line is gold, and shown under the ten if I'm lower.</summary>
+        void ShowLeaders()
+        {
+            Section("개인 순위 TOP 10");
+            var chips = UiKit.Empty(_content, "Boards");
+            UiKit.Height(chips, 80);
+            UiKit.Row(chips, 8);
+            foreach (var name in Leaderboard.Boards)
+            {
+                string board = name;
+                var chip = UiKit.Button(chips, board, () => { _board = board; Show(Tab.Standings); },
+                    board == _board ? UiKit.Accent : UiKit.Background);
+                chip.GetComponentInChildren<Text>().fontSize = 24;
+            }
+
+            var lb = Leaderboard.For(_career.League, _board, _career.Me.Id);
+            if (lb.Top.Count == 0)
+            {
+                Note(_board == Leaderboard.Average || _board == Leaderboard.Era
+                    ? "아직 규정 " + (_board == Leaderboard.Era ? "이닝" : "타석") + "을 채운 선수가 없어요."
+                    : "아직 기록이 없어요.");
+                return;
+            }
+            float[] widths = { 90, 0, 260, 170 };
+            Header(widths, "순위", "선수", "팀", _board);
+            for (int i = 0; i < lb.Top.Count; i++)
+            {
+                var r = lb.Top[i];
+                Row(widths, i, r.Mine, r.Rank.ToString(), r.Mine ? $"<color=#FFD24D>{r.Name}</color>" : r.Name, r.Team, r.Value);
+            }
+            if (lb.Me != null)
+            {
+                Note("· · ·", TextAnchor.MiddleCenter, 40);
+                Row(widths, 0, true, lb.Me.Rank.ToString(), $"<color=#FFD24D>{lb.Me.Name}</color>", lb.Me.Team, lb.Me.Value);
+            }
+            else if (!lb.Top.Any(r => r.Mine))
+                Note(_board == Leaderboard.Average || _board == Leaderboard.Era ? "내 선수는 아직 규정 기록 미달이에요." : "내 선수는 아직 이 순위에 없어요.", TextAnchor.MiddleCenter, 70);
         }
 
         void ShowMyRecord()
         {
             if (_career.Me.IsPitcher) ShowMyPitching();
             else ShowMyBatting();
+            ShowGrowth();
             ShowMoves();
+        }
+
+        static readonly Color[] StatColors =
+        {
+            new Color(0.35f, 0.65f, 1f), new Color(1f, 0.45f, 0.4f), new Color(0.45f, 0.85f, 0.5f),
+            new Color(1f, 0.8f, 0.3f), new Color(0.75f, 0.55f, 1f),
+        };
+
+        /// <summary>Ratings and results season by season, ending with where the player stands now.</summary>
+        void ShowGrowth()
+        {
+            var me = _career.Me;
+            Section("성장 그래프");
+            if (me.History.Count == 0)
+            {
+                Note("첫 시즌이 끝나면 시즌별 능력치 변화가 그래프로 나와요.");
+                return;
+            }
+            // Show at most the last 12 seasons so the points stay readable.
+            var history = me.History.Skip(Mathf.Max(0, me.History.Count - 12)).ToList();
+            var labels = history.Select(h => $"{h.Age}세").Concat(new[] { "지금" }).ToList();
+
+            var stats = me.MyStats.ToList();
+            var series = new List<LineChart.Series>();
+            for (int i = 0; i < stats.Count; i++)
+            {
+                var stat = stats[i];
+                var line = new LineChart.Series { Name = Stats.Name(stat), Color = StatColors[i % StatColors.Length] };
+                foreach (var h in history) line.Values.Add(h.Ratings != null && h.Ratings.TryGetValue(stat, out int v) ? v : me.Ratings[stat]);
+                line.Values.Add(me.Ratings[stat]);
+                series.Add(line);
+            }
+            float low = Mathf.Floor(series.Min(l => l.Values.Min()) / 10f) * 10;
+            LineChart.Create(_content, 460, Mathf.Min(low, 60), 100, labels, series.ToArray());
+
+            if (me.IsPitcher)
+            {
+                var era = new LineChart.Series { Name = "평균자책", Color = new Color(1f, 0.55f, 0.3f) };
+                foreach (var h in history) era.Values.Add((float)(h.Pitching?.Era ?? 0));
+                era.Values.Add((float)_career.SeasonPitching.Era);
+                Note("평균자책은 낮을수록 좋아요.", TextAnchor.MiddleLeft, 50);
+                LineChart.Create(_content, 340, 0, Mathf.Max(6, Mathf.Ceil(era.Values.Max())), labels, era);
+            }
+            else
+            {
+                var ops = new LineChart.Series { Name = "OPS", Color = Gold };
+                foreach (var h in history) ops.Values.Add((float)CareerState.Ops(h.Line));
+                ops.Values.Add((float)CareerState.Ops(_career.SeasonLine));
+                LineChart.Create(_content, 340, 0.4f, Mathf.Max(1.2f, ops.Values.Max() + 0.05f), labels, ops);
+            }
+        }
+
+        static readonly Dictionary<NewsKind, string> NewsColors = new Dictionary<NewsKind, string>
+        {
+            { NewsKind.Me, "#FFD24D" }, { NewsKind.Rival, "#F28C40" }, { NewsKind.League, "#FFFFFF" },
+        };
+
+        void ShowNews()
+        {
+            Section(CareerState.PaperName);
+            if (_career.News.Count == 0)
+            {
+                Note("경기를 치르면 하루하루 기사가 실려요.");
+                return;
+            }
+            float[] widths = { 220, 0 };
+            for (int i = 0; i < _career.News.Count; i++)
+            {
+                var n = _career.News[i];
+                string when = $"{CareerState.YearOf(n.Season)} · {n.Day}일차";
+                Row(widths, i, false, $"<color=#BAC4D8>{when}</color>", $"<color={NewsColors[n.Kind]}>{n.Headline}</color>");
+            }
         }
 
         void ShowMyPitching()
@@ -114,7 +247,7 @@ namespace BaseballGame
             var me = _career.Me;
             var p = _career.SeasonPitching;
             bool relief = me.Role != PitcherRole.Starter;
-            Section($"{me.Name}  {_career.Year} 시즌 · {Positions.RoleName(me.Role)} 투수");
+            Section($"{me.Name}  {_career.Year} 시즌 · {Positions.RoleName(me.Role)}");
             float[] statWidths = { 0, 0, 0, 0, 0, 0 };
             if (relief)
             {
@@ -206,6 +339,19 @@ namespace BaseballGame
                 foreach (var h in titled) Note($"{CareerState.YearOf(h.Season)}  {string.Join(", ", h.Titles)}", TextAnchor.MiddleLeft, 60);
             }
 
+            var autumns = me.History.Where(h => h.Postseason.Count > 0).ToList();
+            if (autumns.Count > 0)
+            {
+                Section("가을야구");
+                foreach (var h in Enumerable.Reverse(autumns))
+                {
+                    bool won = h.Postseason[0].StartsWith("우승");
+                    Note($"{CareerState.YearOf(h.Season)}  " + (won ? $"<color=#FFD24D><b>{h.Postseason[0]}</b></color>" : h.Postseason[0]) + $"  <size=24>({h.Club})</size>",
+                        TextAnchor.MiddleLeft, 56);
+                    foreach (var series in h.Postseason.Skip(1)) Note("      " + series, TextAnchor.MiddleLeft, 44);
+                }
+            }
+
             var moved = me.History.Where(h => h.Notes.Count > 0 || h.FarmDays > 0).ToList();
             if (moved.Count > 0)
             {
@@ -266,8 +412,11 @@ namespace BaseballGame
                     : collection.Contains(a.Id) ? _club.Roster.First(p => p.Achievements.Contains(a.Id)).Name
                     : "-";
                 bool reached = by != "-";
-                string name = reached ? $"<b>{a.Name}</b>  <size=24><color=#9EABC2>{a.Description}</color></size>" : $"<color=#5C667A>{a.Name}  <size=24>{a.Description}</size></color>";
-                Row(widths, i, mine.Contains(a.Id), name, by);
+                string name = reached ? $"<b>{a.Name}</b>  <size=24><color=#BAC4D8>{a.Description}</color></size>" : $"<color=#5C667A>{a.Name}  <size=24>{a.Description}</size></color>";
+                var row = UiKit.TableRow(_content, widths, new[] { name, by }, 30, Color.white,
+                    mine.Contains(a.Id) ? Highlight : i % 2 == 1 ? Stripe : (Color?)null);
+                var icon = ArtLibrary.Icon(row, ArtLibrary.AchievementIcon(a.Id), 56);
+                if (icon != null && !reached) icon.color = new Color(0.3f, 0.3f, 0.35f, 0.8f);
             }
         }
 
@@ -325,7 +474,7 @@ namespace BaseballGame
                 var label = UiKit.Label(row, "", 28, TextAnchor.MiddleLeft);
                 UiKit.Width(label, 0, 1);
                 void ShowNumber() => label.text = $"{player.Name}  <b>{(player.ShownNumber > 0 ? player.ShownNumber + "번" : "번호 없음")}</b>" +
-                    (player.TeamNumber > 0 && player.Number > 0 ? $" <size=22><color=#9EABC2>(현역 {player.Number}번)</color></size>" : "");
+                    (player.TeamNumber > 0 && player.Number > 0 ? $" <size=24><color=#BAC4D8>(현역 {player.Number}번)</color></size>" : "");
                 foreach (int step in new[] { -10, -1, 1, 10 })
                 {
                     int d = step;
@@ -367,7 +516,8 @@ namespace BaseballGame
         /// <summary>My team lives in the club, which the growth screen saves too; save here so a result can't be lost.</summary>
         void Save()
         {
-            if (_career != null && _career.IsMidGame) return;
+            if (_career == null) { SaveStore.SaveClub(_club); return; } // from home: the slots stay as they are
+            if (_career.IsMidGame) return;
             SaveStore.Save(_club, _career);
         }
 

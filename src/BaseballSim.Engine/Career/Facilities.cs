@@ -15,10 +15,15 @@ namespace BaseballSim.Career
     /// </summary>
     public static class Facilities
     {
-        public const int MaxLevel = 3;
+        public const int MaxLevel = 5;
 
-        /// <summary>Price in 만원 of each level, 1 to 3.</summary>
-        static readonly int[] Prices = { 8000, 25000, 70000 };
+        /// <summary>
+        /// Price in 만원 of each level, 1 to 5. Levels 4 and 5 are for veterans whose salary has
+        /// piled up with nothing left to buy; their effects add less than the first three.
+        /// </summary>
+        static readonly int[] Prices = { 8000, 25000, 70000, 100000, 200000 };
+        static readonly double[] InjuryCut = { 0, 0.25, 0.5, 0.75, 0.8, 0.85 };
+        static readonly double[] DeclineCut = { 0, 0.2, 0.4, 0.6, 0.7, 0.8 };
 
         public static IEnumerable<Facility> All => (Facility[])System.Enum.GetValues(typeof(Facility));
 
@@ -46,7 +51,7 @@ namespace BaseballSim.Career
         }
 
         public static int ExtraRecovery(int level) => 2 * level;
-        public static double InjuryReduction(int level) => 0.25 * level;
-        public static double DeclineReduction(int level) => 0.2 * level;
+        public static double InjuryReduction(int level) => InjuryCut[level];
+        public static double DeclineReduction(int level) => DeclineCut[level];
     }
 }

@@ -12,6 +12,9 @@ namespace BaseballGame.EditorTools
     /// </summary>
     public class ArtImport : AssetPostprocessor
     {
+        // Bumping this makes Unity reimport every picture with the settings below.
+        public override uint GetVersion() => 2;
+
         const string ArtFolder = "Assets/Resources/Art/";
         const string WorldTextures = "Assets/Resources/World/Textures/";
         const string Characters = "Assets/Resources/World/Characters/";
@@ -37,7 +40,16 @@ namespace BaseballGame.EditorTools
             if (!assetPath.StartsWith(ArtFolder)) return;
             importer.textureType = TextureImporterType.Sprite;
             importer.spriteImportMode = SpriteImportMode.Single;
-            importer.mipmapEnabled = false;
+            // Most pictures are drawn smaller than they were made (a 1024px emblem in an 80px circle). Without
+            // mipmaps that shrink looks jagged and grainy; trilinear blends between sizes smoothly.
+            importer.mipmapEnabled = true;
+            importer.mipmapFilter = TextureImporterMipFilter.KaiserFilter;
+            importer.filterMode = FilterMode.Trilinear;
+            importer.anisoLevel = 1;
+            // Default compression smears soft gradients into blocks; keep pictures at high quality.
+            importer.textureCompression = TextureImporterCompression.CompressedHQ;
+            importer.crunchedCompression = false;
+            importer.maxTextureSize = 2048;
             importer.alphaIsTransparency = true;
             importer.npotScale = TextureImporterNPOTScale.None;
             if (assetPath.StartsWith(ArtFolder + "UI/button"))

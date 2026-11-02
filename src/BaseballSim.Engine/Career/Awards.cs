@@ -107,18 +107,18 @@ namespace BaseballSim.Career
                         Title = GoldenGlove, Winner = pitcher.Name, Team = pitcher.Team.Name, Position = Position.Pitcher,
                         Value = $"투수 · {pitcher.Line.Wins}승 · 평균자책 {pitcher.Line.EraText}", Mine = pitcher.Id == myId,
                     });
-                foreach (var position in Positions.Fielders)
+                foreach (var group in Positions.GloveGroups)
                 {
                     var winners = qualified
                         .Select(b => (Batter: b, Fielding: fieldingOf(b.Id)))
-                        .Where(x => x.Fielding.Position == position)
-                        .OrderByDescending(x => Stats.Ops(x.Batter.Line) + (x.Fielding.Defense - 50) * Positions.DefenseWeight(position))
-                        .Take(Positions.GoldenGloves(position));
+                        .Where(x => Positions.GloveGroup(x.Fielding.Position) == group)
+                        .OrderByDescending(x => Stats.Ops(x.Batter.Line) + (x.Fielding.Defense - 50) * Positions.DefenseWeight(x.Fielding.Position))
+                        .Take(Positions.GoldenGloves(group));
                     foreach (var (b, f) in winners)
                         awards.Add(new SeasonAward
                         {
-                            Title = GoldenGlove, Winner = b.Name, Team = b.Team.Name, Position = position,
-                            Value = $"{Positions.Name(position)} · OPS {Stats.Rate(Stats.Ops(b.Line))}" + (position == Position.DesignatedHitter ? "" : $" · 수비 {f.Defense}"),
+                            Title = GoldenGlove, Winner = b.Name, Team = b.Team.Name, Position = group,
+                            Value = $"{Positions.Name(f.Position)} · OPS {Stats.Rate(Stats.Ops(b.Line))}" + (group == Position.DesignatedHitter ? "" : $" · 수비 {f.Defense}"),
                             Mine = b.Id == myId,
                         });
                 }

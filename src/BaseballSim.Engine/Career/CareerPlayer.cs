@@ -22,6 +22,8 @@ namespace BaseballSim.Career
         public string Club;
         /// <summary>Moves this season: "5월 2군 강등", trades, a release.</summary>
         public List<string> Notes = new List<string>();
+        /// <summary>That autumn: my team's result first ("플레이오프 탈락 · 서울 블루윙스 우승"), then each series.</summary>
+        public List<string> Postseason = new List<string>();
         /// <summary>Days spent in 2군.</summary>
         public int FarmDays;
         /// <summary>A season of military service.</summary>
@@ -68,11 +70,13 @@ namespace BaseballSim.Career
         /// <summary>Clubs moved to by trade, free agency or tryout, in order. Empty means a one-club career.</summary>
         public List<string> Clubs = new List<string>();
         public int AllStarSelections;
+        /// <summary>Steals over the whole career (season lines in history don't keep them).</summary>
+        public int CareerStolenBases;
         public int AllStarMvps;
         /// <summary>Big at bats where the pitch I sat on came.</summary>
         public int ReadsRight;
         public int GoldMedals;
-        public Position Position = Position.Outfield;
+        public Position Position = Position.CenterField;
         /// <summary>Jersey number, 1-99; 0 = none picked.</summary>
         public int Number;
         /// <summary>Trait ids picked, in order.</summary>
@@ -192,10 +196,11 @@ namespace BaseballSim.Career
         }
 
         /// <summary>Builds the match-engine player for one game: ratings plus gear, form from fatigue.</summary>
-        public Player ForGame(IRandom random)
+        public Player ForGame(IRandom random, int? todayForm = null)
         {
             var p = new Player(Id, Name);
-            int form = (int)Math.Round(random.NextDouble() * 8 - 4);
+            int form = (int)Math.Round(random.NextDouble() * 8 - 4); // drawn either way so the random stream stays put
+            if (todayForm.HasValue) form = todayForm.Value;
             int tiredness = Math.Max(0, (Fatigue - 50) / 6);
             p.Condition = form - tiredness + Morale / 2;
             p.Traits = new HashSet<string>(Traits);

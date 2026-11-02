@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace BaseballGame
@@ -13,16 +14,16 @@ namespace BaseballGame
         public static readonly Color Background = new Color(0.07f, 0.09f, 0.14f);
         public static readonly Color Card = new Color(0.13f, 0.16f, 0.23f);
         public static readonly Color Accent = new Color(0.25f, 0.55f, 0.95f);
-        public static readonly Color Muted = new Color(0.62f, 0.67f, 0.76f);
+        public static readonly Color Muted = new Color(0.74f, 0.78f, 0.86f);
         public static readonly Color Warning = new Color(0.95f, 0.55f, 0.25f);
 
         static Font _font;
-        /// <summary>The bundled Korean game font (Jua, SIL OFL), or Unity's built-in font without it.</summary>
+        /// <summary>The bundled Korean game font (Pretendard Regular, SIL OFL), or Unity's built-in font without it.</summary>
         public static Font Font
         {
             get
             {
-                if (_font == null) _font = Resources.Load<Font>("Fonts/Jua-Regular");
+                if (_font == null) _font = Resources.Load<Font>("Fonts/Pretendard-Regular");
                 if (_font == null) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 return _font;
             }
@@ -76,6 +77,42 @@ namespace BaseballGame
 
         public static Color TeamColor(string teamName) =>
             ColorUtility.TryParseHtmlString(BaseballSim.Career.League.TeamColors.TryGetValue(teamName, out var hex) ? hex : "#888888", out var c) ? c : Color.gray;
+
+        // ---------- Screens ----------
+
+        /// <summary>
+        /// The event system that turns taps into button clicks, made once. It reads the new Input
+        /// System when the project uses it, and the old Input Manager otherwise.
+        /// </summary>
+        public static void EnsureEventSystem()
+        {
+            if (Object.FindAnyObjectByType<EventSystem>() != null) return;
+#if ENABLE_INPUT_SYSTEM && HAS_INPUT_SYSTEM
+            var module = typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule);
+#else
+            var module = typeof(StandaloneInputModule);
+#endif
+            var go = new GameObject("EventSystem", typeof(EventSystem), module);
+            Object.DontDestroyOnLoad(go);
+        }
+
+        /// <summary>A full-screen canvas laid out for a 1080x1920 phone, drawn above lower sorting orders.</summary>
+        public static GameObject Canvas(Transform parent, string name, int sortingOrder = 0)
+        {
+            EnsureEventSystem();
+            var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            go.transform.SetParent(parent, false);
+            var canvas = go.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = sortingOrder;
+            var scaler = go.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.matchWidthOrHeight = 0.5f;
+            scaler.gameObject.AddComponent<FitScaler>();
+            UiAnim.FadeIn(go.transform, 0.2f); // screens fade in rather than pop
+            return go;
+        }
 
         // ---------- Elements ----------
 
@@ -165,7 +202,7 @@ namespace BaseballGame
         /// Puts a picture behind a SafeRoot's layout, cropped to fill the screen and darkened so
         /// text stays readable. Does nothing when there's no picture.
         /// </summary>
-        public static void Backdrop(RectTransform safeRoot, Sprite art, float darken = 0.6f)
+        public static void Backdrop(RectTransform safeRoot, Sprite art, float darken = 0.72f)
         {
             if (art == null) return;
             var back = safeRoot.parent;
@@ -191,6 +228,9 @@ namespace BaseballGame
             rt.offsetMax = Vector2.zero;
         }
 
+        /// <summary>Nothing smaller than this on a phone screen.</summary>
+        public const int MinFontSize = 24;
+
         public static Text Label(Transform parent, string text, int size, TextAnchor anchor = TextAnchor.MiddleLeft, Color? color = null)
         {
             var go = new GameObject("Label", typeof(RectTransform), typeof(Text));
@@ -198,11 +238,18 @@ namespace BaseballGame
             var t = go.GetComponent<Text>();
             t.font = Font;
             t.text = text;
-            t.fontSize = size;
+            t.fontSize = Mathf.Max(MinFontSize, size);
             t.alignment = anchor;
             t.color = color ?? Color.white;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
             t.verticalOverflow = VerticalWrapMode.Truncate;
+            // Text never takes taps itself (buttons and scroll views have their own images), which keeps
+            // the raycaster from testing hundreds of labels on every touch.
+            t.raycastTarget = false;
+            // A soft drop shadow keeps text readable over pictures and light buttons.
+            var shadow = go.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0, 0, 0, 0.35f);
+            shadow.effectDistance = new Vector2(1.5f, -1.5f);
             return t;
         }
 
@@ -359,6 +406,23 @@ namespace BaseballGame
                 Width(cell, widths[i], widths[i] == 0 ? 1 : 0);
             }
             return row;
+        }
+    }
+
+    /// <summary>
+    /// Scales a canvas so the whole 1080x1920 layout always fits: by width on tall phones, by height
+    /// on wider screens (tablets, a landscape editor window), so nothing gets squashed.
+    /// </summary>
+    public class FitScaler : MonoBehaviour
+    {
+        CanvasScaler _scaler;
+
+        void Awake() => _scaler = GetComponent<CanvasScaler>();
+
+        void Update()
+        {
+            if (_scaler == null || Screen.height == 0) return;
+            _scaler.matchWidthOrHeight = (float)Screen.width / Screen.height > 1080f / 1920f ? 1f : 0f;
         }
     }
 }

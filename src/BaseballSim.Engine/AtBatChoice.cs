@@ -22,6 +22,13 @@ namespace BaseballSim
         ThrowBreaking,
         /// <summary>Nibble at the corners: more walks, less damage.</summary>
         PitchAround,
+        // Tactics for my batter:
+        /// <summary>Lay one down to move the runners up, giving up the out.</summary>
+        Bunt,
+        /// <summary>The runner on first goes with the pitch: more contact, no double play, extra base on a single.</summary>
+        HitAndRun,
+        /// <summary>My player on first tries for second before the next batter's pitch.</summary>
+        Steal,
     }
 
     /// <summary>
@@ -47,6 +54,18 @@ namespace BaseballSim
         /// <summary>My player's hunch for this pitch; right more often with a better eye.</summary>
         public Pitch Hunch;
         public double HunchAccuracy;
+        /// <summary>The scoreboard so far, inning by inning, and which side is my club.</summary>
+        public LineScore Score;
+        public bool MineIsAway;
+        /// <summary>Tactics open in this at bat: a bunt with a runner on first or second and under two outs,
+        /// a hit and run with a runner on first only.</summary>
+        public bool CanBunt, CanHitAndRun;
+        /// <summary>My player on first with second open: steal or stay. StealOdds is the chance it works.</summary>
+        public bool Stealing;
+        public Player Runner;
+        public double StealOdds;
+        /// <summary>A bunt's chances: a sacrifice that moves the runners, and a bunt single.</summary>
+        public double BuntOdds, BuntHitOdds;
         internal Pitch Coming;
     }
 
@@ -177,6 +196,23 @@ namespace BaseballSim
                 default: return null;
             }
         }
+
+        public static bool CanBunt(bool[] bases, int outs) => outs < 2 && (bases[0] || bases[1]) && !bases[2];
+        public static bool CanHitAndRun(bool[] bases, int outs) => outs < 2 && bases[0] && !bases[1];
+
+        static double Unit(int rating) => Math.Max(0, Math.Min(1, (rating - 20) / 80.0));
+
+        /// <summary>A sacrifice lands 70% of the time at contact 20, 95% at 100.</summary>
+        public static double BuntOdds(Player batter) => 0.7 + 0.25 * Unit(batter.Batting.Contact);
+        /// <summary>A fast runner beats a bunt out now and then: 3% at speed 20, 20% at 100.</summary>
+        public static double BuntHitOdds(Player batter) => 0.03 + 0.17 * Unit(batter.Batting.Speed);
+        /// <summary>Steals work 45% of the time at speed 20, 92% at 100; the speed trait adds 8 points.</summary>
+        public static double StealOdds(Player runner) =>
+            Math.Min(0.95, 0.45 + 0.47 * Unit(runner.Batting.Speed) + (runner.Traits.Contains("speed") ? 0.08 : 0));
+
+        /// <summary>Swinging to protect the runner: the batter puts the ball in play and gives up some power.</summary>
+        public static void ApplyHitAndRun(OutcomeOdds odds) =>
+            Scale(odds, strikeout: 0.7, walk: 0.7, homeRun: 0.6, single: 1.3, extra: 1.0);
 
         static void Scale(OutcomeOdds o, double strikeout, double walk, double homeRun, double single, double extra)
         {

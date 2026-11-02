@@ -72,6 +72,66 @@ namespace BaseballGame
 
         public static Sprite Background(string screen) => Get("Backgrounds/" + screen);
 
+        /// <summary>
+        /// The drawn face for a player: one of the portrait set, picked from the player's id so the
+        /// same player keeps the same face. Pitchers use their own set when it exists.
+        /// </summary>
+        public static Sprite Portrait(CareerPlayer me)
+        {
+            string key = me.Id ?? me.Name ?? "";
+            int hash = 17;
+            foreach (char c in key) hash = unchecked(hash * 31 + c);
+            string n = ((hash & 0x7fffffff) % 4 + 1).ToString("00");
+            return (me.IsPitcher ? Get("Portraits/pitcher_" + n) : null) ?? Get("Portraits/player_" + n);
+        }
+
+        static readonly Dictionary<EquipmentSlot, string> GearIcons = new Dictionary<EquipmentSlot, string>
+        {
+            { EquipmentSlot.Bat, "bat" }, { EquipmentSlot.BattingGloves, "batting_gloves" }, { EquipmentSlot.Glove, "glove" },
+            { EquipmentSlot.Spikes, "spikes" }, { EquipmentSlot.Helmet, "helmet" },
+        };
+
+        public static Sprite GearIcon(EquipmentSlot slot) =>
+            GearIcons.TryGetValue(slot, out var name) ? Get("Icons/Gear/" + name) : null;
+
+        /// <summary>Practice, pro, premium, luxury: gray, blue, purple, gold. Read from the "bat3" style id.</summary>
+        public static Color GearTierColor(Equipment gear)
+        {
+            if (gear == null) return new Color(0.36f, 0.4f, 0.48f);
+            char last = gear.Id[gear.Id.Length - 1];
+            switch (last)
+            {
+                case '2': return new Color(0.37f, 0.66f, 1f);
+                case '3': return new Color(0.68f, 0.45f, 0.95f);
+                case '4': return new Color(1f, 0.82f, 0.3f);
+                default: return new Color(0.75f, 0.78f, 0.84f);
+            }
+        }
+
+        static readonly Dictionary<Facility, string> FacilityIcons = new Dictionary<Facility, string>
+        {
+            { Facility.TrainerRoom, "trainer_room" }, { Facility.RehabCenter, "rehab_center" }, { Facility.Conditioning, "conditioning" },
+        };
+
+        public static Sprite FacilityIcon(Facility facility) =>
+            FacilityIcons.TryGetValue(facility, out var name) ? Get("Icons/Facilities/" + name) : null;
+
+        public static Sprite TraitIcon(string traitId) => Get("Icons/Traits/" + traitId);
+
+        public static Sprite AchievementIcon(string achievementId) => Get("Icons/Achievements/" + achievementId);
+
+        /// <summary>The trophy for a title; every per-stat crown (홈런왕, 다승왕…) shares one plaque.</summary>
+        public static Sprite TrophyIcon(string title)
+        {
+            string name = title == Postseason.ChampionTitle || title == "우승 반지" ? "champion_trophy"
+                : title == Awards.Mvp ? "mvp_trophy"
+                : title == Awards.Rookie ? "rookie_trophy"
+                : title == Awards.GoldenGlove ? "golden_glove_trophy"
+                : title == NationalTeam.Gold || title.Contains("금메달") ? "gold_medal"
+                : "batting_title";
+            return Get("Icons/Trophies/" + name);
+        }
+
         // ---------- Pieces built from art, with code fallbacks ----------
 
         /// <summary>
@@ -111,6 +171,45 @@ namespace BaseballGame
             // "서울 블루윙스" → "블": the nickname reads better than the city.
             int space = teamName.IndexOf(' ');
             letter.text = teamName.Length == 0 ? "" : teamName.Substring(space >= 0 && space + 1 < teamName.Length ? space + 1 : 0, 1);
+        }
+
+        /// <summary>
+        /// A small picture at the front of a layout row (or a table row), or nothing when it isn't drawn yet.
+        /// </summary>
+        public static Image Icon(Transform row, Sprite art, float size, bool first = true)
+        {
+            if (art == null) return null;
+            var rt = UiKit.Empty(row, "Icon");
+            var image = rt.gameObject.AddComponent<Image>();
+            image.sprite = art;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            var layout = rt.gameObject.AddComponent<LayoutElement>();
+            layout.preferredWidth = layout.minWidth = size;
+            layout.preferredHeight = size;
+            layout.flexibleWidth = 0;
+            if (first) rt.SetAsFirstSibling();
+            return image;
+        }
+
+        /// <summary>A line of text with an icon in front of it; just the text when there's no picture.</summary>
+        public static Text IconLine(RectTransform parent, Sprite art, string text, int fontSize, float height, Color? color = null)
+        {
+            if (art == null)
+            {
+                var plain = UiKit.Label(parent, text, fontSize, TextAnchor.MiddleLeft, color);
+                UiKit.Height(plain, height);
+                return plain;
+            }
+            var line = UiKit.Empty(parent, "IconLine");
+            UiKit.Height(line, height);
+            var layout = UiKit.Row(line, 14);
+            layout.childForceExpandWidth = false;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            Icon(line, art, height - 6);
+            var label = UiKit.Label(line, text, fontSize, TextAnchor.MiddleLeft, color);
+            UiKit.Width(label, 0, 1);
+            return label;
         }
 
         /// <summary>A picture on top of a card, or nothing at all when it isn't drawn yet.</summary>

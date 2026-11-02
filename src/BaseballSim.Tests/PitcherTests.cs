@@ -327,7 +327,7 @@ public class DreamTeamTests
     [Fact]
     public void TheFirstWinAtALevelPaysLegacyPointsOnce()
     {
-        var club = ClubWith(Enumerable.Range(0, 9).Select(i => ($"레전드{i}", Position.Outfield, 95))
+        var club = ClubWith(Enumerable.Range(0, 9).Select(i => ($"레전드{i}", Position.CenterField, 95))
             .Concat(Enumerable.Range(0, 5).Select(i => ($"에이스{i}", Position.Pitcher, 95))).ToArray());
         var random = new SeededRandom(2);
         ChallengeResult first = null;
