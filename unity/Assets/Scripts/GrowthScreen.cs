@@ -1256,7 +1256,7 @@ namespace BaseballGame
         void ConfirmSwitchPlayer()
         {
             // Not over a decision card (season end, offers, a big at bat); the new-player card may leave.
-            if (_career == null) { BackToTitle(); return; }
+            if (_career == null || _retired) { BackToTitle(); return; }
             if (_overlay != null) return;
             var card = OpenOverlay("홈으로 갈까요?");
             UiKit.Height(UiKit.Label(card, $"{_career.Me.Name} 선수는 지금 상태 그대로 슬롯 {SaveStore.CurrentSlot}에 저장돼요.\n\n" +
@@ -1766,6 +1766,7 @@ namespace BaseballGame
                 () => StoryScreen.OpenEnding(MainStory.EndingTitle(retired.Ending), MainStory.EndingLines(career, retired)), UiKit.Accent), 110);
             UiKit.Height(UiKit.Button(card, "커리어 카드 보기", () => CareerCard.Show(_canvas.transform, RetiredCard(retired)), UiKit.Muted), 100);
             UiKit.Height(UiKit.Button(card, "새 선수 육성 시작", ShowNewPlayer), 110);
+            UiKit.Height(UiKit.Button(card, "홈으로", BackToTitle, UiKit.Muted), 100);
         }
 
         // ---------- Player cards ----------
@@ -1890,6 +1891,11 @@ namespace BaseballGame
                         Refresh();
                         CheckIn();
                     });
+
+                // Registering can be left at any step; nothing is saved until 육성 시작.
+                var leave = UiKit.Button(card, "홈으로 나가기", BackToTitle, UiKit.Background);
+                leave.GetComponentInChildren<Text>().fontSize = 28;
+                UiKit.Height(leave, 90);
             }
 
             void NameAndTeam(RectTransform card)
