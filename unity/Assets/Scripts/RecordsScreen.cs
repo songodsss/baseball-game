@@ -247,7 +247,7 @@ namespace BaseballGame
             var me = _career.Me;
             var p = _career.SeasonPitching;
             bool relief = me.Role != PitcherRole.Starter;
-            Section($"{me.Name}  {_career.Year} 시즌 · {Positions.RoleName(me.Role)} 투수");
+            Section($"{me.Name}  {_career.Year} 시즌 · {Positions.RoleName(me.Role)}");
             float[] statWidths = { 0, 0, 0, 0, 0, 0 };
             if (relief)
             {

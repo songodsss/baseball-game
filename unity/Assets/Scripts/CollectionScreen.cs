@@ -243,7 +243,7 @@ namespace BaseballGame
             UiKit.Width(number, 120);
 
             Text(cell, (p.HallOfFame ? "<color=#FFD24D>★</color> " : "") + $"<b>{p.Name}</b>", 34, Color.white, 50);
-            Text(cell, $"{(p.IsPitcher ? Positions.RoleName(p.Role) + " 투수" : Positions.Name(p.Position))} · {p.Seasons}시즌", 24, UiKit.Muted, 36);
+            Text(cell, $"{(p.IsPitcher ? Positions.RoleName(p.Role) : Positions.Name(p.Position))} · {p.Seasons}시즌", 24, UiKit.Muted, 36);
             var arm = p.CareerPitching;
             string totals = !p.IsPitcher || arm == null ? $"{p.CareerLine.Hits}안타 {p.CareerLine.HomeRuns}홈런"
                 : p.Role == PitcherRole.Closer ? $"{arm.Saves}세이브 {arm.Strikeouts}K"

@@ -40,7 +40,7 @@ namespace BaseballGame
             if (portrait != null) portrait.GetComponent<LayoutElement>().preferredHeight = 180;
             var emblem = ArtLibrary.Emblem(band, _career.MyTeam.Name, portrait != null ? 100 : 150);
             UiKit.Width(emblem, portrait != null ? 100 : 150);
-            string position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position);
+            string position = me.IsPitcher ? Positions.RoleName(me.Role) : Positions.Name(me.Position);
             var title = UiKit.Label(band, $"<b>{me.Name}</b>  {(me.Number > 0 ? "#" + me.Number : "")}\n" +
                 $"<size=30><color=#DDE3EE>{position} · {me.Age}세 · {_career.MyTeam.Name} · {me.History.Count + 1}년차</color></size>", 52);
             UiKit.Width(title, 0, 1);

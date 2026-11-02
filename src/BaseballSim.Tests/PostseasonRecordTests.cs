@@ -40,7 +40,9 @@ public class OutfieldPositionTests
         Assert.Contains(Position.RightField, Positions.Fielders);
         Assert.DoesNotContain(Position.Outfield, Positions.Fielders);
         Assert.Equal("CF", Positions.Short(Position.CenterField));
-        Assert.Equal("우익수", Positions.Name(Position.RightField));
+        Assert.Equal("RF", Positions.Name(Position.RightField));
+        Assert.Equal("우익수", Positions.KoreanName(Position.RightField));
+        Assert.Equal("CP", Positions.RoleName(PitcherRole.Closer));
         Assert.Equal(Position.LeftField, Positions.OfLineupIndex(5));
         Assert.Equal(Position.RightField, Positions.OfLineupIndex(7));
         Assert.Equal(Position.DesignatedHitter, Positions.OfLineupIndex(8));

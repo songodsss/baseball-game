@@ -1685,7 +1685,7 @@ namespace BaseballGame
             {
                 Name = me.Name,
                 Number = me.Number,
-                Position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position),
+                Position = me.IsPitcher ? Positions.RoleName(me.Role) : Positions.Name(me.Position),
                 Team = record.Club ?? _career.MyTeam.Name,
                 Subtitle = $"{CareerState.YearOf(record.Season)} 시즌 · {record.Age}세",
                 Titles = new List<string>(record.Titles),
@@ -1714,7 +1714,7 @@ namespace BaseballGame
             {
                 Name = retired.Name,
                 Number = retired.ShownNumber,
-                Position = retired.IsPitcher ? $"{Positions.RoleName(retired.Role)} 투수" : Positions.Name(retired.Position),
+                Position = retired.IsPitcher ? Positions.RoleName(retired.Role) : Positions.Name(retired.Position),
                 Team = retired.MainClub ?? "",
                 Subtitle = $"통산 {retired.Seasons}시즌 · 올스타 {retired.AllStars}회",
                 Banner = retired.HallOfFame ? "★ 명예의 전당 ★" : null,
@@ -1833,7 +1833,7 @@ namespace BaseballGame
                     : position == Position.CenterField ? "외야 한가운데, 넓은 수비 범위라 골든글러브에서 수비가 더 쳐줘요"
                     : Positions.IsOutfield(position) ? "외야 골든글러브는 좌·중·우 합쳐서 3명이 받아요"
                     : "타격·주루·수비 다섯 능력치를 키워요";
-                positionLabel.text = $"포지션: <b>{Positions.Name(position)}</b> ({Positions.Short(position)}) <size=24><color=#BAC4D8>{what} (바꿀 수 없어요)</color></size>";
+                positionLabel.text = $"포지션: <b>{Positions.Name(position)}</b> ({(position == Position.Pitcher ? Positions.RoleKoreanName(role) + " 투수" : Positions.KoreanName(position))}) <size=24><color=#BAC4D8>{what} (바꿀 수 없어요)</color></size>";
                 foreach (var (pos, b) in positionButtons) b.GetComponent<Image>().color = pos == position ? UiKit.Accent : UiKit.Background;
             }
             foreach (var pos in new[] { Position.Pitcher }.Concat(Positions.Fielders))
@@ -1848,7 +1848,7 @@ namespace BaseballGame
             foreach (var r in new[] { PitcherRole.Starter, PitcherRole.Setup, PitcherRole.Closer })
             {
                 var pr = r;
-                var b = UiKit.Button(roleRow, $"{Positions.RoleName(pr)} 투수", () => { role = pr; ShowPosition(); });
+                var b = UiKit.Button(roleRow, $"{Positions.RoleName(pr)} {Positions.RoleKoreanName(pr)}", () => { role = pr; ShowPosition(); });
                 b.GetComponentInChildren<Text>().fontSize = 28;
                 roleButtons.Add((pr, b));
             }
@@ -1928,7 +1928,7 @@ namespace BaseballGame
                 ? (_career.IsStartDay ? " · <color=#FFD24D>오늘 선발</color>" : $" · 선발 D-{_career.DaysToNextStart}")
                 : $" · {CareerState.SlotName(_career.LineupSlot)} 타자";
             string number = me.Number > 0 ? $"#{me.Number} " : "";
-            string position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position);
+            string position = me.IsPitcher ? Positions.RoleName(me.Role) : Positions.Name(me.Position);
             if (_emblemTeam != _career.MyTeam.Name)
             {
                 _emblemTeam = _career.MyTeam.Name;

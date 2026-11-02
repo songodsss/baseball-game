@@ -24,11 +24,13 @@ namespace BaseballSim.Career
             Position.LeftField, Position.CenterField, Position.RightField, Position.DesignatedHitter,
         };
 
-        static readonly string[] Names = { "포수", "1루수", "2루수", "3루수", "유격수", "외야수", "지명타자", "투수", "좌익수", "중견수", "우익수" };
+        static readonly string[] KoreanNames = { "포수", "1루수", "2루수", "3루수", "유격수", "외야수", "지명타자", "투수", "좌익수", "중견수", "우익수" };
         static readonly string[] Shorts = { "C", "1B", "2B", "3B", "SS", "OF", "DH", "P", "LF", "CF", "RF" };
-        public static string Name(Position p) => Names[(int)p];
-        /// <summary>Scorecard letters, e.g. "CF".</summary>
+        /// <summary>What the game shows: scorecard letters, e.g. "CF".</summary>
+        public static string Name(Position p) => Shorts[(int)p];
         public static string Short(Position p) => Shorts[(int)p];
+        /// <summary>The Korean name, for explaining a position at registration, e.g. "중견수".</summary>
+        public static string KoreanName(Position p) => KoreanNames[(int)p];
 
         public static bool IsOutfield(Position p) =>
             p == Position.Outfield || p == Position.LeftField || p == Position.CenterField || p == Position.RightField;
@@ -54,8 +56,11 @@ namespace BaseballSim.Career
             }
         }
 
-        static readonly string[] RoleNames = { "선발", "중계", "마무리" };
+        static readonly string[] RoleNames = { "SP", "RP", "CP" };
+        static readonly string[] RoleKoreanNames = { "선발", "중계", "마무리" };
+        /// <summary>What the game shows for a pitcher: SP (starter), RP (setup), CP (closer).</summary>
         public static string RoleName(PitcherRole r) => RoleNames[(int)r];
+        public static string RoleKoreanName(PitcherRole r) => RoleKoreanNames[(int)r];
 
         public static int ExtraGameFatigue(Position p) => p == Position.Catcher ? 3 : p == Position.DesignatedHitter ? -2 : 0;
 

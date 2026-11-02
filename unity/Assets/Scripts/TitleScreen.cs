@@ -186,7 +186,7 @@ namespace BaseballGame
             else
             {
                 var me = career.Me;
-                string position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position);
+                string position = me.IsPitcher ? Positions.RoleName(me.Role) : Positions.Name(me.Position);
                 string where = career.InMilitary ? "군 복무 중" : career.InFarm ? "2군" : career.MyTeam.Name;
                 text = $"<b>{me.Name}</b>  <size=28>{position} · {me.Age}세</size>\n" +
                        $"<size=26><color=#BAC4D8>{where} · {career.Year} 시즌 {career.Day + 1}일차 · {me.History.Count + 1}년차</color></size>";
