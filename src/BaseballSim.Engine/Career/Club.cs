@@ -96,6 +96,8 @@ namespace BaseballSim.Career
         public int RewindTickets;
         /// <summary>My retired players' league against AI clubs.</summary>
         public MyTeamLeague TeamLeague = new MyTeamLeague();
+        /// <summary>The arena: my team against other clubs' teams of the same weight class.</summary>
+        public Arena Arena = new Arena();
 
         public const int MissionCoins = 30;
         /// <summary>Coins for one recovery ticket.</summary>

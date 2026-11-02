@@ -27,7 +27,9 @@ namespace BaseballSim.Career
         /// 28: the my-team league.
         /// 29: hit streak, manager trust, derby best, story marks.
         /// 30: days missed hurt (comeback years).
-        public const int Version = 31;
+        /// 31: signature skills (career).
+        /// 32: the arena.
+        public const int Version = 32;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -210,6 +212,17 @@ namespace BaseballSim.Career
             WriteList(w, league.Trophies.ToList(), w.Write);
             w.Write(league.Date);
             w.Write(league.GamesToday);
+            // Added in version 32.
+            var arena = club.Arena;
+            w.Write(arena.Rating);
+            w.Write(arena.SeasonId);
+            w.Write(arena.SeasonBest);
+            w.Write(arena.Wins);
+            w.Write(arena.Losses);
+            w.Write(arena.Date);
+            w.Write(arena.EntriesUsed);
+            w.Write(arena.ExtraEntriesBought);
+            w.Write(arena.LastSeasonNote ?? "");
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -350,6 +363,20 @@ namespace BaseballSim.Career
                 for (int k = 0; k < trophies.Count && k < MyTeamLeague.Divisions; k++) league.Trophies[k] = trophies[k];
                 league.Date = r.ReadString();
                 league.GamesToday = r.ReadInt32();
+            }
+            if (version >= 32)
+            {
+                var arena = club.Arena;
+                arena.Rating = r.ReadInt32();
+                arena.SeasonId = r.ReadInt32();
+                arena.SeasonBest = r.ReadInt32();
+                arena.Wins = r.ReadInt32();
+                arena.Losses = r.ReadInt32();
+                arena.Date = r.ReadString();
+                arena.EntriesUsed = r.ReadInt32();
+                arena.ExtraEntriesBought = r.ReadInt32();
+                var note = r.ReadString();
+                arena.LastSeasonNote = note.Length == 0 ? null : note;
             }
             return club;
         }
