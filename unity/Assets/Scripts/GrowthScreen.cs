@@ -68,6 +68,8 @@ namespace BaseballGame
             SaveStore.TryLoadCareer(SaveStore.CurrentSlot, _club, _random, out _career);
             BuildUi();
             Refresh();
+            GameAudio.PlayMusic(GameAudio.MusicTraining);
+            GameAudio.PlayAmbience(null);
 
             if (_career == null) ShowNewPlayer();
             else if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
@@ -327,6 +329,8 @@ namespace BaseballGame
                 return;
             }
             TakeSnapshot();
+            // Before the season's first day: kept so a rewind ticket can replay the season.
+            if (_career.Day == 0) SaveStore.SaveSeasonStart(_career, _club);
             if (_fast && Premium.Owns(Premium.FastSkip)) { FastForward(action); return; }
             var result = _career.PlayDay(action);
             if (result.AtBat != null) ShowAtBat(result);
@@ -396,10 +400,23 @@ namespace BaseballGame
                 ShowEvent(result.Event);
                 Tip("event", "가끔 이벤트가 생겨요. 고르는 답에 따라 경험치, 피로, 사기가 달라져요. 사기가 높으면 경기 컨디션이 좋아져요.");
             }
+            DaySound(result);
             Save();
             Refresh();
             ShowGains(result);
             ShowTips();
+        }
+
+        /// <summary>One sound for the day's biggest news: the popup that opens, or else how the day went.</summary>
+        void DaySound(DayResult result)
+        {
+            if (_career.IsSeasonOver) GameAudio.Sfx(GameAudio.SeasonEnd);
+            else if (result.Move != null) GameAudio.Sfx(result.Move.Kind == RosterMoveKind.Demoted ? GameAudio.Lose : result.Move.Kind == RosterMoveKind.Promoted ? GameAudio.Achievement : GameAudio.Popup);
+            else if (result.Trade != null) GameAudio.Sfx(GameAudio.Popup);
+            else if (result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.NewAchievements.Count > 0)
+                GameAudio.Sfx(GameAudio.Achievement);
+            else if (result.TraitOffer != null || result.Event != null) GameAudio.Sfx(GameAudio.Event);
+            else if (result.GotInjured) GameAudio.Sfx(GameAudio.Error);
         }
 
         // ---------- Growth feedback ----------
@@ -419,6 +436,7 @@ namespace BaseballGame
         {
             var me = _career.Me;
             int shown = 0;
+            bool leveled = false;
             foreach (var stat in me.MyStats)
             {
                 if (!_before.TryGetValue(stat, out var was) || !_ratingTexts.TryGetValue(stat, out var label)) continue;
@@ -426,10 +444,15 @@ namespace BaseballGame
                 int exp = me.Exp[stat] - was.Exp;
                 string text = up > 0 ? $"▲{up}" : exp > 0 ? $"+{exp}" : null;
                 if (text == null) continue;
+                if (up > 0) leveled = true;
                 UiAnim.FloatUp(label.rectTransform, text, up > 0 ? Gold : new Color(0.55f, 0.8f, 1f), up > 0 ? 44 : 32, 0.08f * shown++);
             }
             int earned = me.Money - _moneyBefore;
             if (earned > 0) UiAnim.FloatUp(_money.rectTransform, $"+{earned:N0}만원", Gold, 32);
+            // A rating going up rings out; plain experience only ticks softly.
+            if (leveled) GameAudio.Sfx(GameAudio.LevelUp);
+            else if (shown > 0) GameAudio.Sfx(GameAudio.Exp, 0.6f, 0.05f);
+            if (earned > 0) GameAudio.Sfx(GameAudio.Coin, leveled ? 0.5f : 0.8f);
             _before.Clear();
         }
 
@@ -444,6 +467,7 @@ namespace BaseballGame
             if (result.AtBat.Pitching) { ShowPitchChoice(result); return; }
             var s = result.AtBat;
             if (s.Stealing) { ShowSteal(result); return; }
+            GameAudio.Sfx(GameAudio.Popup);
             var card = OpenOverlay("찬스 타석!");
             SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 찬스: " + result.AtBatLog.Last() : null);
             PitchMix(card, $"투수 {s.Pitcher.Name}의 승부구", s.FastballShare);
@@ -693,6 +717,7 @@ namespace BaseballGame
         void ShowChoiceResult(List<string> entries, System.Action next)
         {
             var card = OpenOverlay(_career.Me.IsPitcher ? "승부 결과" : "노림수 결과");
+            ChoiceSound(entries);
             foreach (var entry in entries)
             {
                 int open = entry.LastIndexOf('(');
@@ -706,6 +731,22 @@ namespace BaseballGame
             }
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Button(card, "계속", () => next()), 120);
+        }
+
+        /// <summary>The bat or the mitt for the big at-bat that just ended, with the crowd when it went my way.</summary>
+        void ChoiceSound(List<string> entries)
+        {
+            if (entries.Count == 0) return;
+            string last = entries[entries.Count - 1];
+            int open = last.LastIndexOf('(');
+            string note = open > 0 ? last.Substring(open) : "";
+            bool good = note.Contains("적중") || note.Contains("성공") || note.Contains("안타");
+            bool homeRun = last.Contains("홈런");
+            bool hitBall = homeRun || last.Contains("안타") || last.Contains("루타") || last.Contains("아웃") || last.Contains("플라이") || last.Contains("병살");
+            if (homeRun) GameAudio.Sfx(GameAudio.BatHomeRun);
+            else if (hitBall) GameAudio.Sfx(GameAudio.BatHit, 1f, 0.06f);
+            else GameAudio.Sfx(GameAudio.Mitt, 1f, 0.05f);
+            if (good) GameAudio.Sfx(homeRun && !_career.Me.IsPitcher ? GameAudio.CheerBig : GameAudio.CheerSmall, 0.8f);
         }
 
         // ---------- Season goals ----------
@@ -1075,7 +1116,7 @@ namespace BaseballGame
                 UiKit.Stretch(label.rectTransform);
                 if (i == dayOfWeek) UiAnim.PopIn(cell);
             }
-            string text = $"<color=#FFD24D><b>{daily.Streak}일 연속 출석!</b></color>\n\n오늘의 보상: <b>{DailyMissions.DescribeReward(reward.Value.Kind, reward.Value.Amount)}</b>\n\n" +
+            string text = $"<color=#FFD24D><b>{daily.Streak}일 연속 출석!</b></color>\n\n오늘의 보상: <b>{DailyMissions.DescribeReward(reward.Value.Kind, reward.Value.Amount)} + 코인 {DailyMissions.CheckInCoins(daily.Streak)}</b>\n\n" +
                 $"<size=26><color=#BAC4D8>하루라도 빠지면 1일차부터 다시 시작해요. 총 출석 {daily.TotalCheckIns}일</color></size>";
             UiKit.Height(UiKit.Label(card, text, 34, TextAnchor.MiddleCenter), 0, 1);
             UiKit.Height(UiKit.Button(card, "오늘의 미션 보기", ShowMissions), 110);
@@ -1124,6 +1165,8 @@ namespace BaseballGame
         void UseRecoveryTicket()
         {
             if (_overlay != null) return;
+            // Out of tickets: the button leads to the store, where they're sold for coins or money.
+            if (_club.Daily.RecoveryTickets == 0) { PremiumScreen.Open(_club, Refresh); return; }
             int before = _career.Me.Fatigue;
             if (!_club.Daily.UseTicket(_career)) return;
             Log($"피로 회복권 사용: 피로 {before} → {_career.Me.Fatigue}");
@@ -1169,11 +1212,8 @@ namespace BaseballGame
             }
 
             UiKit.Height(UiKit.Label(card, "소리", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
-            UiKit.Height(UiKit.Button(card, UiSound.Muted ? "효과음: 꺼짐" : "효과음: 켜짐", () =>
-            {
-                UiSound.Muted = !UiSound.Muted;
-                ShowSettings();
-            }, UiSound.Muted ? UiKit.Background : UiKit.Accent), 110);
+            VolumeRow(card, "배경음악", GameAudio.MusicLevel, level => GameAudio.MusicLevel = level);
+            VolumeRow(card, "효과음", GameAudio.SfxLevel, level => GameAudio.SfxLevel = level);
 
             UiKit.Height(UiKit.Label(card, "도움말", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
             UiKit.Height(UiKit.Button(card, "도움말 처음부터 다시 보기", () =>
@@ -1198,14 +1238,33 @@ namespace BaseballGame
             UiKit.Height(data, 110);
             UiKit.Row(data, 16);
             UiKit.Button(data, "타이틀로", BackToTitle, UiKit.Accent);
-            UiKit.Button(data, "유료 상품 (테스트)", () => { CloseOverlay(); PremiumScreen.Open(Refresh); }, new Color(0.55f, 0.4f, 0.8f));
+            UiKit.Button(data, "구단 스토어 (테스트)", () => { CloseOverlay(); PremiumScreen.Open(_club, Refresh); }, new Color(0.55f, 0.4f, 0.8f));
             UiKit.Height(UiKit.Button(card, "모든 데이터 지우고 처음부터", ConfirmReset, UiKit.Warning), 110);
 
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Label(card, "프로토타입 0.1 · 결제와 광고는 아직 테스트용이라 실제로 청구되지 않아요.", 24, TextAnchor.MiddleCenter, UiKit.Muted), 60);
             UiKit.Height(UiKit.Label(card, "아이콘: game-icons.net (Delapouite, Lorc, Skoll · CC BY 3.0) · 글꼴: Pretendard (SIL OFL)\n" +
-                "선수 모델: Quaternius · 잔디·흙·하늘: Poly Haven · 버튼·효과음: Kenney (모두 CC0)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 70);
+                "선수 모델: Quaternius · 잔디·흙·하늘: Poly Haven · 버튼·효과음: Kenney (모두 CC0)\n" +
+                "관중 소리: Gregor Quendel (CC BY 4.0) · 배경음악·효과음: OpenGameArt (CC0)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 100);
             UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+        }
+
+        /// <summary>One sound line in the settings: a name and the volume steps (off, quiet, normal, loud).</summary>
+        void VolumeRow(RectTransform card, string name, int current, System.Action<int> set)
+        {
+            var row = UiKit.Empty(card, name);
+            UiKit.Height(row, 100);
+            UiKit.Row(row, 12);
+            UiKit.Width(UiKit.Label(row, name, 30, TextAnchor.MiddleLeft), 170);
+            for (int i = 0; i < GameAudio.LevelNames.Length; i++)
+            {
+                int level = i;
+                UiKit.Button(row, GameAudio.LevelNames[i], () =>
+                {
+                    set(level);
+                    ShowSettings();
+                }, i == current ? UiKit.Accent : UiKit.Background);
+            }
         }
 
         void ConfirmReset()
@@ -1337,9 +1396,11 @@ namespace BaseballGame
                 {
                     if (_career.Buy(item.Id))
                     {
+                        GameAudio.Sfx(GameAudio.Coin);
                         Log($"{item.Name} 구입!");
                         Save();
                     }
+                    else GameAudio.Sfx(GameAudio.Error);
                     ShowShop();
                     Refresh();
                 }, _career.Me.Money >= item.Price ? UiKit.Accent : new Color(0.3f, 0.3f, 0.35f));
@@ -1554,12 +1615,70 @@ namespace BaseballGame
                 UiKit.Height(UiKit.Button(card, "결정전 마지막 경기 보기", () => Watch(finalGame), UiKit.Muted), 100);
             var record = summary.Record;
             UiKit.Height(UiKit.Button(card, "이번 시즌 선수 카드", () => CareerCard.Show(_canvas.transform, SeasonCard(record)), UiKit.Muted), 100);
+            AddRewindButton(card);
             if (_career.Me.Age >= 30 || _career.MustRetire)
                 UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 100);
             if (!_career.MustRetire && !mustPick && _career.PendingSalary != null)
                 UiKit.Height(UiKit.Button(card, "연봉 협상하기", ShowSalaryTalk), 100);
             else if (!_career.MustRetire && !mustPick)
                 UiKit.Height(UiKit.Button(card, "다음 시즌", CloseOverlay), 100);
+        }
+
+        /// <summary>
+        /// Season rewind (a paid ticket): replay the season just ended from its first day, up to
+        /// MaxRewinds times a career. Without a ticket the button leads to the store.
+        /// </summary>
+        void AddRewindButton(RectTransform card)
+        {
+            if (!_career.CanRewind) return;
+            int left = CareerState.MaxRewinds - _career.RewindsUsed;
+            string label = _club.RewindTickets > 0
+                ? $"이 시즌 다시 하기 (되감기권 {_club.RewindTickets}장 · 이 선수 {left}번 남음)"
+                : $"이 시즌 다시 하기 (되감기권 사기 · 이 선수 {left}번 남음)";
+            UiKit.Height(UiKit.Button(card, label, ConfirmRewind, UiKit.Muted), 100);
+        }
+
+        void ConfirmRewind()
+        {
+            if (_club.RewindTickets == 0)
+            {
+                PremiumScreen.Open(_club, () => { if (_club.RewindTickets > 0) ConfirmRewind(); });
+                return;
+            }
+            var card = OpenOverlay("이 시즌을 다시 할까요?");
+            UiKit.Height(UiKit.Label(card,
+                $"{CareerState.YearOf(_career.Season - 1)} 시즌 첫날로 돌아가요.\n이번 시즌 성적·성장·돈은 사라지고 처음부터 다시 해요.\n\n" +
+                $"되감기권 1장을 써요 (남은 {_club.RewindTickets}장).\n이 선수는 앞으로 {CareerState.MaxRewinds - _career.RewindsUsed - 1}번 더 되감을 수 있어요.",
+                30, TextAnchor.MiddleCenter), 0, 1);
+            UiKit.Height(UiKit.Button(card, "다시 하기", Rewind, UiKit.Warning), 110);
+            UiKit.Height(UiKit.Button(card, "취소", ShowSeasonEndAgainOrClose, UiKit.Muted), 110);
+        }
+
+        void ShowSeasonEndAgainOrClose()
+        {
+            // The season-end card is gone; what's left to settle (offers, salary) shows on the main screen.
+            CloseOverlay();
+            if (_career.PendingOffers.Count > 0) ShowOffers();
+            else if (_career.PendingSalary != null) ShowSalaryTalk();
+        }
+
+        void Rewind()
+        {
+            int used = _career.RewindsUsed;
+            if (!SaveStore.TryLoadSeasonStart(_club, _random, out var start))
+            {
+                Log("되감을 시즌 기록이 없어요.");
+                ShowSeasonEndAgainOrClose();
+                return;
+            }
+            _club.RewindTickets--;
+            start.RewindsUsed = used + 1;
+            start.DecideAtBats = _career.DecideAtBats;
+            _career = start;
+            CloseOverlay();
+            Log($"<color=#FFD24D>시즌 되감기</color> {CareerState.YearOf(_career.Season)} 시즌 첫날로 돌아왔어요.");
+            Save();
+            Refresh();
         }
 
         /// <summary>Accept the club's number or push for more; the odds depend on how the season compares to the offer.</summary>
@@ -1669,7 +1788,8 @@ namespace BaseballGame
                 honours + "\n" +
                 $"전성기 능력치 종합 {retired.Overall}로 내 팀에 합류했습니다.\n" +
                 donation +
-                $"명예 포인트 +{retired.LegacyPoints + retired.DonationPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n\n" +
+                $"명예 포인트 +{retired.LegacyPoints + retired.DonationPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n" +
+                $"<color=#FFD24D>은퇴식 구단 코인 +{retired.Coins:N0}</color>\n\n" +
                 $"내 팀 선수 {_club.Roster.Count}명";
             UiKit.Height(UiKit.Label(card, text, 30, TextAnchor.UpperCenter), 0, 1);
             var career = _career;
@@ -2043,8 +2163,9 @@ namespace BaseballGame
             UiKit.SetButtonLabel(_adButton, $"{(Premium.Owns(Premium.RemoveAds) ? "바로 회복" : "광고 보고 회복")} ({adsLeft})");
             _adButton.interactable = adsLeft > 0 && me.Fatigue > 0;
             int tickets = _club.Daily.RecoveryTickets;
-            UiKit.SetButtonLabel(_ticketButton, $"회복권 {tickets}장");
-            _ticketButton.interactable = tickets > 0 && me.Fatigue > 0;
+            int ticketsLeft = _club.Daily.TicketsLeftToday;
+            UiKit.SetButtonLabel(_ticketButton, tickets == 0 ? "회복권 사기" : ticketsLeft == 0 ? "회복권 (오늘 끝)" : $"회복권 {tickets}장");
+            _ticketButton.interactable = tickets == 0 || (ticketsLeft > 0 && me.Fatigue > 0);
             int unclaimed = _club.Daily.Unclaimed;
             UiKit.SetButtonLabel(_missionButton, unclaimed > 0 ? $"미션 <color=#FFD24D>●{unclaimed}</color>" : "미션");
             bool canFast = Premium.Owns(Premium.FastSkip);

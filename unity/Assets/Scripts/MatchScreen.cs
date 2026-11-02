@@ -34,6 +34,8 @@ namespace BaseballGame
         Image[] _outLights = new Image[2];
         readonly List<string> _logLines = new List<string>();
         Coroutine _popRoutine;
+        /// <summary>The song before the match, put back on leaving.</summary>
+        string _songBefore;
 
         /// <summary>Opens the screen; <paramref name="onClose"/> runs when the player leaves it.</summary>
         public const string SpeedPref = "match_speed";
@@ -61,6 +63,9 @@ namespace BaseballGame
             _field.Mine = _replay.Mine;
             _field.Skipping = () => Skipping;
             BuildUi();
+            _songBefore = GameAudio.CurrentMusic;
+            GameAudio.PlayMusic(GameAudio.MusicMatch);
+            GameAudio.PlayAmbience(GameAudio.Crowd);
             StartCoroutine(Run());
         }
 
@@ -103,6 +108,8 @@ namespace BaseballGame
                     if (ev.Kind != EventKind.PlateAppearance)
                     {
                         // Pitching changes and steals: no pitch to animate; the runners snap below.
+                        if (ev.Kind == EventKind.StolenBase && !Skipping && ev.OutsAfter == ev.OutsBefore)
+                            GameAudio.Sfx(GameAudio.CheerSmall, batting == Game.Home ? 0.6f : 0.3f);
                         if (ev.Kind == EventKind.StolenBase && !Skipping)
                             Pop(ev.OutsAfter > ev.OutsBefore ? "도루 실패" : "도루 성공!", ev.OutsAfter > ev.OutsBefore ? Color.gray : Gold);
                         yield return Wait(0.6f);
@@ -110,7 +117,11 @@ namespace BaseballGame
                     else
                     {
                         yield return _field.Pitch();
-                        if (!Skipping) Pop(OutcomeWord(ev), ResultColor(step));
+                        if (!Skipping)
+                        {
+                            Pop(OutcomeWord(ev), ResultColor(step));
+                            OutcomeSound(step, batting == Game.Home);
+                        }
                         yield return _field.Result(step);
                     }
                 }
@@ -362,6 +373,34 @@ namespace BaseballGame
             }
         }
 
+        /// <summary>The crack of the bat or the pop of the mitt, and the crowd: louder for the home side and for my at-bats.</summary>
+        static void OutcomeSound(ReplayStep step, bool homeBatting)
+        {
+            float crowd = (homeBatting ? 0.9f : 0.45f) * (step.IsMine || step.IsHighlight ? 1f : 0.75f);
+            switch (step.Event.Outcome)
+            {
+                case Outcome.Strikeout:
+                    GameAudio.Sfx(GameAudio.Mitt, 1f, 0.05f);
+                    break;
+                case Outcome.Walk:
+                case Outcome.HitByPitch:
+                    break;
+                case Outcome.HomeRun:
+                    GameAudio.Sfx(GameAudio.BatHomeRun);
+                    GameAudio.Sfx(GameAudio.CheerBig, Mathf.Max(crowd, 0.6f));
+                    break;
+                case Outcome.Single:
+                case Outcome.Double:
+                case Outcome.Triple:
+                    GameAudio.Sfx(GameAudio.BatHit, 1f, 0.06f);
+                    GameAudio.Sfx(GameAudio.CheerSmall, crowd);
+                    break;
+                default: // an out on a ball in play
+                    GameAudio.Sfx(GameAudio.BatHit, 0.6f, 0.08f);
+                    break;
+            }
+        }
+
         Color ResultColor(ReplayStep step)
         {
             bool good = MatchReplay.IsHit(step.Event.Outcome) || step.Event.Outcome == Outcome.Walk || step.Event.Outcome == Outcome.HitByPitch;
@@ -393,10 +432,26 @@ namespace BaseballGame
             UiKit.Height(UiKit.Label(card, string.Join("\n\n", lines), 36, TextAnchor.UpperCenter), 0, 1);
 
             UiKit.Height(UiKit.Button(card, "육성 화면으로", Close), 120);
+
+            var myTeam = MyTeam();
+            if (myTeam == null || Game.IsTie) GameAudio.Sfx(GameAudio.CheerSmall, 0.6f);
+            else GameAudio.Sfx(Game.Winner == myTeam ? GameAudio.Win : GameAudio.Lose);
+        }
+
+        /// <summary>The side my player is on, or null when watching someone else's game.</summary>
+        Team MyTeam()
+        {
+            var mine = _replay.Mine;
+            if (mine == null) return null;
+            foreach (var team in new[] { Game.Away, Game.Home })
+                if (team.Lineup.Contains(mine) || team.Rotation.Contains(mine) || team.Bullpen.Contains(mine)) return team;
+            return null;
         }
 
         void Close()
         {
+            GameAudio.PlayAmbience(null);
+            GameAudio.PlayMusic(_songBefore);
             Destroy(gameObject);
             _onClose?.Invoke();
         }

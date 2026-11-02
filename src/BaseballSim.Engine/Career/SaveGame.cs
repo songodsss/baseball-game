@@ -21,7 +21,9 @@ namespace BaseballSim.Career
         /// </summary>
         /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
         /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
-        /// 23: the league paper. 24: monthly pay. 25: postseason lines. 30: days missed hurt (comeback years).
+        /// 23: the league paper. 24: monthly pay. 25: postseason lines.
+        /// 26: club coins, cosmetics, rewind tickets, tickets used today; rewinds used on the career.
+        /// 30: days missed hurt (comeback years); 27~29 are taken by other work in progress.
         public const int Version = 30;
 
         public static byte[] ToBytes(Club club, Career career)
@@ -172,6 +174,12 @@ namespace BaseballSim.Career
             WriteList(w, club.RivalsMet, w.Write);
             // Added in version 22.
             WriteList(w, club.Roster, p => { w.Write((int)p.Ending); w.Write((int)p.Route); });
+            // Added in version 26.
+            w.Write(club.Coins);
+            WriteList(w, club.OwnedCosmetics.ToList(), w.Write);
+            WriteList(w, club.Worn.ToList(), kv => { w.Write((int)kv.Key); w.Write(kv.Value); });
+            w.Write(club.RewindTickets);
+            w.Write(d.TicketsUsedToday);
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -269,6 +277,14 @@ namespace BaseballSim.Career
                     p.Route = (StoryRoute)r.ReadInt32();
                     return p;
                 });
+            }
+            if (version >= 26)
+            {
+                club.Coins = r.ReadInt32();
+                club.OwnedCosmetics = new HashSet<string>(ReadList(r, r.ReadString));
+                foreach (var (kind, id) in ReadList(r, () => ((CosmeticKind)r.ReadInt32(), r.ReadString()))) club.Worn[kind] = id;
+                club.RewindTickets = r.ReadInt32();
+                club.Daily.TicketsUsedToday = r.ReadInt32();
             }
             return club;
         }
@@ -455,7 +471,10 @@ namespace BaseballSim.Career
             // Added in version 25.
             WriteList(w, career.Me.History, h => WriteList(w, h.Postseason, w.Write));
 
-            // Added in version 30 (26~29 are taken by other work in progress).
+            // Added in version 26.
+            w.Write(career.RewindsUsed);
+
+            // Added in version 30 (27~29 are taken by other work in progress).
             w.Write(career.InjuryDays);
             WriteList(w, career.Me.History, h => w.Write(h.InjuryDays));
         }
@@ -636,6 +655,7 @@ namespace BaseballSim.Career
                 int k = 0;
                 ReadList(r, () => { var h = me.History[k++]; h.Postseason = ReadList(r, r.ReadString); return h; });
             }
+            if (version >= 26) career.RewindsUsed = r.ReadInt32();
             if (version >= 30)
             {
                 career.InjuryDays = r.ReadInt32();

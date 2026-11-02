@@ -33,6 +33,8 @@ namespace BaseballGame
         static string Dir => Application.persistentDataPath;
         static string ClubPath => Path.Combine(Dir, "club.sav");
         static string SlotPath(int slot) => Path.Combine(Dir, $"career_slot{slot}.sav");
+        /// <summary>The slot's career as it stood before the season's first day, for a season rewind.</summary>
+        static string SeasonStartPath(int slot) => Path.Combine(Dir, $"career_slot{slot}_season.sav");
         /// <summary>The single save from before slots; it becomes the club and slot 1.</summary>
         static string LegacyPath => Path.Combine(Dir, "career.sav");
 
@@ -40,7 +42,7 @@ namespace BaseballGame
         public static void Save(Club club, CareerState career)
         {
             SaveClub(club);
-            if (career == null) DeleteFile(SlotPath(CurrentSlot));
+            if (career == null) DeleteSlot(CurrentSlot);
             else Write(SlotPath(CurrentSlot), SaveGame.CareerToBytes(career, club));
         }
 
@@ -82,6 +84,28 @@ namespace BaseballGame
             }
         }
 
+        /// <summary>Keeps the current slot's career as it stands now, before the season's first day.</summary>
+        public static void SaveSeasonStart(CareerState career, Club club) =>
+            Write(SeasonStartPath(CurrentSlot), SaveGame.CareerToBytes(career, club));
+
+        /// <summary>The current slot's career from the start of the season it last began; false if none kept.</summary>
+        public static bool TryLoadSeasonStart(Club club, IRandom random, out CareerState career)
+        {
+            career = null;
+            string path = SeasonStartPath(CurrentSlot);
+            if (!File.Exists(path)) return false;
+            try
+            {
+                career = SaveGame.CareerFromBytes(File.ReadAllBytes(path), club, random);
+                return career != null;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Season start could not be read: {e.Message}");
+                return false;
+            }
+        }
+
         public static SlotSummary Peek(int slot, Club club, IRandom random)
         {
             TryLoadCareer(slot, club, random, out var career);
@@ -89,14 +113,18 @@ namespace BaseballGame
         }
 
         /// <summary>Empties one slot. The club (my team) is kept.</summary>
-        public static void DeleteSlot(int slot) => DeleteFile(SlotPath(slot));
+        public static void DeleteSlot(int slot)
+        {
+            DeleteFile(SlotPath(slot));
+            DeleteFile(SeasonStartPath(slot));
+        }
 
         /// <summary>Removes every save, for a fresh start from the settings screen.</summary>
         public static void DeleteAll()
         {
             DeleteFile(ClubPath);
             DeleteFile(LegacyPath);
-            for (int slot = 1; slot <= BaseSlots + Premium.ExtraSlotCount; slot++) DeleteFile(SlotPath(slot));
+            for (int slot = 1; slot <= BaseSlots + Premium.ExtraSlotCount; slot++) DeleteSlot(slot);
         }
 
         static void MigrateLegacy(IRandom random)
