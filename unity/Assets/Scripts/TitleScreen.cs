@@ -85,7 +85,7 @@ namespace BaseballGame
             string trainee = focus.IsEmpty ? "새 선수를 키워 보세요" : $"{focus.Career.Me.Name} · {focus.Career.Me.Age}세 · {focus.Career.MyTeam.Name}";
 
             // The training centre is where the game is, so it stands alone and biggest.
-            BuildingTile(Row(town, 560), new Building
+            BuildingTile(Row(town, 560, crossRoad: false), new Building
             {
                 Id = "training_center", Name = "트레이닝 센터", Status = trainee,
                 Body = focus.IsEmpty ? new Color(0.3f, 0.5f, 0.85f) : UiKit.TeamColor(focus.Career.MyTeam.Name), Roof = new Color(0.92f, 0.94f, 0.98f),
@@ -119,18 +119,54 @@ namespace BaseballGame
             };
             for (int i = 0; i < buildings.Length; i += 2)
             {
-                var row = Row(town, 420);
+                var row = Row(town, 420, last: i + 2 >= buildings.Length);
                 BuildingTile(row, buildings[i]);
                 if (i + 1 < buildings.Length) BuildingTile(row, buildings[i + 1]);
             }
         }
 
-        static RectTransform Row(RectTransform town, float height)
+        static RectTransform Row(RectTransform town, float height, bool crossRoad = true, bool last = false)
         {
             var row = UiKit.Empty(town, "Row");
             UiKit.Height(row, height);
             UiKit.Row(row, 20);
+            Roads(row, crossRoad, last);
             return row;
+        }
+
+        static readonly Color RoadEdge = new Color(0.44f, 0.36f, 0.26f, 0.95f);
+        static readonly Color RoadFill = new Color(0.72f, 0.6f, 0.42f, 0.95f);
+
+        /// <summary>
+        /// Dirt roads behind a row of buildings: one down the middle of the town that runs on into
+        /// the next row, and one across the row at the buildings' feet so each door meets it.
+        /// Added before the tiles so the buildings stand on top.
+        /// </summary>
+        static void Roads(RectTransform row, bool crossRoad, bool last)
+        {
+            const float width = 46, edge = 6, gap = 26; // gap = the town's row spacing
+            // Down the middle: from the row's top (or from the big building's feet) to the next row.
+            RoadPiece(row, "RoadDown", new Vector2(0.5f, 0f), new Vector2(0.5f, crossRoad ? 1f : 0.25f),
+                new Vector2(-width / 2, last ? 0.29f * 420 : -gap), new Vector2(width / 2, 0), edge);
+            if (crossRoad)
+                RoadPiece(row, "RoadAcross", new Vector2(0.04f, 0.29f), new Vector2(0.96f, 0.29f),
+                    new Vector2(0, -width / 2), new Vector2(0, width / 2), edge);
+        }
+
+        static void RoadPiece(RectTransform row, string name, Vector2 min, Vector2 max, Vector2 offMin, Vector2 offMax, float edge)
+        {
+            var outer = UiKit.Panel(row, name, RoadEdge);
+            outer.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            outer.anchorMin = min;
+            outer.anchorMax = max;
+            outer.offsetMin = offMin;
+            outer.offsetMax = offMax;
+            outer.GetComponent<Image>().raycastTarget = false;
+            var inner = UiKit.Panel(outer, "Fill", RoadFill);
+            UiKit.Stretch(inner);
+            inner.offsetMin = new Vector2(edge, edge);
+            inner.offsetMax = new Vector2(-edge, -edge);
+            inner.GetComponent<Image>().raycastTarget = false;
         }
 
         // ---------- Home pieces ----------
