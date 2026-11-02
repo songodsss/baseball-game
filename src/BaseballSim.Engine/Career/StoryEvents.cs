@@ -461,6 +461,7 @@ namespace BaseballSim.Career
             });
 
             AddLifeEvents(list);
+            AddSideStories(list);
             foreach (var legend in Legends.All) list.Add(LegendVisit(legend));
             return list;
         }

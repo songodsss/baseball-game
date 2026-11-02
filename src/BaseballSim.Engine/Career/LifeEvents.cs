@@ -480,11 +480,13 @@ namespace BaseballSim.Career
                 Id = "proposal",
                 Title = "결혼 이야기",
                 Text = "오래 만난 연인이 조심스럽게 말을 꺼냈다.\n\"우리 이제 결혼할까?\"",
-                Weight = (c, d) => c.Me.Age >= 26 && c.Me.Age <= 34 && !c.HasMark("married") && !c.SeenThisSeason("proposal") ? 0.5 : 0,
+                // Comes sooner after the blind-date romance; without it, from 29.
+                Weight = (c, d) => c.Me.Age <= 34 && !c.HasMark("married") && !c.SeenThisSeason("proposal")
+                    && (c.HasMark("dating") ? c.Me.Age >= 25 && c.Seen("dating_news") : c.Me.Age >= 29) ? (c.HasMark("dating") ? 1.5 : 0.5) : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "시즌 중에 식을 올린다", Result = "동료들이 모두 와서 축가를 불렀다.", Apply = e => { e.Mark("married"); e.Money(-500); e.Morale(8); e.Fatigue(10); } },
-                    new EventChoice { Label = "시즌 끝나고 하자", Result = "\"좋아, 그때까지 다치지 마.\"", Apply = e => { e.Mark("married"); e.Morale(5); } },
+                    new EventChoice { Label = "시즌 중에 식을 올린다", Result = "동료들이 모두 와서 축가를 불렀다.", Apply = e => { e.Mark("married"); e.Unmark("dating"); e.Money(-500); e.Morale(8); e.Fatigue(10); } },
+                    new EventChoice { Label = "시즌 끝나고 하자", Result = "\"좋아, 그때까지 다치지 마.\"", Apply = e => { e.Mark("married"); e.Unmark("dating"); e.Morale(5); } },
                     new EventChoice { Label = "조금만 더 생각하자", Result = "아직은 야구만 보고 싶다.", Apply = e => e.Morale(-2) },
                 },
             });

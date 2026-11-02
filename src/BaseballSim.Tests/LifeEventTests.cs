@@ -421,6 +421,134 @@ public class LifeEventTests
         }
     }
 
+    static DayResult BigDay => new DayResult { MyLine = new BattingLine { PlateAppearances = 4, AtBats = 4, Hits = 3 } };
+
+    static void Step(CareerState career, string id, int choice = 0, DayResult? day = null)
+    {
+        var ev = StoryEvents.Find(id);
+        Assert.True(ev.Weight(career, day ?? new DayResult()) > 0, id + " should be due");
+        var outcome = Answer(career, ev, choice);
+        Assert.False(string.IsNullOrEmpty(outcome.Text), id);
+        Assert.DoesNotContain("{", outcome.Text);
+        Assert.Equal(0, ev.Weight(career, day ?? new DayResult()));
+    }
+
+    [Fact]
+    public void TheHighSchoolCoachStory()
+    {
+        var career = NewCareer(30);
+        career.Me.Age = 20;
+        Step(career, "teacher_call", 1);
+        career.Season++;
+        Step(career, "teacher_visit", 0);
+        career.Season++;
+        career.Me.Age = 24;
+        Step(career, "teacher_ill", 1);
+        career.Day += 1;
+        Step(career, "teacher_kept", 0, BigDay);
+    }
+
+    [Fact]
+    public void TheOldFanRecoversIfFoundOrLeavesABall()
+    {
+        foreach (int choice in new[] { 0, 1 })
+        {
+            var career = NewCareer(31 + choice);
+            Step(career, "grandpa_fan");
+            career.Season++;
+            Step(career, "grandpa_banner", 0, BigDay);
+            career.Season++;
+            career.Me.Age = 24;
+            Step(career, "grandpa_absent", choice);
+            career.Day += 10;
+            if (choice == 0)
+            {
+                Assert.Equal(0, StoryEvents.Find("grandpa_farewell").Weight(career, new DayResult()));
+                Step(career, "grandpa_hospital");
+                career.Season++;
+                career.Day = 4;
+                Step(career, "grandpa_return");
+            }
+            else
+            {
+                Assert.Equal(0, StoryEvents.Find("grandpa_hospital").Weight(career, new DayResult()));
+                Step(career, "grandpa_farewell");
+            }
+        }
+    }
+
+    [Fact]
+    public void TheStadiumCatStory()
+    {
+        var career = NewCareer(33);
+        Step(career, "stadium_cat");
+        career.Day += 10;
+        Step(career, "cat_name", 1);
+        Assert.True(career.HasMark("cat:도루"));
+        Step(career, "cat_lucky", 0, BigDay);
+        career.Season++;
+        Step(career, "cat_mascot");
+    }
+
+    [Fact]
+    public void ARomanceLeadsToTheProposal()
+    {
+        var career = NewCareer(34);
+        career.Me.Age = 23;
+        Step(career, "blind_date");
+        career.Day += 10;
+        Step(career, "date_anniversary");
+        career.Day += 20;
+        Step(career, "dating_news", 0);
+        var proposal = StoryEvents.Find("proposal");
+        Assert.Equal(0, proposal.Weight(career, new DayResult())); // still young
+        career.Me.Age = 25;
+        Assert.True(proposal.Weight(career, new DayResult()) > 0);
+        Answer(career, proposal, 1);
+        Assert.True(career.HasMark("married"));
+        Assert.False(career.HasMark("dating"));
+    }
+
+    [Fact]
+    public void WithoutARomanceTheProposalWaitsUntil29()
+    {
+        var career = NewCareer(35);
+        career.Me.Age = 27;
+        Assert.Equal(0, StoryEvents.Find("proposal").Weight(career, new DayResult()));
+        career.Me.Age = 29;
+        Assert.True(StoryEvents.Find("proposal").Weight(career, new DayResult()) > 0);
+    }
+
+    [Fact]
+    public void TheForeignTeammateStory()
+    {
+        var career = NewCareer(36);
+        career.Season = 2;
+        Step(career, "foreign_arrive");
+        career.Day += 10;
+        Step(career, "foreign_korean");
+        career.Day += 10;
+        Step(career, "foreign_homesick", 1);
+        career.Season += 2;
+        career.Day = 32;
+        Step(career, "foreign_leave");
+        career.Season += 2;
+        Step(career, "foreign_letter");
+    }
+
+    [Fact]
+    public void TheTrainingAideMakesItIfEncouraged()
+    {
+        var career = NewCareer(37);
+        Step(career, "aide_meet", 1);
+        career.Season++;
+        Step(career, "aide_dream", 0);
+        career.Day += 10;
+        var ev = StoryEvents.Find("aide_result");
+        var outcome = Answer(career, ev, 0);
+        Assert.Contains("독립리그", outcome.Text);
+    }
+
     // The bond moment due today, if any, without opening day or the last home game in the way.
     static StoryEvent? FindBond(CareerState career)
     {
