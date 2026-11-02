@@ -70,7 +70,7 @@ public class AllStarTests
             {
                 Season = i + 1,
                 Games = 144,
-                Line = new BattingLine { Hits = hitsPerSeason, HomeRuns = hitsPerSeason / 6, AtBats = hitsPerSeason * 3 },
+                Line = new BattingLine { Hits = hitsPerSeason, HomeRuns = hitsPerSeason / 6, Doubles = hitsPerSeason / 5, AtBats = hitsPerSeason * 3, Walks = hitsPerSeason / 3, PlateAppearances = hitsPerSeason * 3 + hitsPerSeason / 3 },
                 Ratings = career.Me.Snapshot(),
                 Club = club,
             });

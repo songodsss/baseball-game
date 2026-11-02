@@ -26,7 +26,47 @@ namespace BaseballSim.Career
         public Func<Career, DayResult, double> Weight;
         public List<EventChoice> Choices = new List<EventChoice>();
 
-        public string TextFor(Career career) => Text.Replace("{name}", career.Me.Name).Replace("{team}", career.MyTeam.Name);
+        public string TextFor(Career career) => Fill(Text, career);
+
+        /// <summary>Fills {name}, {team}, {senior} (the roommate senior) and {mate} (a teammate from the same draft class).</summary>
+        public static string Fill(string text, Career career)
+        {
+            if (string.IsNullOrEmpty(text) || !text.Contains("{")) return text;
+            return Placeholder.Replace(text, m =>
+            {
+                string key = m.Groups[1].Value;
+                string word;
+                switch (key)
+                {
+                    case "name": word = career.Me.Name; break;
+                    case "team": word = career.MyTeam.Name; break;
+                    case "senior": case "mate": case "veteran": case "junior": case "coach": case "exveteran": case "excoach": word = career.BondName(key); break;
+                    default:
+                        if (!key.StartsWith("story:")) return m.Value;
+                        word = career.BondName(key);
+                        break;
+                }
+                return word + Particle(word, m.Groups[2].Value);
+            });
+        }
+
+        // {who} plus an optional particle right after it, which is fixed to suit the name: 이/가, 을/를, 은/는, 과/와.
+        static readonly System.Text.RegularExpressions.Regex Placeholder =
+            new System.Text.RegularExpressions.Regex(@"\{([\w:]+)\}(이|가|을|를|은|는|과|와)?");
+
+        static string Particle(string word, string particle)
+        {
+            if (string.IsNullOrEmpty(particle)) return "";
+            char last = word.Length == 0 ? 'a' : word[word.Length - 1];
+            bool batchim = last >= 0xAC00 && last <= 0xD7A3 && (last - 0xAC00) % 28 != 0;
+            switch (particle)
+            {
+                case "이": case "가": return batchim ? "이" : "가";
+                case "을": case "를": return batchim ? "을" : "를";
+                case "은": case "는": return batchim ? "은" : "는";
+                default: return batchim ? "과" : "와";
+            }
+        }
     }
 
     public class EventOutcome
@@ -109,15 +149,56 @@ namespace BaseballSim.Career
 
         public void Say(string text) => Outcome.Text += "\n" + text;
 
+        internal Career Career => _career;
+
+        /// <summary>True with the given chance.</summary>
+        /// <summary>Today's rating in a stat, read as this player's role (contact means control for a pitcher).</summary>
+        public int Rating(Stat stat) => Me.GameRating(Me.RoleStat(stat));
+
+        public bool Chance(double p) => _random.NextDouble() < p;
+
+        public double Roll() => _random.NextDouble();
+
+        /// <summary>Remembers something for a follow-up event later.</summary>
+        public void Mark(string key) => Me.StoryMarks[key] = _career.Stamp;
+
+        public void Unmark(string key) => Me.StoryMarks.Remove(key);
+
+        /// <summary>Grows (or cools) a bond; close people get a farewell and an after-story later.</summary>
+        public void Close(string who, int delta)
+        {
+            bool was = _career.IsClose(who);
+            _career.AddCloseness(who, delta);
+            string name = _career.BondName(who);
+            string with = name + WaGwa(name);
+            if (delta != 0) Outcome.Changes.Add($"{with} 친밀 {Signed(delta)}");
+            if (!was && _career.IsClose(who)) Outcome.Changes.Add($"♥ {with} 가까워졌다");
+        }
+
+        /// <summary>Changes the manager's trust; shown as 감독 신뢰 on the result card.</summary>
+        public void Trust(int delta)
+        {
+            int before = Me.ManagerTrust;
+            Me.ManagerTrust = Math.Max(-6, Math.Min(6, Me.ManagerTrust + delta));
+            if (Me.ManagerTrust != before) Outcome.Changes.Add($"감독 신뢰 {Signed(Me.ManagerTrust - before)}");
+        }
+
         public void MeetLegend(string id)
         {
             if (!Me.MetLegends.Contains(id)) Me.MetLegends.Add(id);
         }
 
+        /// <summary>와 after a vowel, 과 after a final consonant.</summary>
+        static string WaGwa(string word)
+        {
+            char last = word.Length == 0 ? 'a' : word[word.Length - 1];
+            return last >= 0xAC00 && last <= 0xD7A3 && (last - 0xAC00) % 28 != 0 ? "과" : "와";
+        }
+
         static string Signed(int v) => v >= 0 ? $"+{v:N0}" : $"{v:N0}";
     }
 
-    public static class StoryEvents
+    public static partial class StoryEvents
     {
         public static readonly List<StoryEvent> All = Build();
 
@@ -149,11 +230,11 @@ namespace BaseballSim.Career
             {
                 Id = "coach_extra",
                 Title = "코치의 특별 지도",
-                Text = "타격 코치가 {name}에게 다가왔다.\n\"오늘 끝나고 30분만 더 하자. 스윙이 조금 늦어.\"",
+                Text = "{coach} 타격 코치가 {name}에게 다가왔다.\n\"오늘 끝나고 30분만 더 하자. 스윙이 조금 늦어.\"",
                 Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher ? 0 : 1,
                 Choices =
                 {
-                    new EventChoice { Label = "남아서 배운다", Result = "땀범벅이 됐지만 감이 잡혔다.", Apply = e => { e.Exp(Stat.Contact, 60); e.Fatigue(15); } },
+                    new EventChoice { Label = "남아서 배운다", Result = "땀범벅이 됐지만 감이 잡혔다.", Apply = e => { e.Exp(Stat.Contact, 60); e.Fatigue(15); e.Close("coach", 2); } },
                     new EventChoice { Label = "오늘은 쉬겠다고 한다", Result = "\"그래, 몸 관리도 실력이지.\"", Apply = e => e.Fatigue(-10) },
                 },
             });
@@ -162,13 +243,13 @@ namespace BaseballSim.Career
             {
                 Id = "senior_advice",
                 Title = "선배의 조언",
-                Text = "베테랑 선배가 라커룸에서 말을 걸었다.\n\"신인 때는 하나만 확실히 해. 뭘 배우고 싶어?\"",
+                Text = "베테랑 {veteran} 선배가 라커룸에서 말을 걸었다.\n\"신인 때는 하나만 확실히 해. 뭘 배우고 싶어?\"",
                 Weight = (c, d) => c.Me.Age <= 23 ? 1 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "힘 쓰는 법", Result = "하체를 쓰는 요령을 배웠다.", Apply = e => e.Exp(Stat.Power, 50) },
-                    new EventChoice { Label = "공 보는 법", Result = "투수의 버릇을 읽는 법을 배웠다.", Apply = e => e.Exp(Stat.Eye, 50) },
-                    new EventChoice { Label = "베이스 도는 법", Result = "스타트 타이밍을 배웠다.", Apply = e => e.Exp(Stat.Speed, 50) },
+                    new EventChoice { Label = "힘 쓰는 법", Result = "하체를 쓰는 요령을 배웠다.", Apply = e => { e.Exp(Stat.Power, 50); e.Close("veteran", 1); } },
+                    new EventChoice { Label = "공 보는 법", Result = "투수의 버릇을 읽는 법을 배웠다.", Apply = e => { e.Exp(Stat.Eye, 50); e.Close("veteran", 1); } },
+                    new EventChoice { Label = "베이스 도는 법", Result = "스타트 타이밍을 배웠다.", Apply = e => { e.Exp(Stat.Speed, 50); e.Close("veteran", 1); } },
                 },
             });
 
@@ -356,13 +437,13 @@ namespace BaseballSim.Career
             {
                 Id = "pitching_coach",
                 Title = "투수 코치의 원포인트",
-                Text = "불펜 피칭을 지켜보던 투수 코치가 다가왔다.\n\"하나만 고쳐 보자. 뭐부터 할래?\"",
+                Text = "불펜 피칭을 지켜보던 {coach} 투수 코치가 다가왔다.\n\"하나만 고쳐 보자. 뭐부터 할래?\"",
                 Weight = (c, d) => c.Me.IsPitcher && !c.Me.IsInjured ? 1.2 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "새 변화구를 배운다", Result = "그립을 바꾸자 공이 꺾이기 시작했다.", Apply = e => { e.Exp(Stat.Breaking, 60); e.Fatigue(10); } },
-                    new EventChoice { Label = "제구를 잡는다", Result = "포수 미트가 움직이지 않았다.", Apply = e => { e.Exp(Stat.Control, 60); e.Fatigue(10); } },
-                    new EventChoice { Label = "하체를 쓴다", Result = "공 끝에 힘이 붙었다.", Apply = e => { e.Exp(Stat.Velocity, 50); e.Fatigue(15); } },
+                    new EventChoice { Label = "새 변화구를 배운다", Result = "그립을 바꾸자 공이 꺾이기 시작했다.", Apply = e => { e.Exp(Stat.Breaking, 60); e.Fatigue(10); e.Close("coach", 1); } },
+                    new EventChoice { Label = "제구를 잡는다", Result = "포수 미트가 움직이지 않았다.", Apply = e => { e.Exp(Stat.Control, 60); e.Fatigue(10); e.Close("coach", 1); } },
+                    new EventChoice { Label = "하체를 쓴다", Result = "공 끝에 힘이 붙었다.", Apply = e => { e.Exp(Stat.Velocity, 50); e.Fatigue(15); e.Close("coach", 1); } },
                 },
             });
 
@@ -379,6 +460,8 @@ namespace BaseballSim.Career
                 },
             });
 
+            AddLifeEvents(list);
+            AddSideStories(list);
             return list;
         }
     }

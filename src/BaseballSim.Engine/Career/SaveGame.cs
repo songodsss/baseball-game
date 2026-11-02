@@ -21,9 +21,13 @@ namespace BaseballSim.Career
         /// </summary>
         /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
         /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
-        /// 23: the league paper. 24: monthly pay.
+        /// 23: the league paper. 24: monthly pay. 25: postseason lines.
         /// 26: club coins, cosmetics, rewind tickets, tickets used today; rewinds used on the career.
-        /// 31: legend stages and visits, the story's version seed; legends whose record fell on the club. 27~30 are other branches.
+        /// 27: weekly challenges and the season pass.
+        /// 28: the my-team league.
+        /// 29: hit streak, manager trust, derby best, story marks.
+        /// 30: days missed hurt (comeback years).
+        /// 31: legend stages and visits, the story's version seed; legends whose record fell on the club.
         public const int Version = 31;
 
         public static byte[] ToBytes(Club club, Career career)
@@ -180,7 +184,35 @@ namespace BaseballSim.Career
             WriteList(w, club.Worn.ToList(), kv => { w.Write((int)kv.Key); w.Write(kv.Value); });
             w.Write(club.RewindTickets);
             w.Write(d.TicketsUsedToday);
-            // Added in version 31 (27~30 belong to other branches).
+            // Added in version 27.
+            w.Write(d.WeekKey);
+            WriteList(w, d.Week, m =>
+            {
+                w.Write((int)m.Kind);
+                w.Write(m.Goal);
+                w.Write(m.Progress);
+                w.Write(m.Claimed);
+                w.Write((int)m.Reward);
+                w.Write(m.Amount);
+            });
+            var pass = d.Pass;
+            w.Write(pass.SeasonId);
+            w.Write(pass.Points);
+            w.Write(pass.Premium);
+            WriteList(w, pass.ClaimedFree.ToList(), w.Write);
+            WriteList(w, pass.ClaimedPremium.ToList(), w.Write);
+            // Added in version 28.
+            var league = club.TeamLeague;
+            w.Write(league.Division);
+            w.Write(league.Season);
+            w.Write(league.Round);
+            w.Write(league.Seed);
+            WriteList(w, league.Standings, st => { w.Write(st.Team); w.Write(st.Wins); w.Write(st.Losses); w.Write(st.Ties); });
+            WriteList(w, league.Trophies.ToList(), w.Write);
+            w.Write(league.Date);
+            w.Write(league.GamesToday);
+
+            // Added in version 31.
             WriteList(w, club.LegendsSurpassed.ToList(), w.Write);
         }
 
@@ -287,6 +319,41 @@ namespace BaseballSim.Career
                 foreach (var (kind, id) in ReadList(r, () => ((CosmeticKind)r.ReadInt32(), r.ReadString()))) club.Worn[kind] = id;
                 club.RewindTickets = r.ReadInt32();
                 club.Daily.TicketsUsedToday = r.ReadInt32();
+            }
+            if (version >= 27)
+            {
+                var d = club.Daily;
+                d.WeekKey = r.ReadString();
+                d.Week = ReadList(r, () => new Mission
+                {
+                    Kind = (MissionKind)r.ReadInt32(),
+                    Goal = r.ReadInt32(),
+                    Progress = r.ReadInt32(),
+                    Claimed = r.ReadBoolean(),
+                    Reward = (RewardKind)r.ReadInt32(),
+                    Amount = r.ReadInt32(),
+                    Weekly = true,
+                });
+                var pass = d.Pass;
+                pass.SeasonId = r.ReadInt32();
+                pass.Points = r.ReadInt32();
+                pass.Premium = r.ReadBoolean();
+                pass.ClaimedFree = new HashSet<int>(ReadList(r, r.ReadInt32));
+                pass.ClaimedPremium = new HashSet<int>(ReadList(r, r.ReadInt32));
+            }
+            if (version >= 28)
+            {
+                var league = club.TeamLeague;
+                league.Division = r.ReadInt32();
+                league.Season = r.ReadInt32();
+                league.Round = r.ReadInt32();
+                league.Seed = r.ReadInt32();
+                league.Standings = ReadList(r, () => new LeagueStanding { Team = r.ReadString(), Wins = r.ReadInt32(), Losses = r.ReadInt32(), Ties = r.ReadInt32() });
+                league.Opponents = league.Standings.Skip(1).Select(st => st.Team).ToList();
+                var trophies = ReadList(r, r.ReadInt32);
+                for (int k = 0; k < trophies.Count && k < MyTeamLeague.Divisions; k++) league.Trophies[k] = trophies[k];
+                league.Date = r.ReadString();
+                league.GamesToday = r.ReadInt32();
             }
             if (version >= 31)
                 club.LegendsSurpassed = new HashSet<string>(ReadList(r, r.ReadString));
@@ -478,7 +545,17 @@ namespace BaseballSim.Career
             // Added in version 26.
             w.Write(career.RewindsUsed);
 
-            // Added in version 31 (27~30 belong to other branches).
+            // Added in version 29.
+            w.Write(career.HitStreak);
+            w.Write(career.Me.ManagerTrust);
+            w.Write(career.Me.DerbyBest);
+            WriteList(w, career.Me.StoryMarks.ToList(), kv => { w.Write(kv.Key); w.Write(kv.Value); });
+
+            // Added in version 30.
+            w.Write(career.InjuryDays);
+            WriteList(w, career.Me.History, h => w.Write(h.InjuryDays));
+
+            // Added in version 31.
             WriteList(w, career.LegendStages.ToList(), kv => { w.Write(kv.Key); w.Write((int)kv.Value); });
             w.Write(career.LegendLastSeason);
             w.Write(career.LegendLastDay);
@@ -663,6 +740,19 @@ namespace BaseballSim.Career
                 ReadList(r, () => { var h = me.History[k++]; h.Postseason = ReadList(r, r.ReadString); return h; });
             }
             if (version >= 26) career.RewindsUsed = r.ReadInt32();
+            if (version >= 29)
+            {
+                career.HitStreak = r.ReadInt32();
+                me.ManagerTrust = r.ReadInt32();
+                me.DerbyBest = r.ReadInt32();
+                foreach (var (key, stamp) in ReadList(r, () => (r.ReadString(), r.ReadInt32()))) me.StoryMarks[key] = stamp;
+            }
+            if (version >= 30)
+            {
+                career.InjuryDays = r.ReadInt32();
+                int k = 0;
+                ReadList(r, () => { var h = me.History[k++]; h.InjuryDays = r.ReadInt32(); return h; });
+            }
             if (version >= 31)
             {
                 foreach (var (id, stage) in ReadList(r, () => (r.ReadString(), (LegendStage)r.ReadInt32()))) career.LegendStages[id] = stage;

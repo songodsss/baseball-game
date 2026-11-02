@@ -83,6 +83,8 @@ namespace BaseballSim.Career
         public int OldSalary;
         public int NewSalary;
         public Dictionary<Stat, int> Decline = new Dictionary<Stat, int>();
+        /// <summary>Limits raised by a year's experience (노련함).</summary>
+        public Dictionary<Stat, int> Veteran = new Dictionary<Stat, int>();
         public List<SeasonAward> Awards = new List<SeasonAward>();
         public PostseasonResult Postseason;
         /// <summary>Free-agency offers, my club's first. Empty unless the player is a free agent this winter.</summary>
@@ -157,6 +159,147 @@ namespace BaseballSim.Career
         /// <summary>Games in a row with at bats and no hit. Story events react to slumps.</summary>
         public int HitlessStreak;
 
+        /// <summary>Games in a row with a hit. Record-chase events react to it.</summary>
+        public int HitStreak;
+
+        /// <summary>Today as one number, for story marks: Season*1000+Day.</summary>
+        public int Stamp => Season * 1000 + Day;
+
+        /// <summary>Games played since a story mark was made, or -1 if it isn't there.</summary>
+        public int GamesSince(string mark)
+        {
+            if (!Me.StoryMarks.TryGetValue(mark, out int stamp)) return -1;
+            return (Season - stamp / 1000) * League.GamesPerSeason + Day - stamp % 1000;
+        }
+
+        public bool HasMark(string mark) => Me.StoryMarks.ContainsKey(mark);
+
+        /// <summary>The senior who rooms with the player as a rookie, ages ahead of him and retires: a teammate's name, kept for the career.</summary>
+        public string SeniorName => StoryCharacter("senior:", 0);
+
+        /// <summary>A teammate who joined in the same year.</summary>
+        public string MateName => StoryCharacter("mate:", 1);
+
+        /// <summary>A veteran teammate (not the roommate) who teaches and competes with the player.</summary>
+        public string VeteranName => StoryCharacter("veteran:", 2);
+
+        /// <summary>The junior the player covers for and mentors.</summary>
+        public string JuniorName => StoryCharacter("junior:", 3);
+
+        /// <summary>The coach who looks after the player (batting coach for a hitter, pitching coach for a pitcher).</summary>
+        public string CoachName
+        {
+            get
+            {
+                var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith("coach:"));
+                if (key != null) return key.Substring("coach:".Length);
+                string[] family = { "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오" };
+                string[] given = { "성훈", "재석", "동철", "만수", "기태", "영길", "상문", "병규", "종호", "태균" };
+                int h = Me.Name.Length * 11 + MyTeam.Name.Length * 3 + Season * 7;
+                string old = BondName("excoach");
+                string name;
+                do
+                {
+                    name = family[h % family.Length] + given[(h / 3 + 7) % given.Length];
+                    h += 13;
+                } while (name == old);
+                Me.StoryMarks["coach:" + name] = Stamp;
+                return name;
+            }
+        }
+
+        // ---------- Bonds: people the player grew close to ----------
+        // "close:<who>" holds closeness. who is a role (senior, mate, veteran, junior, coach) or "story:<name>"
+        // for a main-story character (see Befriend). Close people (Bonds.Close or more) get a farewell and an
+        // after-story later; the rest just pass through the career.
+
+        public const int CloseBond = 3;
+
+        public int Closeness(string who) => Me.StoryMarks.TryGetValue("close:" + who, out int v) ? v : 0;
+
+        public bool IsClose(string who) => Closeness(who) >= CloseBond;
+
+        internal int AddCloseness(string who, int delta)
+        {
+            int now = Closeness(who) + delta;
+            Me.StoryMarks["close:" + who] = now;
+            return now;
+        }
+
+        /// <summary>For story scenes: records growing closer to a named character (e.g. a main-story senior), so his retirement and after-story come up later.</summary>
+        public void Befriend(string name, int delta = 1)
+        {
+            string who = "story:" + name;
+            if (!Me.StoryMarks.ContainsKey("met:" + who)) Me.StoryMarks["met:" + who] = Stamp;
+            AddCloseness(who, delta);
+        }
+
+        /// <summary>The display name of a bond: a role's person, or a story character's own name.</summary>
+        public string BondName(string who)
+        {
+            switch (who)
+            {
+                case "senior": return SeniorName;
+                case "mate": return MateName;
+                case "veteran": return VeteranName;
+                case "junior": return JuniorName;
+                case "coach": return CoachName;
+                case "exveteran": case "excoach":
+                    var ex = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(who + ":"));
+                    return ex != null ? ex.Substring(who.Length + 1) : who;
+                default: return who.StartsWith("story:") ? who.Substring("story:".Length) : who;
+            }
+        }
+
+        /// <summary>Stamp of when the player met someone: the name mark for a role, the met mark for a story character.</summary>
+        public int MetStamp(string who)
+        {
+            if (who.StartsWith("story:")) return Me.StoryMarks.TryGetValue("met:" + who, out int s) ? s : Stamp;
+            var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(who + ":"));
+            return key != null ? Me.StoryMarks[key] : Stamp;
+        }
+
+        /// <summary>Everyone with a closeness entry.</summary>
+        /// <summary>
+        /// A veteran or coach leaves: his name, closeness and marks move to "ex" + role, so the after-story
+        /// can still find him while a new veteran or coach takes the role in everyday events.
+        /// </summary>
+        internal void PartWith(string who)
+        {
+            if (who != "veteran" && who != "coach")
+            {
+                Me.StoryMarks["gone:" + who] = Stamp;
+                return;
+            }
+            string ex = "ex" + who;
+            var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(who + ":"));
+            if (key != null)
+            {
+                Me.StoryMarks[ex + key.Substring(who.Length)] = Me.StoryMarks[key];
+                Me.StoryMarks.Remove(key);
+            }
+            Me.StoryMarks["close:" + ex] = Closeness(who);
+            Me.StoryMarks.Remove("close:" + who);
+            Me.StoryMarks["gone:" + ex] = Stamp;
+        }
+
+        public IEnumerable<string> Bonds => Me.StoryMarks.Keys.Where(k => k.StartsWith("close:")).Select(k => k.Substring("close:".Length)).ToList();
+
+        string StoryCharacter(string prefix, int salt)
+        {
+            var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(prefix));
+            if (key != null) return key.Substring(prefix.Length);
+            var taken = Me.StoryMarks.Keys.Where(k => k.StartsWith("senior:") || k.StartsWith("mate:") || k.StartsWith("veteran:") || k.StartsWith("junior:") || k.StartsWith("exveteran:"))
+                .Select(k => k.Substring(k.IndexOf(':') + 1));
+            var names = MyTeam.Lineup.Concat(MyTeam.Rotation).Concat(MyTeam.Bullpen)
+                .Where(p => p.Id != Me.Id && p.Name != Me.Name).Select(p => p.Name).Except(taken).Distinct().ToList();
+            string name = names.Count == 0 ? (salt == 0 ? "김선배" : "이동기") : names[(Me.Name.Length * 7 + Season * 13 + salt * 5) % names.Count];
+            Me.StoryMarks[prefix + name] = Stamp;
+            return name;
+        }
+        public bool Seen(string eventId) => HasMark("seen:" + eventId);
+        public bool SeenThisSeason(string eventId) => Me.StoryMarks.TryGetValue("seen:" + eventId, out int stamp) && stamp / 1000 == Season;
+
         /// <summary>Missed at least one game hurt this season.</summary>
         public bool InjuredThisSeason;
 
@@ -195,7 +338,8 @@ namespace BaseballSim.Career
             foreach (var stat in me.MyStats)
             {
                 int start = 30 + (int)(random.NextDouble() * 16);
-                int potential = (int)Math.Round(Normal(random, 68, 10)) + potentialBonus;
+                // A narrow spread: the start is a small roll, breakthroughs (effort) make the real difference.
+                int potential = (int)Math.Round(Normal(random, PotentialMean, PotentialSpread)) + potentialBonus;
                 potential = Math.Max(start + 10, Math.Min(99, potential));
                 me.Ratings[stat] = start;
                 me.PeakRatings[stat] = start;
@@ -248,7 +392,7 @@ namespace BaseballSim.Career
         {
             result.AtBat = null;
             Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery - Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom)));
-            if (Me.InjuryDaysLeft > 0) Me.InjuryDaysLeft--;
+            if (Me.InjuryDaysLeft > 0) { Me.InjuryDaysLeft--; InjuryDays++; }
             else if (Me.LingerDays > 0) Me.LingerDays--;
             Me.Morale -= Math.Sign(Me.Morale);
             Day++;
@@ -264,7 +408,7 @@ namespace BaseballSim.Career
             if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
             {
                 var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
-                PendingEvent = MainStory.Next(this, result) ?? random;
+                PendingEvent = MainStory.Next(this, result) ?? StoryEvents.Scheduled(this, result) ?? random;
             }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
@@ -284,9 +428,11 @@ namespace BaseballSim.Career
         {
             if (PendingEvent == null) throw new InvalidOperationException("No story event to resolve.");
             var picked = PendingEvent.Choices[choice];
+            Me.StoryMarks["seen:" + PendingEvent.Id] = Stamp;
             PendingEvent = null;
             var outcome = new EventOutcome { Text = picked.Result };
             picked.Apply(new EventEffects(this, _random, outcome));
+            outcome.Text = StoryEvent.Fill(outcome.Text, this);
             return outcome;
         }
 
@@ -312,8 +458,8 @@ namespace BaseballSim.Career
             var (main, side) = TrainingTargets(action);
             result.ConditionStars = ConditionStars;
             double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
-            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult)));
-            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult)));
+            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * VeteranGrowth(main))));
+            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult * VeteranGrowth(side))));
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
         }
 
@@ -340,10 +486,66 @@ namespace BaseballSim.Career
             }
         }
 
+        /// <summary>Starting potential: mean and spread of the roll at registration.</summary>
+        public const double PotentialMean = 68, PotentialSpread = 6;
+
+        /// <summary>Growth bonus (training and game exp) in a comeback year, so one unlucky season doesn't sink a career.</summary>
+        public const double ComebackGrowth = 1.3;
+
+        /// <summary>
+        /// True in the season after a bad one: a big injury (out for a twelfth of the season or more), a
+        /// poor line (OPS under .700, or a pitcher's equivalent) or half the year in 2군. Not after military service.
+        /// </summary>
+        public bool ComebackYear => Me.History.Count > 0 && WasUnlucky(Me.History[Me.History.Count - 1]);
+
+        bool WasUnlucky(SeasonRecord last) =>
+            !last.Military && (last.InjuryDays * 12 >= last.Games || last.FarmDays * 2 >= last.Games || Form(last.Line, last.Pitching) < ComebackForm);
+        const double ComebackForm = 0.700;
+
+        /// <summary>Days missed hurt this season.</summary>
+        public int InjuryDays;
+
+        /// <summary>
+        /// Ratings that come from reading the game: they keep growing in the 30s and veterans gain on them.
+        /// The rest come from the body and slip late in a career.
+        /// </summary>
+        public static bool IsSavvyStat(Stat stat) => stat == Stat.Contact || stat == Stat.Eye || stat == Stat.Control || stat == Stat.Breaking;
+        public static bool IsBodyStat(Stat stat) => stat == Stat.Speed || stat == Stat.Velocity || stat == Stat.Stamina || stat == Stat.Defense;
+
+        /// <summary>Body ratings start slipping at this age, a little more each year.</summary>
+        public const int DeclineAge = 35;
+        /// <summary>From this age to VeteranUntil, every birthday lifts each savvy rating's limit by one (노련함).</summary>
+        public const int VeteranFrom = 30, VeteranUntil = 37;
+
+        /// <summary>Past 31 savvy ratings still grow at the 28~31 pace instead of slowing to a crawl.</summary>
+        double VeteranGrowth(Stat stat) => Me.Age >= 32 && IsSavvyStat(stat) ? 0.7 / 0.4 : 1.0;
+
+        /// <summary>A year older: savvy limits rise, body ratings slip from 35 (less with the conditioning room).</summary>
+        void Age(SeasonSummary summary)
+        {
+            foreach (var stat in Me.MyStats)
+            {
+                if (IsSavvyStat(stat) && Me.Age >= VeteranFrom && Me.Age <= VeteranUntil && Me.Potential[stat] < 99)
+                {
+                    Me.Potential[stat]++;
+                    summary.Veteran[stat] = 1;
+                }
+                if (!IsBodyStat(stat) || Me.Age < DeclineAge) continue;
+                int drop = (int)(_random.NextDouble() * (Me.Age - DeclineAge + 2));
+                drop = (int)Math.Round(drop * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
+                int before = Me.Ratings[stat];
+                // The ceiling drops too, or training would simply win the points back.
+                Me.Potential[stat] = Math.Max(20, Me.Potential[stat] - drop);
+                Me.Ratings[stat] = Math.Max(20, Math.Min(Me.Potential[stat], before - drop));
+                if (before != Me.Ratings[stat]) summary.Decline[stat] = before - Me.Ratings[stat];
+            }
+        }
+
         double AgeGrowth()
         {
             int age = Me.Age;
             double growth = age <= 22 ? 1.3 : age <= 27 ? 1.0 : age <= 31 ? 0.7 : 0.4;
+            if (ComebackYear) growth *= ComebackGrowth;
             return age >= 28 && Me.Traits.Contains(Traits.LateBloomer) ? growth * 1.6 : growth;
         }
 
@@ -486,6 +688,7 @@ namespace BaseballSim.Career
             result.MyGamePlayer = gamePlayer;
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
             if (result.MyLine.AtBats > 0) HitlessStreak = result.MyLine.Hits == 0 ? HitlessStreak + 1 : 0;
+            if (result.MyLine.AtBats > 0) HitStreak = result.MyLine.Hits == 0 ? 0 : HitStreak + 1;
             Accumulate(SeasonLine, result.MyLine);
             Me.CareerStolenBases += result.MyLine.StolenBases;
             Accumulate(StintLine, result.MyLine);
@@ -501,13 +704,13 @@ namespace BaseballSim.Career
         {
             double mult = AgeGrowth() * DayWeight;
             int extraBase = l.Doubles + l.Triples;
-            int Exp(double raw) => (int)Math.Round(raw * mult);
+            void Gain(Stat stat, double raw) => AddPoints(result, stat, Me.GainExp(stat, (int)Math.Round(raw * mult * VeteranGrowth(stat))));
 
-            AddPoints(result, Stat.Defense, Me.GainExp(Stat.Defense, Exp(2)));
-            AddPoints(result, Stat.Contact, Me.GainExp(Stat.Contact, Exp(1 + 2 * l.Hits)));
-            AddPoints(result, Stat.Power, Me.GainExp(Stat.Power, Exp(2 * extraBase + 4 * l.HomeRuns)));
-            AddPoints(result, Stat.Eye, Me.GainExp(Stat.Eye, Exp(1 + 2 * l.Walks)));
-            AddPoints(result, Stat.Speed, Me.GainExp(Stat.Speed, Exp(l.Runs + 2 * l.Triples)));
+            Gain(Stat.Defense, 2);
+            Gain(Stat.Contact, 1 + 2 * l.Hits);
+            Gain(Stat.Power, 2 * extraBase + 4 * l.HomeRuns);
+            Gain(Stat.Eye, 1 + 2 * l.Walks);
+            Gain(Stat.Speed, l.Runs + 2 * l.Triples);
         }
 
         /// <summary>
@@ -551,6 +754,7 @@ namespace BaseballSim.Career
                 Salary = Me.Salary,
                 Titles = summary.Awards.Where(a => a.Mine).Select(a => a.Title).ToList(),
                 InjuryFree = !InjuredThisSeason,
+                InjuryDays = InjuryDays,
                 Club = MyTeam.Name,
                 Notes = SeasonNotes,
                 FarmDays = FarmDays,
@@ -581,27 +785,16 @@ namespace BaseballSim.Career
             summary.NewSalary = Me.Salary;
 
             Me.Age++;
-            if (Me.Age >= 32)
-            {
-                foreach (var stat in Me.MyStats)
-                {
-                    int drop = (int)(_random.NextDouble() * (Me.Age - 30));
-                    if (stat == Stat.Speed || stat == Stat.Velocity) drop += 1; // legs and fastball go first
-                    drop = (int)Math.Round(drop * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
-                    int before = Me.Ratings[stat];
-                    // The ceiling drops too, or training would simply win the points back.
-                    Me.Potential[stat] = Math.Max(20, Me.Potential[stat] - drop);
-                    Me.Ratings[stat] = Math.Max(20, Math.Min(Me.Potential[stat], before - drop));
-                    if (before != Me.Ratings[stat]) summary.Decline[stat] = before - Me.Ratings[stat];
-                }
-            }
+            Age(summary);
 
             summary.NewAchievements = Achievements.Check(this);
 
             Season++;
             Day = 0;
             InjuredThisSeason = false;
+            InjuryDays = 0;
             SeasonLine = new BattingLine();
+            HitStreak = 0;
             PaidMonths = 0;
             PendingBonus = 0;
             SeasonPitching = new PitcherLine();

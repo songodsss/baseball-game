@@ -108,7 +108,7 @@ namespace BaseballGame
             void Product(PremiumProduct p)
             {
                 if (p.Id == Premium.StarterPack && !Premium.StarterPackAvailable) return;
-                bool owned = p.Kind == ProductKind.Permanent && Premium.Owns(p.Id);
+                bool owned = p.Kind == ProductKind.Permanent ? Premium.Owns(p.Id) : !Premium.CanBuy(p.Id, _club);
                 var row = ItemRow(list, p.Name, $"{p.Description}\n쓰는 곳: {p.Where}");
                 var buy = UiKit.Button(row, owned ? "보유 중" : Monetization.Store.PriceOf(p.Id), () =>
                     Premium.Buy(p.Id, _club, bought => { if (bought) Save(); if (this != null) Fill(); }), owned ? UiKit.Background : Purple);
@@ -135,7 +135,7 @@ namespace BaseballGame
             foreach (var p in Premium.All.Where(p => p.Kind == ProductKind.Support)) Product(p);
 
             UiKit.Height(UiKit.Label(list,
-                "구단 코인은 미션·출석·은퇴식으로 모아요. 현금으로는 팔지 않아요.\n시즌 패스는 일간·주간 도전과 함께 나올 예정이에요.",
+                "구단 코인은 미션·주간 도전·시즌 패스·출석·은퇴식으로 모아요. 현금으로는 팔지 않아요.",
                 24, TextAnchor.MiddleCenter, UiKit.Muted), 100);
         }
 

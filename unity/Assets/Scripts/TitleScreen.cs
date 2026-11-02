@@ -83,7 +83,6 @@ namespace BaseballGame
 
             var daily = _club.Daily;
             int done = daily.Today.Count(m => m.Done);
-            int claimable = daily.Today.Count(m => m.Done && !m.Claimed && m.Reward != RewardKind.Money);
             string trainee = focus.IsEmpty ? "새 선수를 키워 보세요" : $"{focus.Career.Me.Name} · {focus.Career.Me.Age}세 · {focus.Career.MyTeam.Name}";
 
             // The training centre is where the game is, so it stands alone and biggest.
@@ -108,15 +107,20 @@ namespace BaseballGame
                 },
                 new Building
                 {
-                    Id = "clubhouse", Name = "클럽하우스", Status = $"오늘의 미션 {done}/{daily.Today.Count} · 출석 {daily.Streak}일",
-                    Body = new Color(0.25f, 0.55f, 0.4f), Roof = new Color(0.2f, 0.25f, 0.3f), Open = ShowMissions, Badge = claimable,
+                    Id = "clubhouse", Name = "클럽하우스", Status = $"미션 {done}/{daily.Today.Count} · 패스 Lv.{daily.Pass.Level}",
+                    Body = new Color(0.25f, 0.55f, 0.4f), Roof = new Color(0.2f, 0.25f, 0.3f), Open = ShowMissions, Badge = ChallengeScreen.Ready(_club, false),
                 },
                 new Building
                 {
                     Id = "store", Name = "구단 스토어", Status = $"코인 {_club.Coins:N0} · 꾸미기·편의",
                     Body = new Color(0.55f, 0.4f, 0.8f), Roof = new Color(0.95f, 0.45f, 0.55f), Open = () => PremiumScreen.Open(_club, Build),
                 },
-                new Building { Id = "stadium", Name = "메인 스타디움", Status = "준비 중", Soon = true, Body = new Color(0.5f, 0.55f, 0.6f), Roof = new Color(0.7f, 0.72f, 0.75f) },
+                new Building
+                {
+                    Id = "stadium", Name = "메인 스타디움",
+                    Status = _club.TeamLeague.Started ? $"내 팀 리그 · {MyTeamLeague.DivisionName(_club.TeamLeague.Division)} {_club.TeamLeague.MyRank}위" : "내 팀 리그",
+                    Body = new Color(0.5f, 0.55f, 0.6f), Roof = new Color(0.7f, 0.72f, 0.75f), Open = () => TeamLeagueScreen.Open(_club, Build),
+                },
                 new Building { Id = "empty_lot", Name = "빈 부지", Status = "새 건물이 들어설 자리", Soon = true, Body = new Color(0.45f, 0.4f, 0.35f), Roof = new Color(0.6f, 0.55f, 0.5f) },
             };
             for (int i = 0; i < buildings.Length; i += 2)
@@ -439,44 +443,7 @@ namespace BaseballGame
         static string Today => DailyMissions.DateOf(System.DateTime.Now);
 
         /// <summary>Today's missions from home. Rewards that are money need a player, so those wait for the growth screen.</summary>
-        void ShowMissions()
-        {
-            CloseOverlay();
-            _overlay = UiKit.Dim(_root.parent.parent);
-            var card = UiKit.PopupCard(_overlay, new Vector2(0.05f, 0.15f), new Vector2(0.95f, 0.85f));
-            UiKit.Column(card, 40, 18);
-            var heading = UiKit.Label(card, "오늘의 미션", 48, TextAnchor.MiddleCenter);
-            heading.fontStyle = FontStyle.Bold;
-            UiKit.Height(heading, 90);
-            var daily = _club.Daily;
-            UiKit.Height(UiKit.Label(card, $"출석 {daily.Streak}일 연속 · 피로 회복권 {daily.RecoveryTickets}장\n선수를 골라 들어가면 출석 보상을 받아요. 돈 보상은 육성 화면에서 받아요.",
-                26, TextAnchor.MiddleCenter, UiKit.Muted), 90);
-            for (int i = 0; i < daily.Today.Count; i++)
-            {
-                int index = i;
-                var m = daily.Today[i];
-                bool money = m.Reward == RewardKind.Money;
-                var row = UiKit.Panel(card, "Mission", UiKit.Shade(UiKit.Card, 1.3f));
-                UiKit.Height(row, 140);
-                var rowLayout = UiKit.Row(row, 16);
-                rowLayout.padding = new RectOffset(24, 24, 14, 14);
-                rowLayout.childForceExpandWidth = false;
-                var text = UiKit.Label(row, $"<b>{m.Text}</b>\n<size=24><color=#BAC4D8>보상 {m.RewardText} · {m.Progress}/{m.Goal}</color></size>", 30);
-                UiKit.Width(text, 0, 1);
-                bool canClaim = m.Done && !m.Claimed && !money;
-                var claim = UiKit.Button(row, m.Claimed ? "받음" : !m.Done ? "진행 중" : money ? "육성에서" : "받기", () =>
-                {
-                    if (!daily.Claim(index, _club, null)) return;
-                    SaveStore.SaveClub(_club);
-                    ShowMissions();
-                }, canClaim ? new Color(0.2f, 0.75f, 0.45f) : UiKit.Background);
-                claim.interactable = canClaim;
-                claim.GetComponentInChildren<Text>().fontSize = 26;
-                UiKit.Width(claim, 180);
-            }
-            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
-            UiKit.Height(UiKit.Button(card, "닫기", Build, UiKit.Muted), 110);
-        }
+        void ShowMissions() => ChallengeScreen.Open(_club, null, Build);
 
         void Play(int slot)
         {

@@ -944,6 +944,8 @@ namespace BaseballGame
                 Tip("shop", "연봉이 쌓였어요. 상점에서 장비를 사면 능력치가 올라가요. 장비를 다 모으면 개인 시설에 투자할 수 있어요.");
             if (_career.ConditionStars >= 4)
                 Tip("condition", "컨디션이 좋은 날(★4 이상)엔 훈련 효과가 올라가요. 컨디션은 매일 바뀌고, 피로가 쌓이면 떨어지고 사기가 높으면 올라가요.");
+            if (_career.ComebackYear)
+                Tip("comeback", "지난 시즌에 크게 다쳤거나 성적이 안 좋았어요. 이번 시즌은 '재기의 해'라서 훈련과 경기로 얻는 성장이 30% 늘어나요.");
             if (_career.Day >= 5)
                 Tip("records", "'기록'에서 리그 순위와 내 성적을 볼 수 있어요.");
         }
@@ -1123,41 +1125,8 @@ namespace BaseballGame
 
         void ShowMissions()
         {
-            var daily = _club.Daily;
-            daily.Refresh(Today);
-            var card = OpenOverlay("오늘의 미션");
-            UiKit.Height(UiKit.Label(card, "매일 자정에 새 미션 3개가 나와요. 다 하면 보상을 받으세요.\n모든 슬롯이 함께 써요.", 28, TextAnchor.MiddleCenter, UiKit.Muted), 100);
-            for (int i = 0; i < daily.Today.Count; i++)
-            {
-                int index = i;
-                var m = daily.Today[i];
-                var row = UiKit.Panel(card, "Mission", UiKit.Shade(UiKit.Card, 1.3f));
-                UiKit.Height(row, 170);
-                var layout = UiKit.Row(row, 16);
-                layout.padding = new RectOffset(24, 24, 16, 16);
-                layout.childForceExpandWidth = false;
-                var info = UiKit.Empty(row, "Info");
-                UiKit.Width(info, 0, 1);
-                UiKit.Column(info, 0, 6);
-                UiKit.Height(UiKit.Label(info, $"<b>{m.Text}</b>", 30), 50);
-                UiKit.Height(UiKit.Label(info, $"보상 {m.RewardText}  ·  {m.Progress}/{m.Goal}", 26, TextAnchor.MiddleLeft, UiKit.Muted), 40);
-                var bar = UiKit.Bar(info, m.Done ? new Color(0.2f, 0.75f, 0.45f) : UiKit.Accent);
-                UiKit.Height(bar.parent, 22);
-                UiKit.SetBar(bar, (float)m.Progress / m.Goal);
-                var claim = UiKit.Button(row, m.Claimed ? "받음" : m.Done ? "받기" : "진행 중", () =>
-                {
-                    if (!daily.Claim(index, _club, _career)) return;
-                    Log($"<color=#5FA8FF>미션 보상</color> {m.RewardText}");
-                    Save();
-                    Refresh();
-                    ShowMissions();
-                }, m.Done && !m.Claimed ? new Color(0.2f, 0.75f, 0.45f) : UiKit.Background);
-                claim.interactable = m.Done && !m.Claimed;
-                UiKit.Width(claim, 200);
-            }
-            UiKit.Height(UiKit.Label(card, $"출석 {daily.Streak}일 연속 · 피로 회복권 {daily.RecoveryTickets}장", 28, TextAnchor.MiddleCenter, UiKit.Muted), 70);
-            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
-            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+            CloseOverlay();
+            ChallengeScreen.Open(_club, _career, () => { Save(); Refresh(); });
         }
 
         void UseRecoveryTicket()
@@ -1578,6 +1547,8 @@ namespace BaseballGame
                 Line($"연봉 {summary.OldSalary:N0} → <b>{summary.NewSalary:N0}</b>만원" + (_career.ContractSeasonsLeft > 0 ? "  (계약 기간)" : ""));
             if (post.Bonus > 0) Line($"가을야구 보너스 {post.Bonus:N0}만원");
             Line($"나이 {_career.Me.Age}세가 되었습니다.");
+            if (summary.Veteran.Count > 0)
+                Line("<color=#7CD992>노련함: " + string.Join(", ", summary.Veteran.Select(d => $"{StatNames[d.Key]} 한계 +{d.Value}")) + "</color>");
             if (summary.Decline.Count > 0)
                 Line("<color=#F28C40>노쇠화: " + string.Join(", ", summary.Decline.Select(d => $"{StatNames[d.Key]} -{d.Value}")) + "</color>");
 
@@ -2123,7 +2094,8 @@ namespace BaseballGame
             _status.text = $"{season}  ·  인기 {me.Popularity}{injury}{morale}\n" +
                 $"<size=24><color=#BAC4D8>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
-            _condition.text = ConditionText(_career.ConditionStars);
+            _condition.text = ConditionText(_career.ConditionStars) + (_career.ComebackYear
+                ? $"  <color=#7CD992>재기의 해 +{Mathf.RoundToInt((float)(CareerState.ComebackGrowth - 1) * 100)}%</color>" : "");
 
             foreach (var row in _ratingRows) row.Value.SetActive(me.MyStats.Contains(row.Key));
             foreach (var stat in me.MyStats)
@@ -2140,7 +2112,7 @@ namespace BaseballGame
                 // At the limit the bar shows progress toward the next breakthrough instead.
                 UiKit.SetBar(_expFills[stat], canBreak
                     ? (float)me.BreakthroughProgress(stat) / me.BreakthroughNeed(stat)
-                    : maxed ? 1f : (float)me.Exp[stat] / CareerPlayer.ExpToNext(me.Ratings[stat]));
+                    : maxed ? 1f : (float)me.Exp[stat] / me.ExpToNext(stat));
             }
 
             var choices = _career.TrainingChoices;
@@ -2163,7 +2135,7 @@ namespace BaseballGame
             int ticketsLeft = _club.Daily.TicketsLeftToday;
             UiKit.SetButtonLabel(_ticketButton, tickets == 0 ? "회복권 사기" : ticketsLeft == 0 ? "회복권 (오늘 끝)" : $"회복권 {tickets}장");
             _ticketButton.interactable = tickets == 0 || (ticketsLeft > 0 && me.Fatigue > 0);
-            int unclaimed = _club.Daily.Unclaimed;
+            int unclaimed = ChallengeScreen.Ready(_club, true);
             UiKit.SetButtonLabel(_missionButton, unclaimed > 0 ? $"미션 <color=#FFD24D>●{unclaimed}</color>" : "미션");
             bool canFast = Premium.Owns(Premium.FastSkip);
             _fastButton.gameObject.SetActive(canFast);

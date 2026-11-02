@@ -191,15 +191,19 @@ namespace BaseballSim.Career
         }
 
         // Every start gives exp, even a bad one: going deep builds stamina, strikeouts velocity,
-        // few walks control, and few hits the breaking ball.
+        // few walks control, and few hits the breaking ball. A reliever's outing is short, so each
+        // one counts 1.8 times to keep relievers growing about as fast as starters.
+        const double ReliefExpBoost = 1.8;
+
         void GainPitchingExp(DayResult result, PitcherLine l)
         {
-            double mult = AgeGrowth() * DayWeight;
+            double mult = AgeGrowth() * DayWeight * (Me.Role == PitcherRole.Starter ? 1 : ReliefExpBoost);
             int Exp(double raw) => (int)Math.Round(raw * mult);
+            int Savvy(double raw) => (int)Math.Round(raw * mult * VeteranGrowth(Stat.Control));
             AddPoints(result, Stat.Stamina, Me.GainExp(Stat.Stamina, Exp(2 + l.Outs / 2.0)));
             AddPoints(result, Stat.Velocity, Me.GainExp(Stat.Velocity, Exp(2 + 3 * l.Strikeouts)));
-            AddPoints(result, Stat.Control, Me.GainExp(Stat.Control, Exp(2 + 3 * Math.Max(0, 5 - l.Walks))));
-            AddPoints(result, Stat.Breaking, Me.GainExp(Stat.Breaking, Exp(2 + 2 * Math.Max(0, 2 * l.Outs / 3 - l.Hits))));
+            AddPoints(result, Stat.Control, Me.GainExp(Stat.Control, Savvy(2 + 3 * Math.Max(0, 5 - l.Walks))));
+            AddPoints(result, Stat.Breaking, Me.GainExp(Stat.Breaking, Savvy(2 + 2 * Math.Max(0, 2 * l.Outs / 3 - l.Hits))));
         }
 
         /// <summary>A starter's season so far on the OPS scale once he's pitched enough, else what his stuff promises.</summary>
