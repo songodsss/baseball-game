@@ -1742,170 +1742,216 @@ namespace BaseballGame
         }
 
         /// <summary>Name the next player and pick a season length. Shown on first launch and after each retirement.</summary>
+        /// <summary>
+        /// Registering a player, one step per screen so nothing is cramped: name and club, position,
+        /// number, season length. Choices carry over when going back and forth.
+        /// </summary>
         void ShowNewPlayer()
         {
             bool first = _club.Roster.Count == 0;
-            var card = OpenOverlay(first ? "프로야구 선수 키우기" : "새 선수 등록");
-
-            string intro = first
-                ? "18세 신인을 프로 1군에 입단시켜 은퇴할 때까지 키워 보세요.\n은퇴한 선수는 내 팀에 남습니다."
-                : $"내 팀 선수 {_club.Roster.Count}명 · 명예 포인트 덕분에 새 선수 잠재력 +{_club.PotentialBonus}";
-            UiKit.Height(UiKit.Label(card, intro, 30, TextAnchor.MiddleCenter, UiKit.Muted), 110);
-
-            UiKit.Height(UiKit.Label(card, "선수 이름", 30, TextAnchor.LowerLeft), 60);
-            var box = UiKit.Panel(card, "Name", UiKit.Background);
-            UiKit.Height(box, 120);
-            var text = UiKit.Label(box, "", 44, TextAnchor.MiddleCenter);
-            text.supportRichText = false;
-            UiKit.Stretch(text.rectTransform);
-            var placeholder = UiKit.Label(box, "이름을 입력하세요", 44, TextAnchor.MiddleCenter, UiKit.Muted);
-            UiKit.Stretch(placeholder.rectTransform);
-            var input = box.gameObject.AddComponent<InputField>();
-            input.textComponent = text;
-            input.placeholder = placeholder;
-            input.characterLimit = 8;
-            input.text = first ? "강하늘" : "";
-
-            // Each club has its own uniform; picking the club picks the uniform.
+            string name = first ? "강하늘" : "";
             int team = (int)(_random.NextDouble() * League.DefaultTeamNames.Length);
-            var teamLabel = UiKit.Label(card, "", 30, TextAnchor.LowerLeft);
-            UiKit.Height(teamLabel, 60);
-            var teams = UiKit.Empty(card, "Teams");
-            UiKit.Height(teams, 180);
-            var grid = teams.gameObject.AddComponent<GridLayoutGroup>();
-            grid.cellSize = new Vector2(166, 85);
-            grid.spacing = new Vector2(10, 10);
-            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = 5;
-            grid.childAlignment = TextAnchor.MiddleCenter;
-            var teamButtons = new List<Button>();
-            void ShowTeam()
-            {
-                teamLabel.text = $"입단 팀: <b>{League.DefaultTeamNames[team]}</b>";
-                for (int i = 0; i < teamButtons.Count; i++)
-                {
-                    var c = TeamColor(League.DefaultTeamNames[i]);
-                    teamButtons[i].GetComponent<Image>().color = i == team ? c : new Color(c.r, c.g, c.b, 0.3f);
-                }
-            }
-            for (int i = 0; i < League.DefaultTeamNames.Length; i++)
-            {
-                int index = i;
-                var b = UiKit.Button(teams, League.DefaultTeamNames[i].Replace(" ", "\n"), () => { team = index; ShowTeam(); });
-                b.GetComponentInChildren<Text>().fontSize = 24;
-                var emblem = ArtLibrary.TeamEmblem(League.DefaultTeamNames[i]);
-                if (emblem != null)
-                {
-                    UiKit.ButtonIcon(b, emblem);
-                    UiKit.SetButtonLabel(b, "");
-                }
-                teamButtons.Add(b);
-            }
-            ShowTeam();
-
-            // Position, once and for good: a pitcher is a different career from a hitter.
             var position = Position.CenterField;
-            var positionLabel = UiKit.Label(card, "", 30, TextAnchor.LowerLeft);
-            UiKit.Height(positionLabel, 60);
-            var positions = UiKit.Empty(card, "Positions");
-            UiKit.Height(positions, 180);
-            var posGrid = positions.gameObject.AddComponent<GridLayoutGroup>();
-            posGrid.cellSize = new Vector2(170, 80);
-            posGrid.spacing = new Vector2(10, 10);
-            posGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            posGrid.constraintCount = 5;
-            posGrid.childAlignment = TextAnchor.MiddleCenter;
-            var positionButtons = new List<(Position Position, Button Button)>();
             var role = PitcherRole.Starter;
-            var roleRow = UiKit.Empty(card, "Roles");
-            UiKit.Height(roleRow, 90);
-            UiKit.Row(roleRow, 12);
-            var roleButtons = new List<(PitcherRole Role, Button Button)>();
-            void ShowPosition()
-            {
-                roleRow.gameObject.SetActive(position == Position.Pitcher);
-                foreach (var (r, b) in roleButtons) b.GetComponent<Image>().color = r == role ? UiKit.Accent : UiKit.Background;
-                string what = position == Position.Pitcher
-                    ? role == PitcherRole.Starter ? "5경기마다 선발 등판, 구속·제구·변화구·체력을 키워요"
-                    : role == PitcherRole.Closer ? "9회 세이브 상황에 나와 경기를 끝내요"
-                    : "8회 접전에 나와 리드를 지키고 홀드를 쌓아요"
-                    : position == Position.Catcher ? "수비 부담이 커서 더 지치지만 골든글러브에서 수비가 크게 쳐줘요"
-                    : position == Position.DesignatedHitter ? "수비를 안 해서 덜 지치지만 수비 능력은 쓰이지 않아요"
-                    : position == Position.CenterField ? "외야 한가운데, 넓은 수비 범위라 골든글러브에서 수비가 더 쳐줘요"
-                    : Positions.IsOutfield(position) ? "외야 골든글러브는 좌·중·우 합쳐서 3명이 받아요"
-                    : "타격·주루·수비 다섯 능력치를 키워요";
-                positionLabel.text = $"포지션: <b>{Positions.Name(position)}</b> ({(position == Position.Pitcher ? Positions.RoleKoreanName(role) + " 투수" : Positions.KoreanName(position))}) <size=24><color=#BAC4D8>{what} (바꿀 수 없어요)</color></size>";
-                foreach (var (pos, b) in positionButtons) b.GetComponent<Image>().color = pos == position ? UiKit.Accent : UiKit.Background;
-            }
-            foreach (var pos in new[] { Position.Pitcher }.Concat(Positions.Fielders))
-            {
-                var p = pos;
-                var b = UiKit.Button(positions, Positions.Name(p), () => { position = p; ShowPosition(); });
-                b.GetComponentInChildren<Text>().fontSize = 28;
-                positionButtons.Add((p, b));
-            }
-            // The pitcher's job, under the positions; the row is shown for a pitcher only.
-            roleRow.SetSiblingIndex(positions.GetSiblingIndex() + 1);
-            foreach (var r in new[] { PitcherRole.Starter, PitcherRole.Setup, PitcherRole.Closer })
-            {
-                var pr = r;
-                var b = UiKit.Button(roleRow, $"{Positions.RoleName(pr)} {Positions.RoleKoreanName(pr)}", () => { role = pr; ShowPosition(); });
-                b.GetComponentInChildren<Text>().fontSize = 28;
-                roleButtons.Add((pr, b));
-            }
-            ShowPosition();
-
             int number = 1 + (int)(_random.NextDouble() * 99);
-            var numberRow = UiKit.Empty(card, "Number");
-            UiKit.Height(numberRow, 90);
-            UiKit.Row(numberRow, 12).childForceExpandWidth = false;
-            var numberLabel = UiKit.Label(numberRow, "", 30, TextAnchor.MiddleLeft);
-            UiKit.Width(numberLabel, 0, 1);
-            void ShowNumber() => numberLabel.text = $"등번호 <b>{number}</b>번";
-            foreach (int step in new[] { -10, -1, 1, 10 })
-            {
-                int d = step;
-                var b = UiKit.Button(numberRow, d > 0 ? $"+{d}" : $"{d}", () => { number = (number - 1 + d + 99) % 99 + 1; ShowNumber(); }, UiKit.Background);
-                b.GetComponentInChildren<Text>().fontSize = 28;
-                UiKit.Width(b, 120);
-            }
-            ShowNumber();
-
-            UiKit.Height(UiKit.Label(card, "시즌 길이 (짧을수록 하루 성장이 커요. 시즌 사이에 바꿀 수 있어요)", 30, TextAnchor.LowerLeft), 70);
-            var lengths = UiKit.Empty(card, "Lengths");
-            UiKit.Height(lengths, 110);
-            UiKit.Row(lengths, 16);
             int games = _career != null ? _career.League.GamesPerSeason : 36;
+            const int Steps = 4;
+            string[] titles = { "이름과 입단 팀", "포지션", "등번호", "시즌 길이" };
+            int step = 0;
+            Text namePlaceholder = null;
 
-            var buttons = new List<(int Games, Button Button)>();
-            void Highlight()
+            void Show()
             {
-                foreach (var (g, b) in buttons) b.GetComponent<Image>().color = g == games ? UiKit.Accent : UiKit.Background;
-            }
-            foreach (int length in League.SeasonLengths)
-            {
-                int l = length;
-                buttons.Add((l, UiKit.Button(lengths, $"{l}경기", () => { games = l; Highlight(); })));
-            }
-            Highlight();
-
-            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
-            UiKit.Height(UiKit.Button(card, "육성 시작", () =>
-            {
-                string name = input.text.Trim();
-                if (name.Length == 0)
+                var card = OpenOverlay($"{(first ? "프로야구 선수 키우기" : "새 선수 등록")}  {step + 1}/{Steps}");
+                UiKit.Height(UiKit.Label(card, titles[step], 40, TextAnchor.MiddleLeft, Gold), 70);
+                switch (step)
                 {
-                    placeholder.color = UiKit.Warning;
-                    return;
+                    case 0: NameAndTeam(card); break;
+                    case 1: PositionStep(card); break;
+                    case 2: NumberStep(card); break;
+                    default: LengthStep(card); break;
                 }
-                StartNewCareer(name, games, team, position, number, role);
-                CloseOverlay();
-                _logLines.Clear();
-                Log($"{CareerState.StartYear}년, {_career.Me.Name} 선수 {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
-                Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 잠재력(/ 뒤 숫자)까지 키울 수 있어요.");
-                Refresh();
-                CheckIn();
-            }), 120);
+                UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+
+                var nav = UiKit.Empty(card, "Nav");
+                UiKit.Height(nav, 120);
+                UiKit.Row(nav, 16);
+                if (step > 0) UiKit.Button(nav, "이전", () => { step--; Show(); }, UiKit.Muted);
+                if (step < Steps - 1)
+                    UiKit.Button(nav, "다음", () =>
+                    {
+                        if (step == 0 && name.Trim().Length == 0)
+                        {
+                            if (namePlaceholder != null) namePlaceholder.color = UiKit.Warning;
+                            return;
+                        }
+                        step++;
+                        Show();
+                    });
+                else
+                    UiKit.Button(nav, "육성 시작", () =>
+                    {
+                        StartNewCareer(name.Trim(), games, team, position, number, role);
+                        CloseOverlay();
+                        _logLines.Clear();
+                        Log($"{CareerState.StartYear}년, {_career.Me.Name} 선수 {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
+                        Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 잠재력(/ 뒤 숫자)까지 키울 수 있어요.");
+                        Refresh();
+                        CheckIn();
+                    });
+            }
+
+            void NameAndTeam(RectTransform card)
+            {
+                string intro = first
+                    ? "18세 신인을 프로 1군에 입단시켜 은퇴할 때까지 키워 보세요. 은퇴한 선수는 내 팀에 남습니다."
+                    : $"내 팀 선수 {_club.Roster.Count}명 · 명예 포인트 덕분에 새 선수 잠재력 +{_club.PotentialBonus}";
+                UiKit.Height(UiKit.Label(card, intro, 28, TextAnchor.MiddleLeft, UiKit.Muted), 80);
+
+                UiKit.Height(UiKit.Label(card, "선수 이름", 30, TextAnchor.LowerLeft), 50);
+                var box = UiKit.Panel(card, "Name", UiKit.Background);
+                UiKit.Height(box, 110);
+                var text = UiKit.Label(box, "", 44, TextAnchor.MiddleCenter);
+                text.supportRichText = false;
+                UiKit.Stretch(text.rectTransform);
+                var placeholder = UiKit.Label(box, "이름을 입력하세요", 44, TextAnchor.MiddleCenter, UiKit.Muted);
+                UiKit.Stretch(placeholder.rectTransform);
+                var input = box.gameObject.AddComponent<InputField>();
+                input.textComponent = text;
+                input.placeholder = placeholder;
+                input.characterLimit = 8;
+                input.text = name;
+                input.onValueChanged.AddListener(v => { name = v; placeholder.color = UiKit.Muted; });
+                namePlaceholder = placeholder;
+
+                // Each club has its own uniform; picking the club picks the uniform.
+                UiKit.Height(UiKit.Label(card, "입단 팀 (구단마다 유니폼 색이 정해져 있어요)", 30, TextAnchor.LowerLeft), 60);
+                var teams = UiKit.Empty(card, "Teams");
+                UiKit.Height(teams, 5 * 108);
+                var grid = teams.gameObject.AddComponent<GridLayoutGroup>();
+                grid.cellSize = new Vector2(450, 98);
+                grid.spacing = new Vector2(12, 10);
+                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                grid.constraintCount = 2;
+                grid.childAlignment = TextAnchor.UpperCenter;
+                var buttons = new List<Button>();
+                void Mark()
+                {
+                    for (int i = 0; i < buttons.Count; i++)
+                    {
+                        var c = TeamColor(League.DefaultTeamNames[i]);
+                        buttons[i].GetComponent<Image>().color = i == team ? c : UiKit.Shade(c, 0.35f) + new Color(0.06f, 0.07f, 0.1f, 0);
+                    }
+                }
+                for (int i = 0; i < League.DefaultTeamNames.Length; i++)
+                {
+                    int index = i;
+                    var b = UiKit.Button(teams, League.DefaultTeamNames[i], () => { team = index; Mark(); });
+                    b.GetComponentInChildren<Text>().fontSize = 30;
+                    UiKit.ButtonIcon(b, ArtLibrary.TeamEmblem(League.DefaultTeamNames[i]), 76);
+                    buttons.Add(b);
+                }
+                Mark();
+            }
+
+            void PositionStep(RectTransform card)
+            {
+                var label = UiKit.Label(card, "", 30, TextAnchor.UpperLeft);
+                UiKit.Height(label, 130);
+                var grid = UiKit.Empty(card, "Positions");
+                UiKit.Height(grid, 2 * 110);
+                var g = grid.gameObject.AddComponent<GridLayoutGroup>();
+                g.cellSize = new Vector2(170, 100);
+                g.spacing = new Vector2(10, 10);
+                g.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                g.constraintCount = 5;
+                g.childAlignment = TextAnchor.UpperCenter;
+                var roleRow = UiKit.Empty(card, "Roles");
+                UiKit.Height(roleRow, 100);
+                UiKit.Row(roleRow, 12);
+                var posButtons = new List<(Position Position, Button Button)>();
+                var roleButtons = new List<(PitcherRole Role, Button Button)>();
+                void Mark()
+                {
+                    roleRow.gameObject.SetActive(position == Position.Pitcher);
+                    foreach (var (r, b) in roleButtons) b.GetComponent<Image>().color = r == role ? UiKit.Accent : UiKit.Background;
+                    foreach (var (pos, b) in posButtons) b.GetComponent<Image>().color = pos == position ? UiKit.Accent : UiKit.Background;
+                    string what = position == Position.Pitcher
+                        ? role == PitcherRole.Starter ? "5경기마다 선발 등판, 구속·제구·변화구·체력을 키워요"
+                        : role == PitcherRole.Closer ? "9회 세이브 상황에 나와 경기를 끝내요"
+                        : "8회 접전에 나와 리드를 지키고 홀드를 쌓아요"
+                        : position == Position.Catcher ? "수비 부담이 커서 더 지치지만 골든글러브에서 수비가 크게 쳐줘요"
+                        : position == Position.DesignatedHitter ? "수비를 안 해서 덜 지치지만 수비 능력은 쓰이지 않아요"
+                        : position == Position.CenterField ? "외야 한가운데, 넓은 수비 범위라 골든글러브에서 수비가 더 쳐줘요"
+                        : Positions.IsOutfield(position) ? "외야 골든글러브는 좌·중·우 합쳐서 3명이 받아요"
+                        : "타격·주루·수비 다섯 능력치를 키워요";
+                    string korean = position == Position.Pitcher ? Positions.RoleKoreanName(role) + " 투수" : Positions.KoreanName(position);
+                    label.text = $"<b>{Positions.Name(position)}</b> ({korean})\n<size=26><color=#BAC4D8>{what}\n등록하면 바꿀 수 없어요.</color></size>";
+                }
+                foreach (var pos in new[] { Position.Pitcher }.Concat(Positions.Fielders))
+                {
+                    var p = pos;
+                    var b = UiKit.Button(grid, Positions.Name(p), () => { position = p; Mark(); });
+                    b.GetComponentInChildren<Text>().fontSize = 34;
+                    posButtons.Add((p, b));
+                }
+                foreach (var r in new[] { PitcherRole.Starter, PitcherRole.Setup, PitcherRole.Closer })
+                {
+                    var pr = r;
+                    var b = UiKit.Button(roleRow, $"{Positions.RoleName(pr)} {Positions.RoleKoreanName(pr)}", () => { role = pr; Mark(); });
+                    b.GetComponentInChildren<Text>().fontSize = 30;
+                    roleButtons.Add((pr, b));
+                }
+                Mark();
+            }
+
+            void NumberStep(RectTransform card)
+            {
+                var big = UiKit.Label(card, "", 160, TextAnchor.MiddleCenter, TeamColor(League.DefaultTeamNames[team]));
+                UiKit.Height(big, 260);
+                void Mark() => big.text = number.ToString();
+                var row = UiKit.Empty(card, "Steps");
+                UiKit.Height(row, 110);
+                UiKit.Row(row, 12);
+                foreach (int delta in new[] { -10, -1, 1, 10 })
+                {
+                    int d = delta;
+                    var b = UiKit.Button(row, d > 0 ? $"+{d}" : $"{d}", () => { number = (number - 1 + d + 99) % 99 + 1; Mark(); }, UiKit.Background);
+                    b.GetComponentInChildren<Text>().fontSize = 34;
+                }
+                UiKit.Height(UiKit.Button(card, "아무 번호나", () => { number = 1 + (int)(_random.NextDouble() * 99); Mark(); }, UiKit.Card), 100);
+                Mark();
+            }
+
+            void LengthStep(RectTransform card)
+            {
+                UiKit.Height(UiKit.Label(card, "한 시즌이 1년이에요. 짧을수록 하루 성장과 보상이 커요. 시즌 사이에 바꿀 수 있어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 90);
+                var row = UiKit.Empty(card, "Lengths");
+                UiKit.Height(row, 120);
+                UiKit.Row(row, 16);
+                var buttons = new List<(int Games, Button Button)>();
+                void Mark()
+                {
+                    foreach (var (g, b) in buttons) b.GetComponent<Image>().color = g == games ? UiKit.Accent : UiKit.Background;
+                }
+                foreach (int length in League.SeasonLengths)
+                {
+                    int l = length;
+                    buttons.Add((l, UiKit.Button(row, $"{l}경기", () => { games = l; Mark(); })));
+                }
+                Mark();
+
+                // A last look before starting.
+                string pos = position == Position.Pitcher ? Positions.RoleName(role) : Positions.Name(position);
+                var summary = UiKit.Panel(card, "Summary", UiKit.Background);
+                UiKit.Height(summary, 200);
+                UiKit.Column(summary, 20, 6);
+                UiKit.Height(UiKit.Label(summary, $"<b>{name.Trim()}</b>  #{number}  {pos}", 40, TextAnchor.MiddleLeft), 70);
+                var club = UiKit.Label(summary, League.DefaultTeamNames[team], 32, TextAnchor.MiddleLeft, TeamColor(League.DefaultTeamNames[team]));
+                UiKit.Height(club, 60);
+            }
+
+            Show();
         }
 
         // ---------- Refresh ----------
