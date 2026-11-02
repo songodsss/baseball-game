@@ -111,8 +111,8 @@ namespace BaseballGame
                 },
                 new Building
                 {
-                    Id = "store", Name = "구단 스토어", Status = "유료 상품 (테스트)",
-                    Body = new Color(0.55f, 0.4f, 0.8f), Roof = new Color(0.95f, 0.45f, 0.55f), Open = () => PremiumScreen.Open(Build),
+                    Id = "store", Name = "구단 스토어", Status = $"코인 {_club.Coins:N0} · 꾸미기·편의",
+                    Body = new Color(0.55f, 0.4f, 0.8f), Roof = new Color(0.95f, 0.45f, 0.55f), Open = () => PremiumScreen.Open(_club, Build),
                 },
                 new Building { Id = "stadium", Name = "메인 스타디움", Status = "준비 중", Soon = true, Body = new Color(0.5f, 0.55f, 0.6f), Roof = new Color(0.7f, 0.72f, 0.75f) },
                 new Building { Id = "empty_lot", Name = "빈 부지", Status = "새 건물이 들어설 자리", Soon = true, Body = new Color(0.45f, 0.4f, 0.35f), Roof = new Color(0.6f, 0.55f, 0.5f) },
@@ -225,6 +225,7 @@ namespace BaseballGame
             var title = UiKit.Label(bar, GameTitle, 46);
             title.fontStyle = FontStyle.Bold;
             UiKit.Width(title, 0, 1);
+            Chip(bar, $"코인 {_club.Coins:N0}", new Color(1f, 0.82f, 0.3f));
             Chip(bar, $"명예 {_club.LegacyPoints:N0}", Gold);
             Chip(bar, $"회복권 {_club.Daily.RecoveryTickets}", new Color(0.75f, 0.62f, 1f));
         }
@@ -374,7 +375,7 @@ namespace BaseballGame
             UiKit.Height(UiKit.Label(card, "키울 선수를 골라요. 다른 선수는 그 자리에서 기다려요.", 26, TextAnchor.MiddleCenter, UiKit.Muted), 50);
             foreach (var summary in slots) PlayerRow(card, summary);
             if (!Premium.Owns(Premium.ExtraSlots))
-                UiKit.Height(UiKit.Button(card, $"+ 슬롯 {Premium.ExtraSlotCount}개 더 (유료 테스트)", () => PremiumScreen.Open(Build), new Color(0.55f, 0.4f, 0.8f, 0.7f)), 90);
+                UiKit.Height(UiKit.Button(card, $"+ 슬롯 {Premium.ExtraSlotCount}개 더 (유료 테스트)", () => PremiumScreen.Open(_club, Build), new Color(0.55f, 0.4f, 0.8f, 0.7f)), 90);
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 100);
         }

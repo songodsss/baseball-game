@@ -68,7 +68,7 @@ namespace BaseballGame
 
         class TestStore : IStore
         {
-            public string PriceOf(string productId) => "₩1,200";
+            public string PriceOf(string productId) => Premium.PriceText(Premium.PriceOf(productId));
 
             public void Buy(string productId, Action<bool> onDone)
             {
