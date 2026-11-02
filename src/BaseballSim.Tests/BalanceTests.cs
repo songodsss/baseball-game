@@ -115,4 +115,27 @@ public class BalanceTests
         var me = NewCareer(3, Position.Pitcher).Me;
         Assert.Equal(CareerPlayer.ExpToNext(me.Ratings[Stat.Velocity], true), me.ExpToNext(Stat.Velocity));
     }
+
+    [Fact]
+    public void VeteransKeepTheirEyeAndOnlyTheBodySlips()
+    {
+        var career = NewCareer(4);
+        var me = career.Me;
+        me.Age = 35;
+        foreach (var stat in me.MyStats) { me.Ratings[stat] = 60; me.Potential[stat] = 70; }
+        while (!career.IsSeasonOver)
+        {
+            var day = career.PlayDay(DailyAction.Rest);
+            while (career.IsMidGame) career.ChooseApproach(Approach.Normal);
+            if (day.Trade != null) career.DeclineTrade();
+            if (day.Event != null) career.ResolveEvent(0);
+        }
+        var summary = career.EndSeason();
+        Assert.Equal(36, me.Age);
+        Assert.DoesNotContain(Stat.Contact, summary.Decline.Keys);
+        Assert.DoesNotContain(Stat.Eye, summary.Decline.Keys);
+        Assert.Equal(1, summary.Veteran[Stat.Contact]);
+        Assert.Equal(71, me.Potential[Stat.Eye]);
+        Assert.All(summary.Decline.Keys, s => Assert.True(CareerState.IsBodyStat(s)));
+    }
 }

@@ -199,10 +199,11 @@ namespace BaseballSim.Career
         {
             double mult = AgeGrowth() * DayWeight * (Me.Role == PitcherRole.Starter ? 1 : ReliefExpBoost);
             int Exp(double raw) => (int)Math.Round(raw * mult);
+            int Savvy(double raw) => (int)Math.Round(raw * mult * VeteranGrowth(Stat.Control));
             AddPoints(result, Stat.Stamina, Me.GainExp(Stat.Stamina, Exp(2 + l.Outs / 2.0)));
             AddPoints(result, Stat.Velocity, Me.GainExp(Stat.Velocity, Exp(2 + 3 * l.Strikeouts)));
-            AddPoints(result, Stat.Control, Me.GainExp(Stat.Control, Exp(2 + 3 * Math.Max(0, 5 - l.Walks))));
-            AddPoints(result, Stat.Breaking, Me.GainExp(Stat.Breaking, Exp(2 + 2 * Math.Max(0, 2 * l.Outs / 3 - l.Hits))));
+            AddPoints(result, Stat.Control, Me.GainExp(Stat.Control, Savvy(2 + 3 * Math.Max(0, 5 - l.Walks))));
+            AddPoints(result, Stat.Breaking, Me.GainExp(Stat.Breaking, Savvy(2 + 2 * Math.Max(0, 2 * l.Outs / 3 - l.Hits))));
         }
 
         /// <summary>A starter's season so far on the OPS scale once he's pitched enough, else what his stuff promises.</summary>

@@ -1580,6 +1580,8 @@ namespace BaseballGame
                 Line($"연봉 {summary.OldSalary:N0} → <b>{summary.NewSalary:N0}</b>만원" + (_career.ContractSeasonsLeft > 0 ? "  (계약 기간)" : ""));
             if (post.Bonus > 0) Line($"가을야구 보너스 {post.Bonus:N0}만원");
             Line($"나이 {_career.Me.Age}세가 되었습니다.");
+            if (summary.Veteran.Count > 0)
+                Line("<color=#7CD992>노련함: " + string.Join(", ", summary.Veteran.Select(d => $"{StatNames[d.Key]} 한계 +{d.Value}")) + "</color>");
             if (summary.Decline.Count > 0)
                 Line("<color=#F28C40>노쇠화: " + string.Join(", ", summary.Decline.Select(d => $"{StatNames[d.Key]} -{d.Value}")) + "</color>");
 
