@@ -172,14 +172,14 @@ namespace BaseballSim.Career
             // ----- 3. The spot that calls your name -----
             new StoryScene
             {
-                Slot = "pressure", Title = "댓글 창",
-                Text = c => "한 경기 못 했을 뿐인데, 댓글 창이 난리다.\n'거품이었네.' '2군 보내라.'\n\n휴대폰을 쥔 손에 힘이 들어갔다.\n그때 {voice}에게서 메시지가 왔다. '오늘 댓글은 보지 마요. 진심으로.'",
+                Slot = "pressure", Title = "야유",
+                Text = c => "홈 경기, 찬스에서 물러났다. 관중석 어딘가에서 야유가 들렸다.\n처음이었다. 우리 팬들의 야유는.\n\n경기 후 {voice:이} 다가왔다. \"기대가 커서 그래요. 아무도 기대 안 하는 선수한텐 야유도 안 해요.\"",
                 Options = c => new List<StoryOption>
                 {
-                    O("앱을 지운다", "조용해진 휴대폰. 그 대신 내 스윙 영상을 다시 봤다.",
-                        (e, k) => { e.Morale(4); e.Exp(Stat.Eye, 30); ChangeBond(e, k, Bond.Voice, 5); }),
-                    O("끝까지 다 읽는다", "아팠다. 그래도 그중 몇 개는 맞는 말이었다.",
-                        (e, k) => { e.Morale(-3); e.Exp(Stat.Contact, 60); }),
+                    O("\"다음엔 함성으로 바꿀게요\"", "{voice:이} 그 말을 그대로 적었다. 다음 홈 경기, 정말로 함성이 터졌다.",
+                        (e, k) => { e.Morale(4); e.Fans(20); ChangeBond(e, k, Bond.Voice, 10); }),
+                    O("말없이 실내 연습장으로 간다", "아팠다. 그 아픔으로 배트를 돌렸다.",
+                        (e, k) => { e.Morale(-2); e.Exp(Stat.Contact, 60); }),
                 },
             },
             new StoryScene
@@ -359,14 +359,14 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "role_change", Title = "덕아웃의 목소리",
-                Text = c => "어느새 팀에서 나보다 나이 많은 선수가 둘밖에 없다.\n경기 중 더그아웃이 가라앉을 때, 다들 나를 쳐다본다.\n\n오늘도 3점 차로 끌려가는 7회. 아무도 입을 열지 않는다.",
+                Slot = "role_change", Title = "내 등번호를 달고 싶다는 신인",
+                Text = c => "신인 하나가 쭈뼛거리며 다가왔다.\n\"선배님, 저 어릴 때부터 선배님 보고 야구했습니다. 나중에... 선배님 등번호 달아도 될까요?\"\n\n어느새 누군가의 이유가 되어 있었다.",
                 Options = c => new List<StoryOption>
                 {
-                    O("일어서서 소리친다", "\"아직 9회 아니다!\" 후배들이 하나둘 난간에 매달렸다.",
-                        (e, k) => { e.Morale(6); e.Fans(30); Flag(k, "leader"); }),
-                    O("후배 한 명씩 어깨를 두드린다", "말보다 손이 빨랐다. 더그아웃 공기가 조금 데워졌다.",
-                        (e, k) => { e.Morale(4); e.Exp(Stat.Eye, 30); Flag(k, "leader"); }),
+                    O("\"그 번호, 무겁다. 각오해라\"", "신인의 눈이 반짝였다. 그날부터 내 훈련을 따라다녔다.",
+                        (e, k) => { e.Morale(6); e.Fans(20); Flag(k, "leader"); }),
+                    O("배트 한 자루를 선물한다", "신인은 배트를 끌어안고 몇 번이나 고개를 숙였다.",
+                        (e, k) => { e.Morale(5); e.Exp(Stat.Eye, 30); Flag(k, "leader"); }),
                 },
             },
             new StoryScene
@@ -383,14 +383,14 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "mentor_old", Title = "병원 복도",
-                Text = c => "{coach:이} 쓰러졌다는 연락을 받았다. 과로였다.\n병원 복도로 뛰어가니, 링거를 꽂은 채 야구 중계를 보고 있었다.\n\n\"왜 왔냐. 너 내일 경기 있잖아.\"",
+                Slot = "mentor_old", Title = "마지막 펑고",
+                Text = c => "훈련이 끝난 저녁, {coach:이} 펑고 배트를 들고 나왔다.\n\"오랜만에 받아 볼래? 이제 팔이 예전 같지 않아서, 이게 마지막일지도 모른다.\"\n\n신인 시절 수백 번 받던 그 타구. 공이 조금 느려져 있었다.",
                 Options = c => new List<StoryOption>
                 {
-                    O("밤새 곁을 지킨다", "새벽, 잠든 {coach}의 손에 내 경기 기록지가 쥐여 있었다.",
-                        (e, k) => { e.Fatigue(15); ChangeBond(e, k, Bond.Mentor, 20); }),
-                    O("\"내일 홈런 치고 올게요\"", "\"홈런은 됐고, 다치지나 마라.\" 목소리가 조금 밝아졌다.",
-                        (e, k) => { e.Morale(6); e.Exp(Stat.Power, 40); ChangeBond(e, k, Bond.Mentor, 10); }),
+                    O("한 개도 빠짐없이 받는다", "마지막 공을 잡자 {coach:이} 배트를 내려놓았다. \"됐다. 이제 너한테 가르칠 게 없다.\"",
+                        (e, k) => { e.Exp(Stat.Defense, Scaled(k, Bond.Mentor, 50)); e.Fatigue(10); ChangeBond(e, k, Bond.Mentor, 15); }),
+                    O("배트를 받아 대신 쳐 드린다", "{coach:이} 글러브를 끼고 웃었다. 공 하나를 놓치고는 \"늙었다\"며 한참 웃었다.",
+                        (e, k) => { e.Morale(8); ChangeBond(e, k, Bond.Mentor, 10); }),
                 },
             },
             new StoryScene
@@ -459,14 +459,14 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "farewell_tour", Title = "은퇴 발표",
-                Text = c => "기자회견장. 수십 대의 카메라가 나를 향했다.\n준비한 문장은 짧았다. \"올 시즌을 끝으로 유니폼을 벗습니다.\"\n\n맨 앞줄에 앉은 {voice:이} 펜을 내려놓고 고개를 숙였다.",
+                Slot = "farewell_tour", Title = "마지막 스프링캠프",
+                Text = c => "따뜻한 남쪽 섬, 스무 번째쯤 되는 스프링캠프.\n처음 왔을 때 공 줍던 그 자리에서 신인들이 공을 줍고 있다.\n\n저녁, 바닷가 숙소 앞에서 {pal:이} 말했다. \"여기 처음 왔을 때 기억나? 너 그때 밤마다 혼자 배트 돌렸잖아.\"",
                 Options = c => new List<StoryOption>
                 {
-                    O("웃으며 마무리한다", "\"남은 경기, 전부 이길 생각입니다.\" 회견장에 웃음이 퍼졌다.",
-                        (e, k) => { e.Morale(6); e.Fans(40); ChangeBond(e, k, Bond.Voice, 5); }),
-                    O("고마운 사람들을 떠올린다", "말을 잇지 못했다. {voice:이} 대신 질문을 넘겨 줬다.",
-                        (e, k) => { e.Morale(4); ChangeBond(e, k, Bond.Voice, 10); ChangeBond(e, k, Bond.Family, 5); }),
+                    O("신인들의 야간 훈련에 나간다", "\"선배님이 왜 여기...\" 신인들 사이에서 배트를 돌렸다. 그날 실내 연습장은 자정까지 불이 켜져 있었다.",
+                        (e, k) => { e.Exp(Stat.Contact, 40); e.Fans(20); e.Fatigue(10); }),
+                    O("{pal}와 바닷가를 걷는다", "파도 소리만 들렸다. 20년이 이렇게 짧았나 싶었다.",
+                        (e, k) => { e.Morale(6); ChangeBond(e, k, Bond.Friend, 10); }),
                 },
             },
             new StoryScene

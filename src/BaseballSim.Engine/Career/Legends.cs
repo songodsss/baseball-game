@@ -80,8 +80,8 @@ namespace BaseballSim.Career
 
         static int Mvps(Career c) => c.Me.History.Count(h => h.Titles.Contains(Awards.Mvp));
 
-        public const int JangHomeRuns = 452, HanWalks = 1488, SeoSteals = 949, OhMvps = 3, YoonWins = 309, MaSaves = 579, MaHolds = 559;
-        public const double MinAverage = 0.317;
+        public const int JangHomeRuns = 452, HanWalks = 1488, SeoSteals = 979, OhMvps = 3, YoonWins = 319, MaSaves = 579, MaHolds = 559;
+        public const double MinAverage = 0.319;
         public const int AverageSeasons = 10;
 
         public static readonly List<Legend> All = new List<Legend>
@@ -105,11 +105,11 @@ namespace BaseballSim.Career
             },
             new Legend
             {
-                Id = "min", Name = "민경호", Nickname = "안타 제조기", Years = "1990~2009", Record = "통산 타율 .317", Speciality = Stat.Contact,
-                Story = "통산 타율 1위(.317), 2,318안타. 낡은 타격 노트를 늘 들고 다니는 잔소리꾼. 1999년 시즌 타율 .397, 4할에 3리가 모자랐던 그해를 아직도 이야기한다.",
+                Id = "min", Name = "민경호", Nickname = "안타 제조기", Years = "1990~2009", Record = "통산 타율 .319", Speciality = Stat.Contact,
+                Story = "통산 타율 1위(.319), 2,318안타. 낡은 타격 노트를 늘 들고 다니는 잔소리꾼. 1999년 시즌 타율 .397, 4할에 3리가 모자랐던 그해를 아직도 이야기한다.",
                 Line = "안타는 세게 치는 게 아니라 빈 데로 보내는 거다.",
                 Lesson = "밀어치는 요령을 배웠다. 수비 사이로 공이 빠져나가는 그림이 보인다.",
-                Goal = c => $"통산 타율 .317 넘기 ({AverageSeasons}시즌 이상)",
+                Goal = c => $"통산 타율 .319 넘기 ({AverageSeasons}시즌 이상)",
                 Progress = c => Seasons(c) < AverageSeasons ? Math.Min(0.99, Average(c) / (MinAverage + 0.001)) : Average(c) / (MinAverage + 0.001),
                 Halfway = c => Seasons(c) >= 5 && Average(c) >= 0.300,
                 ReturnText = "민경호가 낡은 노트를 펼쳤다. 거기에 내 타율이 시즌별로 적혀 있었다.\n\"꾸준하네. 3할을 5년 넘게 치는 놈은 흔치 않아.\"\n그러더니 빨간 펜으로 한 줄을 그었다. \"근데 2스트라이크 이후가 약해. 여기서 갈린다.\"",
@@ -139,8 +139,8 @@ namespace BaseballSim.Career
             },
             new Legend
             {
-                Id = "seo", Name = "서은빈", Nickname = "번개", Years = "1999~2014", Record = "통산 949도루", Speciality = Stat.Speed,
-                Story = "단일 시즌 84도루, 통산 949도루. 장난기 많고 늘 웃는다. 서른다섯에 무릎을 다쳐 1,000도루를 51개 앞두고 은퇴했다. \"남은 51개는 누가 대신 뛰어 주겠지.\"",
+                Id = "seo", Name = "서은빈", Nickname = "번개", Years = "1999~2014", Record = "통산 979도루", Speciality = Stat.Speed,
+                Story = "단일 시즌 84도루, 통산 979도루. 장난기 많고 늘 웃는다. 서른다섯에 무릎을 다쳐 1,000도루를 21개 앞두고 은퇴했다. \"남은 21개는 누가 대신 뛰어 주겠지.\"",
                 Line = "발이 빠른 것보다 먼저 출발하는 게 중요하지.",
                 Lesson = "투수의 견제 버릇을 읽는 법을 배웠다. 첫 발이 가벼워졌다.",
                 Goal = c => CountGoal(c, SeoSteals, "도루"),
@@ -148,7 +148,7 @@ namespace BaseballSim.Career
                 Halfway = c => Scaled(c, l => l.StolenBases, null) >= SeoSteals / 2,
                 ReturnText = "서은빈이 무릎 보호대를 툭툭 치며 웃었다.\n\"벌써 반이나 훔쳤네? 도둑놈 다 됐다.\"\n그러다 진지해졌다. \"나는 여기서 멈췄어. 너는 무릎 아끼면서 뛰어. 내 남은 몫까지.\"",
                 ReturnLabelA = "슬라이딩 요령을 배운다", ReturnResultA = "\"무릎이 아니라 엉덩이로 미끄러져.\" 흙투성이가 됐지만 몸이 덜 아팠다.",
-                ReturnLabelB = "\"1,000개 채워 드릴게요\"", ReturnResultB = "서은빈이 손가락으로 51을 그렸다. \"약속이다?\"",
+                ReturnLabelB = "\"1,000개 채워 드릴게요\"", ReturnResultB = "서은빈이 손가락으로 21을 그렸다. \"약속이다?\"",
                 SurpassText = "2루에 먼지가 피어올랐다. 세이프. 통산 도루 신기록.\n\n심판이 경기를 잠시 멈췄다. 서은빈이 그라운드로 걸어 나왔다.\n구단 직원이 뽑아 온 2루 베이스를 건네며 서은빈이 웃었다.\n\"내가 못 뛴 길, 네가 다 뛰었네.\"",
                 SurpassLabel = "베이스를 함께 든다", SurpassResult = "관중들이 일제히 \"번개!\"를 외쳤다. 이제 그 별명은 두 사람의 것이다.",
                 NearMiss = "서은빈은 '거의 다 왔었어. 그 정도면 내 몫까지 충분히 뛰었다'고 말했다.",
@@ -173,8 +173,8 @@ namespace BaseballSim.Career
             },
             new Legend
             {
-                Id = "yoon", Name = "윤대혁", Nickname = "철완", Years = "1991~2011", Record = "통산 309승", Speciality = Stat.Stamina, ForPitchers = true,
-                Story = "통산 최다승(309승) 선발 투수. 21년 동안 한 번도 로테이션을 거르지 않았다. 말이 적고 고집이 세다. \"완투는 투수의 자존심\"이라는 말을 아직도 한다.",
+                Id = "yoon", Name = "윤대혁", Nickname = "철완", Years = "1991~2011", Record = "통산 319승", Speciality = Stat.Stamina, ForPitchers = true,
+                Story = "통산 최다승(319승) 선발 투수. 21년 동안 한 번도 로테이션을 거르지 않았다. 말이 적고 고집이 세다. \"완투는 투수의 자존심\"이라는 말을 아직도 한다.",
                 Line = "공 빠른 놈은 많아. 9회까지 같은 공 던지는 놈이 드물지.",
                 Lesson = "힘을 아끼는 투구 리듬을 배웠다. 6회가 지나도 팔이 가볍다.",
                 Goal = c => CountGoal(c, YoonWins, "승"),
@@ -184,10 +184,10 @@ namespace BaseballSim.Career
                 ReturnText = "윤대혁이 불펜에 나타났다. 내 투구를 말없이 스무 개쯤 봤다.\n\"반은 왔네. 근데 나머지 반은 팔이 아니라 머리로 던지는 거다.\"\n\"서른 넘으면 공이 느려진다. 그때 이기는 법을 지금부터 익혀라.\"",
                 ReturnLabelA = "완급 조절을 배운다", ReturnResultA = "\"같은 직구도 세 가지 속도로.\" 타자들의 타이밍이 어긋나기 시작했다.",
                 ReturnLabelB = "완투 비결을 묻는다", ReturnResultB = "\"비결은 없다. 내려오기 싫었을 뿐이지.\"",
-                SurpassText = "마지막 타자를 잡았다. 통산 최다승 신기록.\n\n포수가 달려오기도 전에, 관중석에서 한 노인이 일어섰다. 윤대혁이었다.\n경기 후 윤대혁이 낡은 글러브를 내밀었다.\n\"309승을 함께한 글러브다. 이제 쉬게 해 줘도 되겠다.\"",
+                SurpassText = "마지막 타자를 잡았다. 통산 최다승 신기록.\n\n포수가 달려오기도 전에, 관중석에서 한 노인이 일어섰다. 윤대혁이었다.\n경기 후 윤대혁이 낡은 글러브를 내밀었다.\n\"319승을 함께한 글러브다. 이제 쉬게 해 줘도 되겠다.\"",
                 SurpassLabel = "글러브를 받는다", SurpassResult = "낡은 가죽에서 21년의 냄새가 났다.",
                 NearMiss = "윤대혁은 '그 정도면 철완 소리 들을 만하다'고 짧게 말했다.",
-                Ceremony = "윤대혁이 309승의 글러브를 끼고 마운드 옆에 섰다. 시구는 두 사람이 함께 했다.",
+                Ceremony = "윤대혁이 319승의 글러브를 끼고 마운드 옆에 섰다. 시구는 두 사람이 함께 했다.",
             },
             new Legend
             {

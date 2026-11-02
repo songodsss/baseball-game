@@ -23,6 +23,7 @@ namespace BaseballSim.Career
         /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
         /// 23: the league paper. 24: monthly pay.
         /// 26: club coins, cosmetics, rewind tickets, tickets used today; rewinds used on the career.
+        /// 31: legend stages and visits, the story's version seed; legends whose record fell on the club. 27~30 are other branches.
         public const int Version = 31;
 
         public static byte[] ToBytes(Club club, Career career)
