@@ -83,6 +83,8 @@ namespace BaseballSim.Career
         public int OldSalary;
         public int NewSalary;
         public Dictionary<Stat, int> Decline = new Dictionary<Stat, int>();
+        /// <summary>Limits raised by a year's experience (노련함).</summary>
+        public Dictionary<Stat, int> Veteran = new Dictionary<Stat, int>();
         public List<SeasonAward> Awards = new List<SeasonAward>();
         public PostseasonResult Postseason;
         /// <summary>Free-agency offers, my club's first. Empty unless the player is a free agent this winter.</summary>
@@ -456,8 +458,8 @@ namespace BaseballSim.Career
             var (main, side) = TrainingTargets(action);
             result.ConditionStars = ConditionStars;
             double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
-            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult)));
-            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult)));
+            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * VeteranGrowth(main))));
+            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult * VeteranGrowth(side))));
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
         }
 
@@ -502,6 +504,42 @@ namespace BaseballSim.Career
 
         /// <summary>Days missed hurt this season.</summary>
         public int InjuryDays;
+
+        /// <summary>
+        /// Ratings that come from reading the game: they keep growing in the 30s and veterans gain on them.
+        /// The rest come from the body and slip late in a career.
+        /// </summary>
+        public static bool IsSavvyStat(Stat stat) => stat == Stat.Contact || stat == Stat.Eye || stat == Stat.Control || stat == Stat.Breaking;
+        public static bool IsBodyStat(Stat stat) => stat == Stat.Speed || stat == Stat.Velocity || stat == Stat.Stamina || stat == Stat.Defense;
+
+        /// <summary>Body ratings start slipping at this age, a little more each year.</summary>
+        public const int DeclineAge = 35;
+        /// <summary>From this age to VeteranUntil, every birthday lifts each savvy rating's limit by one (노련함).</summary>
+        public const int VeteranFrom = 30, VeteranUntil = 37;
+
+        /// <summary>Past 31 savvy ratings still grow at the 28~31 pace instead of slowing to a crawl.</summary>
+        double VeteranGrowth(Stat stat) => Me.Age >= 32 && IsSavvyStat(stat) ? 0.7 / 0.4 : 1.0;
+
+        /// <summary>A year older: savvy limits rise, body ratings slip from 35 (less with the conditioning room).</summary>
+        void Age(SeasonSummary summary)
+        {
+            foreach (var stat in Me.MyStats)
+            {
+                if (IsSavvyStat(stat) && Me.Age >= VeteranFrom && Me.Age <= VeteranUntil && Me.Potential[stat] < 99)
+                {
+                    Me.Potential[stat]++;
+                    summary.Veteran[stat] = 1;
+                }
+                if (!IsBodyStat(stat) || Me.Age < DeclineAge) continue;
+                int drop = (int)(_random.NextDouble() * (Me.Age - DeclineAge + 2));
+                drop = (int)Math.Round(drop * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
+                int before = Me.Ratings[stat];
+                // The ceiling drops too, or training would simply win the points back.
+                Me.Potential[stat] = Math.Max(20, Me.Potential[stat] - drop);
+                Me.Ratings[stat] = Math.Max(20, Math.Min(Me.Potential[stat], before - drop));
+                if (before != Me.Ratings[stat]) summary.Decline[stat] = before - Me.Ratings[stat];
+            }
+        }
 
         double AgeGrowth()
         {
@@ -666,13 +704,13 @@ namespace BaseballSim.Career
         {
             double mult = AgeGrowth() * DayWeight;
             int extraBase = l.Doubles + l.Triples;
-            int Exp(double raw) => (int)Math.Round(raw * mult);
+            void Gain(Stat stat, double raw) => AddPoints(result, stat, Me.GainExp(stat, (int)Math.Round(raw * mult * VeteranGrowth(stat))));
 
-            AddPoints(result, Stat.Defense, Me.GainExp(Stat.Defense, Exp(2)));
-            AddPoints(result, Stat.Contact, Me.GainExp(Stat.Contact, Exp(1 + 2 * l.Hits)));
-            AddPoints(result, Stat.Power, Me.GainExp(Stat.Power, Exp(2 * extraBase + 4 * l.HomeRuns)));
-            AddPoints(result, Stat.Eye, Me.GainExp(Stat.Eye, Exp(1 + 2 * l.Walks)));
-            AddPoints(result, Stat.Speed, Me.GainExp(Stat.Speed, Exp(l.Runs + 2 * l.Triples)));
+            Gain(Stat.Defense, 2);
+            Gain(Stat.Contact, 1 + 2 * l.Hits);
+            Gain(Stat.Power, 2 * extraBase + 4 * l.HomeRuns);
+            Gain(Stat.Eye, 1 + 2 * l.Walks);
+            Gain(Stat.Speed, l.Runs + 2 * l.Triples);
         }
 
         /// <summary>
@@ -747,20 +785,7 @@ namespace BaseballSim.Career
             summary.NewSalary = Me.Salary;
 
             Me.Age++;
-            if (Me.Age >= 32)
-            {
-                foreach (var stat in Me.MyStats)
-                {
-                    int drop = (int)(_random.NextDouble() * (Me.Age - 30));
-                    if (stat == Stat.Speed || stat == Stat.Velocity) drop += 1; // legs and fastball go first
-                    drop = (int)Math.Round(drop * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
-                    int before = Me.Ratings[stat];
-                    // The ceiling drops too, or training would simply win the points back.
-                    Me.Potential[stat] = Math.Max(20, Me.Potential[stat] - drop);
-                    Me.Ratings[stat] = Math.Max(20, Math.Min(Me.Potential[stat], before - drop));
-                    if (before != Me.Ratings[stat]) summary.Decline[stat] = before - Me.Ratings[stat];
-                }
-            }
+            Age(summary);
 
             summary.NewAchievements = Achievements.Check(this);
 
