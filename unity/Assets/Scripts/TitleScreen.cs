@@ -117,7 +117,7 @@ namespace BaseballGame
                 var rowLayout = UiKit.Row(row, 16);
                 rowLayout.padding = new RectOffset(24, 24, 14, 14);
                 rowLayout.childForceExpandWidth = false;
-                var text = UiKit.Label(row, $"<b>{m.Text}</b>\n<size=24><color=#9EABC2>보상 {m.RewardText} · {m.Progress}/{m.Goal}</color></size>", 30);
+                var text = UiKit.Label(row, $"<b>{m.Text}</b>\n<size=24><color=#BAC4D8>보상 {m.RewardText} · {m.Progress}/{m.Goal}</color></size>", 30);
                 UiKit.Width(text, 0, 1);
                 bool canClaim = m.Done && !m.Claimed && !money;
                 var claim = UiKit.Button(row, m.Claimed ? "받음" : !m.Done ? "진행 중" : money ? "육성에서" : "받기", () =>
@@ -182,14 +182,14 @@ namespace BaseballGame
             UiKit.Stretch(number.rectTransform);
 
             string text;
-            if (career == null) text = $"<b>빈 슬롯</b>\n<size=26><color=#9EABC2>새 선수를 등록해서 시작해요</color></size>";
+            if (career == null) text = $"<b>빈 슬롯</b>\n<size=26><color=#BAC4D8>새 선수를 등록해서 시작해요</color></size>";
             else
             {
                 var me = career.Me;
                 string position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position);
                 string where = career.InMilitary ? "군 복무 중" : career.InFarm ? "2군" : career.MyTeam.Name;
                 text = $"<b>{me.Name}</b>  <size=28>{position} · {me.Age}세</size>\n" +
-                       $"<size=26><color=#9EABC2>{where} · {career.Year} 시즌 {career.Day + 1}일차 · {me.History.Count + 1}년차</color></size>";
+                       $"<size=26><color=#BAC4D8>{where} · {career.Year} 시즌 {career.Day + 1}일차 · {me.History.Count + 1}년차</color></size>";
             }
             var label = UiKit.Label(card, text, 38);
             UiKit.Width(label, 0, 1);

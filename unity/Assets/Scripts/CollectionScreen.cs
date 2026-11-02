@@ -130,8 +130,8 @@ namespace BaseballGame
                 var me = _career.Me;
                 int years = me.History.Count(h => h.RivalLine != null);
                 string text = $"<b>{current.Name}</b>  <size=28>{current.Age}세 · {team?.Name ?? "소속 없음"}</size>\n" +
-                    $"<size=26><color=#9EABC2>이번 시즌 타율 {Stats.Rate(Stats.Avg(l))} · {l.HomeRuns}홈런 · OPS {Stats.Rate(Stats.Ops(l))}</color></size>\n" +
-                    $"<size=26><color=#9EABC2>{me.Name}와(과) {years + 1}번째 시즌</color></size>";
+                    $"<size=26><color=#BAC4D8>이번 시즌 타율 {Stats.Rate(Stats.Avg(l))} · {l.HomeRuns}홈런 · OPS {Stats.Rate(Stats.Ops(l))}</color></size>\n" +
+                    $"<size=26><color=#BAC4D8>{me.Name}와(과) {years + 1}번째 시즌</color></size>";
                 UiKit.Width(UiKit.Label(card, text, 36), 0, 1);
             }
 

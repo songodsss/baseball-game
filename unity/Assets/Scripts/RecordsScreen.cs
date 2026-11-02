@@ -238,7 +238,7 @@ namespace BaseballGame
             {
                 var n = _career.News[i];
                 string when = $"{CareerState.YearOf(n.Season)} · {n.Day}일차";
-                Row(widths, i, false, $"<color=#9EABC2>{when}</color>", $"<color={NewsColors[n.Kind]}>{n.Headline}</color>");
+                Row(widths, i, false, $"<color=#BAC4D8>{when}</color>", $"<color={NewsColors[n.Kind]}>{n.Headline}</color>");
             }
         }
 
@@ -346,7 +346,7 @@ namespace BaseballGame
                 foreach (var h in Enumerable.Reverse(autumns))
                 {
                     bool won = h.Postseason[0].StartsWith("우승");
-                    Note($"{CareerState.YearOf(h.Season)}  " + (won ? $"<color=#FFD24D><b>{h.Postseason[0]}</b></color>" : h.Postseason[0]) + $"  <size=22>({h.Club})</size>",
+                    Note($"{CareerState.YearOf(h.Season)}  " + (won ? $"<color=#FFD24D><b>{h.Postseason[0]}</b></color>" : h.Postseason[0]) + $"  <size=24>({h.Club})</size>",
                         TextAnchor.MiddleLeft, 56);
                     foreach (var series in h.Postseason.Skip(1)) Note("      " + series, TextAnchor.MiddleLeft, 44);
                 }
@@ -412,7 +412,7 @@ namespace BaseballGame
                     : collection.Contains(a.Id) ? _club.Roster.First(p => p.Achievements.Contains(a.Id)).Name
                     : "-";
                 bool reached = by != "-";
-                string name = reached ? $"<b>{a.Name}</b>  <size=24><color=#9EABC2>{a.Description}</color></size>" : $"<color=#5C667A>{a.Name}  <size=24>{a.Description}</size></color>";
+                string name = reached ? $"<b>{a.Name}</b>  <size=24><color=#BAC4D8>{a.Description}</color></size>" : $"<color=#5C667A>{a.Name}  <size=24>{a.Description}</size></color>";
                 var row = UiKit.TableRow(_content, widths, new[] { name, by }, 30, Color.white,
                     mine.Contains(a.Id) ? Highlight : i % 2 == 1 ? Stripe : (Color?)null);
                 var icon = ArtLibrary.Icon(row, ArtLibrary.AchievementIcon(a.Id), 56);
@@ -474,7 +474,7 @@ namespace BaseballGame
                 var label = UiKit.Label(row, "", 28, TextAnchor.MiddleLeft);
                 UiKit.Width(label, 0, 1);
                 void ShowNumber() => label.text = $"{player.Name}  <b>{(player.ShownNumber > 0 ? player.ShownNumber + "번" : "번호 없음")}</b>" +
-                    (player.TeamNumber > 0 && player.Number > 0 ? $" <size=22><color=#9EABC2>(현역 {player.Number}번)</color></size>" : "");
+                    (player.TeamNumber > 0 && player.Number > 0 ? $" <size=24><color=#BAC4D8>(현역 {player.Number}번)</color></size>" : "");
                 foreach (int step in new[] { -10, -1, 1, 10 })
                 {
                     int d = step;

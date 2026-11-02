@@ -64,8 +64,8 @@ namespace BaseballGame
                 string opponent = "경기 없음";
                 foreach (var (away, home) in _career.League.Matchups(day))
                 {
-                    if (home == _career.MyTeam) opponent = $"vs {away.Name} <color=#9EABC2>(홈)</color>";
-                    else if (away == _career.MyTeam) opponent = $"@ {home.Name} <color=#9EABC2>(원정)</color>";
+                    if (home == _career.MyTeam) opponent = $"vs {away.Name} <color=#BAC4D8>(홈)</color>";
+                    else if (away == _career.MyTeam) opponent = $"@ {home.Name} <color=#BAC4D8>(원정)</color>";
                 }
                 keyDays.TryGetValue(day, out var special);
                 string label = special == null ? "" : $"<color=#FFD24D>{special}</color>";

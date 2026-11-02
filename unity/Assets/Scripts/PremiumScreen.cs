@@ -53,7 +53,7 @@ namespace BaseballGame
                 var layout = UiKit.Row(row, 16);
                 layout.padding = new RectOffset(24, 24, 16, 16);
                 layout.childForceExpandWidth = false;
-                var text = UiKit.Label(row, $"<b>{p.Name}</b>\n<size=26><color=#9EABC2>{p.Description}</color></size>", 34);
+                var text = UiKit.Label(row, $"<b>{p.Name}</b>\n<size=26><color=#BAC4D8>{p.Description}</color></size>", 34);
                 UiKit.Width(text, 0, 1);
                 var buy = UiKit.Button(row, owned ? "보유 중" : Monetization.Store.PriceOf(p.Id), () =>
                 {

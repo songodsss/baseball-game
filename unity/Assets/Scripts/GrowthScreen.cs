@@ -296,7 +296,7 @@ namespace BaseballGame
             UiKit.Height(card, 440);
             Keep(card);
             UiKit.Column(card, 24, 8);
-            UiKit.Height(UiKit.Label(card, "<b>능력치</b>  <size=24><color=#9EABC2>지금 / 최대(잠재력) · 막대: 다음 +1까지 경험치</color></size>", 32, TextAnchor.MiddleLeft, Gold), 48);
+            UiKit.Height(UiKit.Label(card, "<b>능력치</b>  <size=24><color=#BAC4D8>지금 / 최대(잠재력) · 막대: 다음 +1까지 경험치</color></size>", 32, TextAnchor.MiddleLeft, Gold), 48);
             foreach (var stat in StatNames.Keys)
             {
                 var row = UiKit.Empty(card, StatNames[stat]);
@@ -910,10 +910,10 @@ namespace BaseballGame
         static string ConditionText(int stars)
         {
             string color = stars >= 5 ? "#FFD24D" : stars == 4 ? "#5FA8FF" : stars <= 2 ? "#F28C40" : "#C8D2E6";
-            string filled = new string('★', stars) + "<color=#4A5468>" + new string('☆', CareerState.MaxConditionStars - stars) + "</color>";
+            string filled = new string('★', stars) + "<color=#6A7488>" + new string('☆', CareerState.MaxConditionStars - stars) + "</color>";
             double bonus = CareerState.ConditionTraining(stars) - 1;
             string extra = bonus > 0 ? $" · 훈련 효과 +{Mathf.RoundToInt((float)bonus * 100)}%" : stars <= 2 ? " · 경기력이 떨어질 수 있어요" : "";
-            return $"<color=#9EABC2>오늘 컨디션</color>  <color={color}>{filled}  {CareerState.ConditionLabel(stars)}{extra}</color>";
+            return $"<color=#BAC4D8>오늘 컨디션</color>  <color={color}>{filled}  {CareerState.ConditionLabel(stars)}{extra}</color>";
         }
 
         void DescribeDay(DayResult r)
@@ -933,11 +933,11 @@ namespace BaseballGame
             }
             else if (r.FarmPitching != null)
             {
-                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} {(_career.Me.Role == PitcherRole.Starter ? "선발" : "구원")}</color> {PitchingText(r.FarmPitching)}");
+                lines.Add($"<color=#BAC4D8>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} {(_career.Me.Role == PitcherRole.Starter ? "선발" : "구원")}</color> {PitchingText(r.FarmPitching)}");
             }
             else if (r.InFarm && r.BetweenStarts)
             {
-                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")}</color> 등판 없는 날" + (_career.Me.Role == PitcherRole.Starter ? $" · 다음 등판까지 {_career.DaysToNextStart + 1}일" : "") + $"");
+                lines.Add($"<color=#BAC4D8>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")}</color> 등판 없는 날" + (_career.Me.Role == PitcherRole.Starter ? $" · 다음 등판까지 {_career.DaysToNextStart + 1}일" : "") + $"");
             }
             else if (r.MyGame != null && r.MyPitching == null && _career.Me.IsPitcher)
             {
@@ -957,7 +957,7 @@ namespace BaseballGame
             else if (r.FarmLine != null)
             {
                 var f = r.FarmLine;
-                lines.Add($"<color=#9EABC2>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} 경기</color> {f.AtBats}타수 {f.Hits}안타 {f.HomeRuns}홈런 {f.Walks}볼넷");
+                lines.Add($"<color=#BAC4D8>{(_career.InMilitary ? CareerState.MilitaryClub : "2군")} 경기</color> {f.AtBats}타수 {f.Hits}안타 {f.HomeRuns}홈런 {f.Walks}볼넷");
             }
             else if (r.MyGame != null)
             {
@@ -1067,13 +1067,13 @@ namespace BaseballGame
             {
                 var r = DailyMissions.CheckInReward(i + 1);
                 var cell = UiKit.Panel(week, "Day", i < dayOfWeek ? UiKit.Background : i == dayOfWeek ? UiKit.Accent : UiKit.Shade(UiKit.Card, 1.3f));
-                var label = UiKit.Label(cell, $"{i + 1}일\n<size=20>{DailyMissions.DescribeReward(r.Kind, r.Amount)}</size>", 24, TextAnchor.MiddleCenter,
+                var label = UiKit.Label(cell, $"{i + 1}일\n<size=24>{DailyMissions.DescribeReward(r.Kind, r.Amount)}</size>", 24, TextAnchor.MiddleCenter,
                     i < dayOfWeek ? UiKit.Muted : Color.white);
                 UiKit.Stretch(label.rectTransform);
                 if (i == dayOfWeek) UiAnim.PopIn(cell);
             }
             string text = $"<color=#FFD24D><b>{daily.Streak}일 연속 출석!</b></color>\n\n오늘의 보상: <b>{DailyMissions.DescribeReward(reward.Value.Kind, reward.Value.Amount)}</b>\n\n" +
-                $"<size=26><color=#9EABC2>하루라도 빠지면 1일차부터 다시 시작해요. 총 출석 {daily.TotalCheckIns}일</color></size>";
+                $"<size=26><color=#BAC4D8>하루라도 빠지면 1일차부터 다시 시작해요. 총 출석 {daily.TotalCheckIns}일</color></size>";
             UiKit.Height(UiKit.Label(card, text, 34, TextAnchor.MiddleCenter), 0, 1);
             UiKit.Height(UiKit.Button(card, "오늘의 미션 보기", ShowMissions), 110);
             UiKit.Height(UiKit.Button(card, "확인", CloseOverlay, UiKit.Muted), 110);
@@ -1410,7 +1410,7 @@ namespace BaseballGame
                 Line($"<b>{group.First().Name.Substring(group.First().Name.IndexOf(' ') + 1)}</b>");
                 foreach (var t in tiers) Line("   " + t);
             }
-            Line($"<color=#9EABC2>장비 전부 명품까지: {Won(gear.Sum(e => e.Price))}</color>");
+            Line($"<color=#BAC4D8>장비 전부 명품까지: {Won(gear.Sum(e => e.Price))}</color>");
 
             Section("개인 시설 (장비를 다 모으면 열려요)");
             foreach (var f in Facilities.All)
@@ -1425,7 +1425,7 @@ namespace BaseballGame
             }
             int total = 0;
             for (int lv = 1; lv <= Facilities.MaxLevel; lv++) total += Facilities.Price(lv);
-            Line($"<color=#9EABC2>시설 한 곳 끝까지: {Won(total)}</color>");
+            Line($"<color=#BAC4D8>시설 한 곳 끝까지: {Won(total)}</color>");
 
             UiKit.Height(UiKit.Button(card, "상점으로", ShowShop, UiKit.Muted), 110);
         }
@@ -1493,7 +1493,7 @@ namespace BaseballGame
             {
                 Section("병역");
                 Line($"{CareerState.EnlistByAge}세가 되어 입대해요. 다음 시즌은 {CareerState.MilitaryClub}에서 보내요.");
-                Line("<color=#9EABC2>연봉 없이 2군 수준 경기를 뛰고, 훈련과 성장은 계속돼요. 계약과 FA는 제대 후로 미뤄져요.</color>", 70);
+                Line("<color=#BAC4D8>연봉 없이 2군 수준 경기를 뛰고, 훈련과 성장은 계속돼요. 계약과 FA는 제대 후로 미뤄져요.</color>", 70);
             }
             else if (summary.CanEnlist)
             {
@@ -1652,7 +1652,7 @@ namespace BaseballGame
             string honours = retired.HallOfFame
                 ? $"<color=#FFD24D>★ 명예의 전당 헌액 (점수 {retired.HallOfFameScore})</color>\n" +
                   (retired.NumberRetiredBy != null ? $"<color=#FFD24D>{retired.NumberRetiredBy}가 등번호를 영구결번했습니다.</color>\n" : "")
-                : $"<color=#9EABC2>명예의 전당 점수 {retired.HallOfFameScore} / {Club.HallOfFameLine}</color>\n";
+                : $"<color=#BAC4D8>명예의 전당 점수 {retired.HallOfFameScore} / {Club.HallOfFameLine}</color>\n";
             string donation = retired.Donation > 0
                 ? $"남은 돈 {retired.Donation:N0}만원을 유소년 야구에 기부 → 명예 포인트 +{retired.DonationPoints}\n"
                 : "";
@@ -1803,16 +1803,16 @@ namespace BaseballGame
             ShowTeam();
 
             // Position, once and for good: a pitcher is a different career from a hitter.
-            var position = Position.Outfield;
+            var position = Position.CenterField;
             var positionLabel = UiKit.Label(card, "", 30, TextAnchor.LowerLeft);
             UiKit.Height(positionLabel, 60);
             var positions = UiKit.Empty(card, "Positions");
             UiKit.Height(positions, 180);
             var posGrid = positions.gameObject.AddComponent<GridLayoutGroup>();
-            posGrid.cellSize = new Vector2(210, 80);
+            posGrid.cellSize = new Vector2(170, 80);
             posGrid.spacing = new Vector2(10, 10);
             posGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            posGrid.constraintCount = 4;
+            posGrid.constraintCount = 5;
             posGrid.childAlignment = TextAnchor.MiddleCenter;
             var positionButtons = new List<(Position Position, Button Button)>();
             var role = PitcherRole.Starter;
@@ -1830,8 +1830,10 @@ namespace BaseballGame
                     : "8회 접전에 나와 리드를 지키고 홀드를 쌓아요"
                     : position == Position.Catcher ? "수비 부담이 커서 더 지치지만 골든글러브에서 수비가 크게 쳐줘요"
                     : position == Position.DesignatedHitter ? "수비를 안 해서 덜 지치지만 수비 능력은 쓰이지 않아요"
+                    : position == Position.CenterField ? "외야 한가운데, 넓은 수비 범위라 골든글러브에서 수비가 더 쳐줘요"
+                    : Positions.IsOutfield(position) ? "외야 골든글러브는 좌·중·우 합쳐서 3명이 받아요"
                     : "타격·주루·수비 다섯 능력치를 키워요";
-                positionLabel.text = $"포지션: <b>{Positions.Name(position)}</b> <size=24><color=#9EABC2>{what} (바꿀 수 없어요)</color></size>";
+                positionLabel.text = $"포지션: <b>{Positions.Name(position)}</b> ({Positions.Short(position)}) <size=24><color=#BAC4D8>{what} (바꿀 수 없어요)</color></size>";
                 foreach (var (pos, b) in positionButtons) b.GetComponent<Image>().color = pos == position ? UiKit.Accent : UiKit.Background;
             }
             foreach (var pos in new[] { Position.Pitcher }.Concat(Positions.Fielders))
@@ -1934,7 +1936,7 @@ namespace BaseballGame
                 _headerBand.color = UiKit.Shade(TeamColor(_emblemTeam), 0.55f) + new Color(0.05f, 0.05f, 0.08f, 0);
             }
             _header.text = $"<b>{me.Name}</b> <size=26><color=#5FA8FF>프로필 ›</color></size>  {number}{position} · {me.Age}세 · {_career.MyTeam.Name}\n" +
-                $"<size=32><color=#9EABC2>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InMilitary ? " · <color=#9EABC2>군 복무 중</color>" : _career.InFarm ? " · <color=#F28C40>2군</color>" : role) +
+                $"<size=32><color=#BAC4D8>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InMilitary ? " · <color=#BAC4D8>군 복무 중</color>" : _career.InFarm ? " · <color=#F28C40>2군</color>" : role) +
                 (_career.ContractSeasonsLeft > 0 ? $" · 계약 {_career.ContractSeasonsLeft}년" : "") + "</color></size>";
 
             var l = _career.SeasonLine;
@@ -1950,9 +1952,9 @@ namespace BaseballGame
                 : me.Role == PitcherRole.Closer ? $"{p.Saves}세이브 평균자책 {p.EraText}"
                 : me.Role == PitcherRole.Setup ? $"{p.Holds}홀드 평균자책 {p.EraText}"
                 : $"{p.Wins}승 {p.Losses}패 평균자책 {p.EraText}";
-            _money.text = $"{me.Money:N0}만원  <size=26><color=#9EABC2>연봉 {me.Salary:N0}만원</color></size>";
+            _money.text = $"{me.Money:N0}만원  <size=26><color=#BAC4D8>연봉 {me.Salary:N0}만원</color></size>";
             _status.text = $"{season}  ·  인기 {me.Popularity}{injury}{morale}\n" +
-                $"<size=24><color=#9EABC2>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
+                $"<size=24><color=#BAC4D8>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
             _condition.text = ConditionText(_career.ConditionStars);
 
@@ -1967,7 +1969,7 @@ namespace BaseballGame
                 // A rating that went up since the last refresh swells for a moment.
                 if (_shownRatings.TryGetValue(stat, out int shown) && me.Ratings[stat] > shown) UiAnim.Pulse(_ratingTexts[stat]);
                 _shownRatings[stat] = me.Ratings[stat];
-                _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear} <size=24><color=#9EABC2>/ {me.Potential[stat]}</color>{limit}</size>";
+                _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear} <size=24><color=#BAC4D8>/ {me.Potential[stat]}</color>{limit}</size>";
                 // At the limit the bar shows progress toward the next breakthrough instead.
                 UiKit.SetBar(_expFills[stat], canBreak
                     ? (float)me.BreakthroughProgress(stat) / me.BreakthroughNeed(stat)

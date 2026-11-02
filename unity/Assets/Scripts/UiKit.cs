@@ -14,7 +14,7 @@ namespace BaseballGame
         public static readonly Color Background = new Color(0.07f, 0.09f, 0.14f);
         public static readonly Color Card = new Color(0.13f, 0.16f, 0.23f);
         public static readonly Color Accent = new Color(0.25f, 0.55f, 0.95f);
-        public static readonly Color Muted = new Color(0.62f, 0.67f, 0.76f);
+        public static readonly Color Muted = new Color(0.74f, 0.78f, 0.86f);
         public static readonly Color Warning = new Color(0.95f, 0.55f, 0.25f);
 
         static Font _font;
@@ -202,7 +202,7 @@ namespace BaseballGame
         /// Puts a picture behind a SafeRoot's layout, cropped to fill the screen and darkened so
         /// text stays readable. Does nothing when there's no picture.
         /// </summary>
-        public static void Backdrop(RectTransform safeRoot, Sprite art, float darken = 0.6f)
+        public static void Backdrop(RectTransform safeRoot, Sprite art, float darken = 0.72f)
         {
             if (art == null) return;
             var back = safeRoot.parent;
@@ -228,6 +228,9 @@ namespace BaseballGame
             rt.offsetMax = Vector2.zero;
         }
 
+        /// <summary>Nothing smaller than this on a phone screen.</summary>
+        public const int MinFontSize = 24;
+
         public static Text Label(Transform parent, string text, int size, TextAnchor anchor = TextAnchor.MiddleLeft, Color? color = null)
         {
             var go = new GameObject("Label", typeof(RectTransform), typeof(Text));
@@ -235,11 +238,15 @@ namespace BaseballGame
             var t = go.GetComponent<Text>();
             t.font = Font;
             t.text = text;
-            t.fontSize = size;
+            t.fontSize = Mathf.Max(MinFontSize, size);
             t.alignment = anchor;
             t.color = color ?? Color.white;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
             t.verticalOverflow = VerticalWrapMode.Truncate;
+            // A soft drop shadow keeps text readable over pictures and light buttons.
+            var shadow = go.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0, 0, 0, 0.6f);
+            shadow.effectDistance = new Vector2(2, -2);
             return t;
         }
 

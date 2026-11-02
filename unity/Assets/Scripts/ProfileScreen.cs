@@ -64,7 +64,7 @@ namespace BaseballGame
             foreach (var id in me.Traits)
             {
                 var t = Traits.Find(id);
-                if (t != null) ArtLibrary.IconLine(content, ArtLibrary.TraitIcon(t.Id), $"<b>{t.Name}</b>  <color=#9EABC2>{t.Description}</color>", 28, 60);
+                if (t != null) ArtLibrary.IconLine(content, ArtLibrary.TraitIcon(t.Id), $"<b>{t.Name}</b>  <color=#BAC4D8>{t.Description}</color>", 28, 60);
             }
 
             Section(content, "장비");
@@ -108,7 +108,7 @@ namespace BaseballGame
             for (int i = 0; i < stats.Count; i++)
             {
                 var s = stats[i];
-                var label = UiKit.Label(chartRt, $"{Stats.Name(s)}\n<b><size=34>{me.EffectiveRating(s)}</size></b><size=22><color=#9EABC2>/{me.Potential[s]}</color></size>", 26, TextAnchor.MiddleCenter);
+                var label = UiKit.Label(chartRt, $"{Stats.Name(s)}\n<b><size=34>{me.EffectiveRating(s)}</size></b><size=24><color=#BAC4D8>/{me.Potential[s]}</color></size>", 26, TextAnchor.MiddleCenter);
                 label.rectTransform.sizeDelta = new Vector2(180, 90);
                 label.rectTransform.anchoredPosition = chart.AxisPoint(i, 1.3f);
             }

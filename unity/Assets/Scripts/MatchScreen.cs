@@ -119,7 +119,7 @@ namespace BaseballGame
                 _field.Snap(ev.OutsAfter >= 3 ? new Player[3] : ev.BasesAfter, null);
                 ShowSituation(ev, ev.OutsAfter, ev.BasesAfter);
                 RefreshBoard(step.Index);
-                string text = $"<color=#9EABC2>{step.HalfLabel}</color> {step.Text}";
+                string text = $"<color=#BAC4D8>{step.HalfLabel}</color> {step.Text}";
                 Log(step.IsMine ? $"<color=#FFD24D>{text}</color>" : text);
 
                 if (animate) yield return Wait(0.6f);

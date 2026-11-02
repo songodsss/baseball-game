@@ -188,7 +188,7 @@ namespace BaseballSim.Career
         public bool MustRetire => Me.Age >= RetirementAge || Released && PendingOffers.Count == 0;
 
         /// <summary>Creates a fresh 18-year-old with random starting ratings and potential.</summary>
-        public static CareerPlayer NewPlayer(string name, IRandom random, int potentialBonus = 0, Position position = Position.Outfield, int number = 0,
+        public static CareerPlayer NewPlayer(string name, IRandom random, int potentialBonus = 0, Position position = Position.CenterField, int number = 0,
             PitcherRole role = PitcherRole.Starter)
         {
             var me = new CareerPlayer { Id = "me", Name = name, Age = 18, Position = position, Number = number, Role = position == Position.Pitcher ? role : PitcherRole.Starter };

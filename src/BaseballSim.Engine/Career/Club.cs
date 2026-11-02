@@ -24,7 +24,7 @@ namespace BaseballSim.Career
         /// <summary>Money left at retirement, given to youth baseball for legacy points.</summary>
         public int Donation;
         public int DonationPoints;
-        public Position Position = Position.Outfield;
+        public Position Position = Position.CenterField;
         /// <summary>Number worn in the career; 0 if none was picked.</summary>
         public int Number;
         /// <summary>Number on my own team, set freely there; 0 = the career number.</summary>

@@ -5,7 +5,7 @@ using CareerState = BaseballSim.Career.Career;
 
 public class MainStoryTests
 {
-    static CareerState NewCareer(int seed, Position position = Position.Outfield, PitcherRole role = PitcherRole.Starter, int games = 36,
+    static CareerState NewCareer(int seed, Position position = Position.CenterField, PitcherRole role = PitcherRole.Starter, int games = 36,
         StoryRoute route = StoryRoute.LastPick)
     {
         var random = new SeededRandom(seed);
@@ -41,10 +41,10 @@ public class MainStoryTests
     }
 
     [Theory]
-    [InlineData(Position.Outfield, PitcherRole.Starter, StoryRoute.LastPick)]
+    [InlineData(Position.CenterField, PitcherRole.Starter, StoryRoute.LastPick)]
     [InlineData(Position.Pitcher, PitcherRole.Starter, StoryRoute.Prodigy)]
     [InlineData(Position.Pitcher, PitcherRole.Closer, StoryRoute.Walkon)]
-    [InlineData(Position.Outfield, PitcherRole.Starter, StoryRoute.Walkon)]
+    [InlineData(Position.CenterField, PitcherRole.Starter, StoryRoute.Walkon)]
     public void ScenesComeOnceEachInOrder(Position position, PitcherRole role, StoryRoute route)
     {
         for (int seed = 1; seed <= 3; seed++)
@@ -90,7 +90,7 @@ public class MainStoryTests
     }
 
     [Theory]
-    [InlineData(Position.Outfield, PitcherRole.Starter)]
+    [InlineData(Position.CenterField, PitcherRole.Starter)]
     [InlineData(Position.Pitcher, PitcherRole.Setup)]
     public void EveryChoiceOfEverySceneAppliesWithNoBlanks(Position position, PitcherRole role)
     {

@@ -223,7 +223,7 @@ namespace BaseballSim.Career
                 ReadList(r, () =>
                 {
                     var p = club.Roster[i++];
-                    p.Position = (Position)r.ReadInt32();
+                    p.Position = Positions.Upgrade((Position)r.ReadInt32());
                     p.Number = r.ReadInt32();
                     p.TeamNumber = r.ReadInt32();
                     var main = r.ReadString();
@@ -586,7 +586,7 @@ namespace BaseballSim.Career
             }
             if (version >= 18)
             {
-                me.Position = (Position)r.ReadInt32();
+                me.Position = Positions.Upgrade((Position)r.ReadInt32());
                 me.Number = r.ReadInt32();
                 me.Injury = (InjuryKind)r.ReadInt32();
                 me.LingerDays = r.ReadInt32();
