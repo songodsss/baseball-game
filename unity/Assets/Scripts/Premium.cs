@@ -49,7 +49,7 @@ namespace BaseballGame
 
         public const int ExtraSlotCount = 2;
         /// <summary>Days one fast-skip press plays, stopping early at anything that needs a choice.</summary>
-        public const int FastSkipDays = 7;
+        public const int FastSkipDays = 8;
 
         public static readonly List<PremiumProduct> All = new List<PremiumProduct>
         {

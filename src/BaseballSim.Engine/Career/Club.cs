@@ -169,7 +169,7 @@ namespace BaseballSim.Career
         /// Hall of Fame bar: about half of well-raised careers clear it. The score is career totals plus
         /// steady good seasons; titles, rings and All-Star votes stay out since team and rivals sway them.
         /// </summary>
-        public const int HallOfFameLine = 840;
+        public const int HallOfFameLine = 890;
         /// <summary>A season mostly in the first team at OPS .850 or better (pitchers on the same scale) earns this.</summary>
         public const int GoodSeasonPoints = 20;
         /// <summary>And at .950 or better, this much more.</summary>
@@ -198,8 +198,8 @@ namespace BaseballSim.Career
                 {
                     var p = r.Pitching;
                     total += scale * (me.Role == PitcherRole.Starter
-                        ? 0.77 * (p.Wins + p.Strikeouts / 10.0)
-                        : 0.8 * (p.Saves + p.Holds + p.Strikeouts / 10.0));
+                        ? 0.97 * (p.Wins + p.Strikeouts / 10.0)
+                        : 0.9 * (p.Saves + p.Holds + p.Strikeouts / 10.0));
                     form = Career.PitchingForm(p);
                 }
                 else

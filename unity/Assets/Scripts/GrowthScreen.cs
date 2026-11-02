@@ -239,6 +239,7 @@ namespace BaseballGame
             UiKit.Button(bottom, "스토리", () => StoryScreen.Open(_career), UiKit.Card);
             _seasonLengthButton = UiKit.Button(bottom, "", CycleSeasonLength, UiKit.Card);
             _seasonLengthLabel = _seasonLengthButton.GetComponentInChildren<Text>();
+            _seasonLengthButton.gameObject.SetActive(false); // every season is 144 games now
             foreach (var label in bottom.GetComponentsInChildren<Text>()) label.fontSize = 30;
         }
 
@@ -1866,10 +1867,10 @@ namespace BaseballGame
             var position = Position.CenterField;
             var role = PitcherRole.Starter;
             int number = 1 + (int)(_random.NextDouble() * 99);
-            int games = _career != null ? _career.League.GamesPerSeason : 36;
+            int games = League.FullSeason;
             var specialties = new List<Stat>();
             const int Steps = 5;
-            string[] titles = { "이름과 입단 팀", "포지션", "주특기", "등번호", "시즌 길이" };
+            string[] titles = { "이름과 입단 팀", "포지션", "주특기", "등번호", "확인" };
             int step = 0;
             Text namePlaceholder = null;
 
@@ -2080,21 +2081,7 @@ namespace BaseballGame
 
             void LengthStep(RectTransform card)
             {
-                UiKit.Height(UiKit.Label(card, "한 시즌이 1년이에요. 짧을수록 하루 성장과 보상이 커요. 144경기는 시즌 완주 코인 4배, 4일씩 빠른 진행 무료. 시즌 사이에 바꿀 수 있어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 130);
-                var row = UiKit.Empty(card, "Lengths");
-                UiKit.Height(row, 120);
-                UiKit.Row(row, 16);
-                var buttons = new List<(int Games, Button Button)>();
-                void Mark()
-                {
-                    foreach (var (g, b) in buttons) b.GetComponent<Image>().color = g == games ? UiKit.Accent : UiKit.Background;
-                }
-                foreach (int length in League.SeasonLengths)
-                {
-                    int l = length;
-                    buttons.Add((l, UiKit.Button(row, $"{l}경기", () => { games = l; Mark(); })));
-                }
-                Mark();
+                UiKit.Height(UiKit.Label(card, $"한 시즌은 {League.FullSeason}경기, 1년이에요. '빠른 진행'을 켜면 같은 훈련으로 {FreeFastSkipDays}일씩 한 번에 넘길 수 있어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 130);
 
                 // A last look before starting.
                 string pos = position == Position.Pitcher ? Positions.RoleName(role) : Positions.Name(position);
@@ -2182,10 +2169,8 @@ namespace BaseballGame
                 b.gameObject.SetActive(choices.Contains(Actions[i].Action));
                 b.interactable = !me.IsInjured || Actions[i].Action == DailyAction.Rest;
             }
-            _seasonLengthLabel.text = _career.Day == 0
-                ? $"{_career.League.GamesPerSeason}경기 (변경)"
-                : $"{_career.League.GamesPerSeason}경기 시즌";
-            _seasonLengthButton.interactable = _career.Day == 0;
+            // Saves from before seasons were fixed at 144 switch over at the next season's start.
+            if (_career.Day == 0 && _career.League.GamesPerSeason != League.FullSeason) _career.ChangeSeasonLength(League.FullSeason);
             var today = _career.TodaysGame();
             _todayText.text = (today == null ? "" : $"오늘 경기  vs {today.Value.Opponent.Name} ({(today.Value.Home ? "홈" : "원정")})  ") + "<color=#5FA8FF>일정 ›</color>";
             int adsLeft = Monetization.AdsLeftToday;
