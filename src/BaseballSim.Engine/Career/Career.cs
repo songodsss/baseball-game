@@ -157,6 +157,147 @@ namespace BaseballSim.Career
         /// <summary>Games in a row with at bats and no hit. Story events react to slumps.</summary>
         public int HitlessStreak;
 
+        /// <summary>Games in a row with a hit. Record-chase events react to it.</summary>
+        public int HitStreak;
+
+        /// <summary>Today as one number, for story marks: Season*1000+Day.</summary>
+        public int Stamp => Season * 1000 + Day;
+
+        /// <summary>Games played since a story mark was made, or -1 if it isn't there.</summary>
+        public int GamesSince(string mark)
+        {
+            if (!Me.StoryMarks.TryGetValue(mark, out int stamp)) return -1;
+            return (Season - stamp / 1000) * League.GamesPerSeason + Day - stamp % 1000;
+        }
+
+        public bool HasMark(string mark) => Me.StoryMarks.ContainsKey(mark);
+
+        /// <summary>The senior who rooms with the player as a rookie, ages ahead of him and retires: a teammate's name, kept for the career.</summary>
+        public string SeniorName => StoryCharacter("senior:", 0);
+
+        /// <summary>A teammate who joined in the same year.</summary>
+        public string MateName => StoryCharacter("mate:", 1);
+
+        /// <summary>A veteran teammate (not the roommate) who teaches and competes with the player.</summary>
+        public string VeteranName => StoryCharacter("veteran:", 2);
+
+        /// <summary>The junior the player covers for and mentors.</summary>
+        public string JuniorName => StoryCharacter("junior:", 3);
+
+        /// <summary>The coach who looks after the player (batting coach for a hitter, pitching coach for a pitcher).</summary>
+        public string CoachName
+        {
+            get
+            {
+                var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith("coach:"));
+                if (key != null) return key.Substring("coach:".Length);
+                string[] family = { "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오" };
+                string[] given = { "성훈", "재석", "동철", "만수", "기태", "영길", "상문", "병규", "종호", "태균" };
+                int h = Me.Name.Length * 11 + MyTeam.Name.Length * 3 + Season * 7;
+                string old = BondName("excoach");
+                string name;
+                do
+                {
+                    name = family[h % family.Length] + given[(h / 3 + 7) % given.Length];
+                    h += 13;
+                } while (name == old);
+                Me.StoryMarks["coach:" + name] = Stamp;
+                return name;
+            }
+        }
+
+        // ---------- Bonds: people the player grew close to ----------
+        // "close:<who>" holds closeness. who is a role (senior, mate, veteran, junior, coach) or "story:<name>"
+        // for a main-story character (see Befriend). Close people (Bonds.Close or more) get a farewell and an
+        // after-story later; the rest just pass through the career.
+
+        public const int CloseBond = 3;
+
+        public int Closeness(string who) => Me.StoryMarks.TryGetValue("close:" + who, out int v) ? v : 0;
+
+        public bool IsClose(string who) => Closeness(who) >= CloseBond;
+
+        internal int AddCloseness(string who, int delta)
+        {
+            int now = Closeness(who) + delta;
+            Me.StoryMarks["close:" + who] = now;
+            return now;
+        }
+
+        /// <summary>For story scenes: records growing closer to a named character (e.g. a main-story senior), so his retirement and after-story come up later.</summary>
+        public void Befriend(string name, int delta = 1)
+        {
+            string who = "story:" + name;
+            if (!Me.StoryMarks.ContainsKey("met:" + who)) Me.StoryMarks["met:" + who] = Stamp;
+            AddCloseness(who, delta);
+        }
+
+        /// <summary>The display name of a bond: a role's person, or a story character's own name.</summary>
+        public string BondName(string who)
+        {
+            switch (who)
+            {
+                case "senior": return SeniorName;
+                case "mate": return MateName;
+                case "veteran": return VeteranName;
+                case "junior": return JuniorName;
+                case "coach": return CoachName;
+                case "exveteran": case "excoach":
+                    var ex = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(who + ":"));
+                    return ex != null ? ex.Substring(who.Length + 1) : who;
+                default: return who.StartsWith("story:") ? who.Substring("story:".Length) : who;
+            }
+        }
+
+        /// <summary>Stamp of when the player met someone: the name mark for a role, the met mark for a story character.</summary>
+        public int MetStamp(string who)
+        {
+            if (who.StartsWith("story:")) return Me.StoryMarks.TryGetValue("met:" + who, out int s) ? s : Stamp;
+            var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(who + ":"));
+            return key != null ? Me.StoryMarks[key] : Stamp;
+        }
+
+        /// <summary>Everyone with a closeness entry.</summary>
+        /// <summary>
+        /// A veteran or coach leaves: his name, closeness and marks move to "ex" + role, so the after-story
+        /// can still find him while a new veteran or coach takes the role in everyday events.
+        /// </summary>
+        internal void PartWith(string who)
+        {
+            if (who != "veteran" && who != "coach")
+            {
+                Me.StoryMarks["gone:" + who] = Stamp;
+                return;
+            }
+            string ex = "ex" + who;
+            var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(who + ":"));
+            if (key != null)
+            {
+                Me.StoryMarks[ex + key.Substring(who.Length)] = Me.StoryMarks[key];
+                Me.StoryMarks.Remove(key);
+            }
+            Me.StoryMarks["close:" + ex] = Closeness(who);
+            Me.StoryMarks.Remove("close:" + who);
+            Me.StoryMarks["gone:" + ex] = Stamp;
+        }
+
+        public IEnumerable<string> Bonds => Me.StoryMarks.Keys.Where(k => k.StartsWith("close:")).Select(k => k.Substring("close:".Length)).ToList();
+
+        string StoryCharacter(string prefix, int salt)
+        {
+            var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(prefix));
+            if (key != null) return key.Substring(prefix.Length);
+            var taken = Me.StoryMarks.Keys.Where(k => k.StartsWith("senior:") || k.StartsWith("mate:") || k.StartsWith("veteran:") || k.StartsWith("junior:") || k.StartsWith("exveteran:"))
+                .Select(k => k.Substring(k.IndexOf(':') + 1));
+            var names = MyTeam.Lineup.Concat(MyTeam.Rotation).Concat(MyTeam.Bullpen)
+                .Where(p => p.Id != Me.Id && p.Name != Me.Name).Select(p => p.Name).Except(taken).Distinct().ToList();
+            string name = names.Count == 0 ? (salt == 0 ? "김선배" : "이동기") : names[(Me.Name.Length * 7 + Season * 13 + salt * 5) % names.Count];
+            Me.StoryMarks[prefix + name] = Stamp;
+            return name;
+        }
+        public bool Seen(string eventId) => HasMark("seen:" + eventId);
+        public bool SeenThisSeason(string eventId) => Me.StoryMarks.TryGetValue("seen:" + eventId, out int stamp) && stamp / 1000 == Season;
+
         /// <summary>Missed at least one game hurt this season.</summary>
         public bool InjuredThisSeason;
 
@@ -264,7 +405,7 @@ namespace BaseballSim.Career
             if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
             {
                 var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
-                PendingEvent = MainStory.Next(this, result) ?? random;
+                PendingEvent = MainStory.Next(this, result) ?? StoryEvents.Scheduled(this, result) ?? random;
             }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
@@ -284,9 +425,11 @@ namespace BaseballSim.Career
         {
             if (PendingEvent == null) throw new InvalidOperationException("No story event to resolve.");
             var picked = PendingEvent.Choices[choice];
+            Me.StoryMarks["seen:" + PendingEvent.Id] = Stamp;
             PendingEvent = null;
             var outcome = new EventOutcome { Text = picked.Result };
             picked.Apply(new EventEffects(this, _random, outcome));
+            outcome.Text = StoryEvent.Fill(outcome.Text, this);
             return outcome;
         }
 
@@ -486,6 +629,7 @@ namespace BaseballSim.Career
             result.MyGamePlayer = gamePlayer;
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
             if (result.MyLine.AtBats > 0) HitlessStreak = result.MyLine.Hits == 0 ? HitlessStreak + 1 : 0;
+            if (result.MyLine.AtBats > 0) HitStreak = result.MyLine.Hits == 0 ? 0 : HitStreak + 1;
             Accumulate(SeasonLine, result.MyLine);
             Me.CareerStolenBases += result.MyLine.StolenBases;
             Accumulate(StintLine, result.MyLine);
@@ -602,6 +746,7 @@ namespace BaseballSim.Career
             Day = 0;
             InjuredThisSeason = false;
             SeasonLine = new BattingLine();
+            HitStreak = 0;
             PaidMonths = 0;
             PendingBonus = 0;
             SeasonPitching = new PitcherLine();

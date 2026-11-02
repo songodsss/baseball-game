@@ -25,7 +25,7 @@ namespace BaseballSim.Career
         /// 26: club coins, cosmetics, rewind tickets, tickets used today; rewinds used on the career.
         /// 27: weekly challenges and the season pass.
         /// 28: the my-team league.
-        public const int Version = 28;
+        public const int Version = 29;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -536,6 +536,12 @@ namespace BaseballSim.Career
 
             // Added in version 26.
             w.Write(career.RewindsUsed);
+
+            // Added in version 29.
+            w.Write(career.HitStreak);
+            w.Write(career.Me.ManagerTrust);
+            w.Write(career.Me.DerbyBest);
+            WriteList(w, career.Me.StoryMarks.ToList(), kv => { w.Write(kv.Key); w.Write(kv.Value); });
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -715,6 +721,13 @@ namespace BaseballSim.Career
                 ReadList(r, () => { var h = me.History[k++]; h.Postseason = ReadList(r, r.ReadString); return h; });
             }
             if (version >= 26) career.RewindsUsed = r.ReadInt32();
+            if (version >= 29)
+            {
+                career.HitStreak = r.ReadInt32();
+                me.ManagerTrust = r.ReadInt32();
+                me.DerbyBest = r.ReadInt32();
+                foreach (var (key, stamp) in ReadList(r, () => (r.ReadString(), r.ReadInt32()))) me.StoryMarks[key] = stamp;
+            }
             return career;
         }
 
