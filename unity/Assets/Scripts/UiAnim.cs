@@ -116,14 +116,23 @@ namespace BaseballGame
         const float Pressed = 0.94f;
         float _target = 1f;
 
+        // Sleeps (no Update) until touched, so a screen full of buttons costs nothing per frame.
+        void Awake() => enabled = false;
+
         public void OnPointerDown(PointerEventData e)
         {
             var b = GetComponent<UnityEngine.UI.Selectable>();
-            if (b == null || b.interactable) _target = Pressed;
+            if (b == null || b.interactable) Aim(Pressed);
         }
 
-        public void OnPointerUp(PointerEventData e) => _target = 1f;
-        public void OnPointerExit(PointerEventData e) => _target = 1f;
+        public void OnPointerUp(PointerEventData e) => Aim(1f);
+        public void OnPointerExit(PointerEventData e) => Aim(1f);
+
+        void Aim(float target)
+        {
+            _target = target;
+            if (!Mathf.Approximately(transform.localScale.x, target) && gameObject.activeInHierarchy) enabled = true;
+        }
 
         void OnDisable()
         {
@@ -134,7 +143,8 @@ namespace BaseballGame
         void Update()
         {
             float s = Mathf.MoveTowards(transform.localScale.x, _target, Time.unscaledDeltaTime * 2.5f);
-            if (!Mathf.Approximately(s, transform.localScale.x)) transform.localScale = Vector3.one * s;
+            transform.localScale = Vector3.one * s;
+            if (Mathf.Approximately(s, _target)) enabled = false;
         }
     }
 }
