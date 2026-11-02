@@ -18,12 +18,12 @@ namespace BaseballGame
         public static readonly Color Warning = new Color(0.95f, 0.55f, 0.25f);
 
         static Font _font;
-        /// <summary>The bundled Korean game font (Jua, SIL OFL), or Unity's built-in font without it.</summary>
+        /// <summary>The bundled Korean game font (Pretendard Regular, SIL OFL), or Unity's built-in font without it.</summary>
         public static Font Font
         {
             get
             {
-                if (_font == null) _font = Resources.Load<Font>("Fonts/Jua-Regular");
+                if (_font == null) _font = Resources.Load<Font>("Fonts/Pretendard-Regular");
                 if (_font == null) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 return _font;
             }
@@ -248,8 +248,8 @@ namespace BaseballGame
             t.raycastTarget = false;
             // A soft drop shadow keeps text readable over pictures and light buttons.
             var shadow = go.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0, 0, 0, 0.6f);
-            shadow.effectDistance = new Vector2(2, -2);
+            shadow.effectColor = new Color(0, 0, 0, 0.35f);
+            shadow.effectDistance = new Vector2(1.5f, -1.5f);
             return t;
         }
 
