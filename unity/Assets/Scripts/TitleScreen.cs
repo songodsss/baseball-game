@@ -36,6 +36,8 @@ namespace BaseballGame
             _root = UiKit.SafeRoot(canvas.transform, UiKit.Background);
             UiKit.Backdrop(_root, ArtLibrary.Background("title") ?? ArtLibrary.Background("growth"), 0.75f);
             UiKit.Column(_root, 40, 18);
+            GameAudio.PlayMusic(GameAudio.MusicHome);
+            GameAudio.PlayAmbience(null);
             Build();
         }
 
