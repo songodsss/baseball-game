@@ -460,18 +460,7 @@ namespace BaseballSim.Career
                 },
             });
 
-            list.Add(new StoryEvent
-            {
-                Id = "retiring_senior",
-                Title = "선배의 마지막 경기",
-                Text = "입단 때부터 챙겨 주던 선배가 오늘을 끝으로 은퇴한다.\n라커룸이 조용하다.",
-                Weight = (c, d) => c.Me.Age >= 21 && Progress(c) >= 0.75 && !c.Seen("retiring_senior") ? 1.2 : 0,
-                Choices =
-                {
-                    new EventChoice { Label = "꽃다발을 건넨다", Result = "선배가 {name}의 어깨를 두드렸다. \"이제 네 차례다.\"", Apply = e => e.Morale(6) },
-                    new EventChoice { Label = "마지막 조언을 청한다", Result = "\"아프면 쉬어. 그게 오래 하는 비결이야.\"", Apply = e => { e.Exp(Stat.Eye, 40); e.Morale(3); } },
-                },
-            });
+            AddTeammateEvents(list);
 
             list.Add(new StoryEvent
             {

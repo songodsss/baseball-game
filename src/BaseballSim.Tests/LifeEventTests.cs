@@ -227,4 +227,74 @@ public class LifeEventTests
         Assert.Contains("last_home", seen);
         Assert.True(seen.Count >= 30, $"only {seen.Count} kinds: {string.Join(",", seen)}");
     }
+
+    [Fact]
+    public void TheRoommateSeniorGrowsOldRetiresAndComesBack()
+    {
+        var career = NewCareer(13);
+        career.Day = 3;
+        var roommate = StoryEvents.Find("senior_roommate");
+        Assert.True(roommate.Weight(career, new DayResult()) > 0);
+        string text = roommate.TextFor(career);
+        string senior = career.SeniorName;
+        Assert.Contains(senior, text);
+        Assert.Contains(senior, career.MyTeam.Lineup.Concat(career.MyTeam.Rotation).Concat(career.MyTeam.Bullpen).Select(p => p.Name));
+        Assert.NotEqual(senior, career.MateName);
+        Answer(career, roommate, 0);
+        Assert.Equal(senior, career.SeniorName); // kept for the career
+
+        var announce = StoryEvents.Find("senior_announce");
+        career.Me.Age = 25;
+        career.Day = 22;
+        Assert.True(announce.Weight(career, new DayResult()) > 0);
+        Answer(career, announce, 1);
+        var last = StoryEvents.Find("senior_last_game");
+        Assert.Equal(0, last.Weight(career, new DayResult()));
+        career.Day = 24;
+        Assert.True(last.Weight(career, new DayResult()) > 0);
+        var outcome = Answer(career, last, 0);
+        Assert.Contains(career.Me.Name, outcome.Text); // {name} filled in results too
+        Assert.True(career.HasMark("senior_retired"));
+        Assert.True(StoryEvents.Find("senior_locker").Weight(career, new DayResult()) > 0);
+
+        var ceremony = StoryEvents.Find("senior_ceremony");
+        Assert.Equal(0, ceremony.Weight(career, new DayResult()));
+        career.Season++;
+        career.Day = 4;
+        Assert.True(ceremony.Weight(career, new DayResult()) > 0);
+        Assert.Contains(senior, ceremony.TextFor(career));
+        Answer(career, ceremony, 0);
+        Assert.Equal(0, ceremony.Weight(career, new DayResult()));
+        career.Season++;
+        Assert.True(StoryEvents.Find("senior_shop").Weight(career, new DayResult()) > 0);
+    }
+
+    [Fact]
+    public void ASeniorWhoNeverGotALastGameStillGetsACeremony()
+    {
+        var career = NewCareer(14);
+        Answer(career, StoryEvents.Find("senior_roommate"), 0);
+        career.Me.Age = 26;
+        career.Day = 30;
+        Answer(career, StoryEvents.Find("senior_announce"), 0);
+        career.Season++;
+        career.Day = 2;
+        Assert.Equal(0, StoryEvents.Find("senior_last_game").Weight(career, new DayResult()));
+        var ceremony = StoryEvents.Find("senior_ceremony");
+        Assert.True(ceremony.Weight(career, new DayResult()) > 0);
+        Answer(career, ceremony, 1);
+        Assert.True(career.HasMark("senior_retired"));
+        Assert.False(career.HasMark("senior_leaving"));
+    }
+
+    [Fact]
+    public void StoryCharactersSurviveASave()
+    {
+        var career = NewCareer(15);
+        string senior = career.SeniorName, mate = career.MateName;
+        var club = new Club();
+        var loaded = SaveGame.CareerFromBytes(SaveGame.CareerToBytes(career, club), SaveGame.ClubFromBytes(SaveGame.ClubToBytes(club)), new SeededRandom(1));
+        Assert.Equal(senior, loaded.SeniorName);
+        Assert.Equal(mate, loaded.MateName);
+    }
 }

@@ -26,7 +26,17 @@ namespace BaseballSim.Career
         public Func<Career, DayResult, double> Weight;
         public List<EventChoice> Choices = new List<EventChoice>();
 
-        public string TextFor(Career career) => Text.Replace("{name}", career.Me.Name).Replace("{team}", career.MyTeam.Name);
+        public string TextFor(Career career) => Fill(Text, career);
+
+        /// <summary>Fills {name}, {team}, {senior} (the roommate senior) and {mate} (a teammate from the same draft class).</summary>
+        public static string Fill(string text, Career career)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            text = text.Replace("{name}", career.Me.Name).Replace("{team}", career.MyTeam.Name);
+            if (text.Contains("{senior}")) text = text.Replace("{senior}", career.SeniorName);
+            if (text.Contains("{mate}")) text = text.Replace("{mate}", career.MateName);
+            return text;
+        }
     }
 
     public class EventOutcome

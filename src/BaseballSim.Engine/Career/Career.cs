@@ -171,6 +171,24 @@ namespace BaseballSim.Career
         }
 
         public bool HasMark(string mark) => Me.StoryMarks.ContainsKey(mark);
+
+        /// <summary>The senior who rooms with the player as a rookie, ages ahead of him and retires: a teammate's name, kept for the career.</summary>
+        public string SeniorName => StoryCharacter("senior:", 0);
+
+        /// <summary>A teammate who joined in the same year.</summary>
+        public string MateName => StoryCharacter("mate:", 1);
+
+        string StoryCharacter(string prefix, int salt)
+        {
+            var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(prefix));
+            if (key != null) return key.Substring(prefix.Length);
+            var taken = Me.StoryMarks.Keys.Where(k => k.StartsWith("senior:") || k.StartsWith("mate:")).Select(k => k.Substring(k.IndexOf(':') + 1));
+            var names = MyTeam.Lineup.Concat(MyTeam.Rotation).Concat(MyTeam.Bullpen)
+                .Where(p => p.Id != Me.Id && p.Name != Me.Name).Select(p => p.Name).Except(taken).Distinct().ToList();
+            string name = names.Count == 0 ? (salt == 0 ? "김선배" : "이동기") : names[(Me.Name.Length * 7 + Season * 13 + salt * 5) % names.Count];
+            Me.StoryMarks[prefix + name] = Stamp;
+            return name;
+        }
         public bool Seen(string eventId) => HasMark("seen:" + eventId);
         public bool SeenThisSeason(string eventId) => Me.StoryMarks.TryGetValue("seen:" + eventId, out int stamp) && stamp / 1000 == Season;
 
@@ -305,6 +323,7 @@ namespace BaseballSim.Career
             PendingEvent = null;
             var outcome = new EventOutcome { Text = picked.Result };
             picked.Apply(new EventEffects(this, _random, outcome));
+            outcome.Text = StoryEvent.Fill(outcome.Text, this);
             return outcome;
         }
 
