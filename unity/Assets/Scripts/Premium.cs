@@ -71,7 +71,7 @@ namespace BaseballGame
             new PremiumProduct
             {
                 Id = FastSkip, Name = "빠른 진행", Price = 3900, Kind = ProductKind.Permanent, Where = "트레이닝 센터",
-                Description = $"같은 훈련을 {FastSkipDays}일 연속으로 한 번에 진행해요. 결과는 하루씩 누른 것과 똑같아요.",
+                Description = $"같은 훈련을 2~{FastSkipDays}일 중 고른 만큼 한 번에 진행해요. 결과는 하루씩 누른 것과 똑같아요.",
             },
             new PremiumProduct
             {

@@ -60,8 +60,20 @@ namespace BaseballGame
         /// Days per fast skip: 7 with the paid unlock; the free 144-game skip goes 4 days at a time, so a
         /// season takes about as many taps as a 36-game one.
         /// </summary>
-        int FastSkipDays => Premium.Owns(Premium.FastSkip) ? Premium.FastSkipDays : FreeFastSkipDays;
+        int FastSkipDays => Premium.Owns(Premium.FastSkip) ? _paidFastDays : FreeFastSkipDays;
         const int FreeFastSkipDays = 4;
+        /// <summary>With the paid unlock the player picks 2~7 days a skip; tapping the button steps through them.</summary>
+        int _paidFastDays = Premium.FastSkipDays;
+        const int MinFastDays = 2;
+
+        /// <summary>Off → on; with the paid unlock: off → 2 → 3 … → 7 → off.</summary>
+        void CycleFast()
+        {
+            if (!Premium.Owns(Premium.FastSkip)) { _fast = !_fast; return; }
+            if (!_fast) { _fast = true; _paidFastDays = MinFastDays; }
+            else if (_paidFastDays < Premium.FastSkipDays) _paidFastDays++;
+            else _fast = false;
+        }
         GameObject _canvas;
         DayResult _lastDay;
         int _goalSkippedSeason;
@@ -186,7 +198,7 @@ namespace BaseballGame
             _todayText = UiKit.Label(todayRow, "", 30, TextAnchor.MiddleCenter, UiKit.Muted);
             Tappable(_todayText, () => ScheduleScreen.Open(_career));
             UiKit.Width(_todayText, 0, 1);
-            _fastButton = UiKit.Button(todayRow, "", () => { _fast = !_fast; Refresh(); }, UiKit.Card);
+            _fastButton = UiKit.Button(todayRow, "", () => { CycleFast(); Refresh(); }, UiKit.Card);
             _fastButton.GetComponentInChildren<Text>().fontSize = 26;
             UiKit.Width(_fastButton, 260);
 
