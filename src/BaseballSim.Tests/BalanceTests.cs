@@ -161,4 +161,24 @@ public class BalanceTests
         Assert.True(me.Ratings[Stat.Eye] >= 61);
         Assert.All(summary.Decline.Keys, s => Assert.True(CareerState.IsBodyStat(s)));
     }
+
+    [Fact]
+    public void LongerSeasonsPayMoreCoins()
+    {
+        var club = new Club();
+        Assert.Equal(Club.SeasonCoins, club.PaySeason(36));
+        Assert.Equal(2 * Club.SeasonCoins, club.PaySeason(72));
+        Assert.Equal(4 * Club.SeasonCoins, club.PaySeason(144));
+        Assert.Equal(7 * Club.SeasonCoins, club.Coins);
+    }
+
+    [Fact]
+    public void FullSeasonAchievement()
+    {
+        var career = NewCareer(7);
+        career.Me.History.Add(Season(games: 36));
+        Assert.DoesNotContain(Achievements.Check(career), a => a.Id == "full_season");
+        career.Me.History.Add(Season(games: 144));
+        Assert.Contains(Achievements.Check(career), a => a.Id == "full_season");
+    }
 }

@@ -54,6 +54,8 @@ namespace BaseballGame
         readonly Dictionary<Stat, GameObject> _ratingRows = new Dictionary<Stat, GameObject>();
         Button _seasonLengthButton, _watchButton, _adButton, _ticketButton, _missionButton, _fastButton;
         bool _fast;
+        /// <summary>Fast skip is free in a 144-game season (it's long enough); shorter seasons need the paid unlock.</summary>
+        bool CanFastSkip => Premium.Owns(Premium.FastSkip) || _career != null && _career.League.GamesPerSeason >= League.FullSeason;
         GameObject _canvas;
         DayResult _lastDay;
         int _goalSkippedSeason;
@@ -331,7 +333,7 @@ namespace BaseballGame
             TakeSnapshot();
             // Before the season's first day: kept so a rewind ticket can replay the season.
             if (_career.Day == 0) SaveStore.SaveSeasonStart(_career, _club);
-            if (_fast && Premium.Owns(Premium.FastSkip)) { FastForward(action); return; }
+            if (_fast && CanFastSkip) { FastForward(action); return; }
             var result = _career.PlayDay(action);
             if (result.AtBat != null) ShowAtBat(result);
             else AfterDay(result);
@@ -1465,6 +1467,7 @@ namespace BaseballGame
             var pitching = _career.SeasonPitching;
             bool pitcher = _career.Me.IsPitcher;
             var summary = _career.EndSeason();
+            int seasonCoins = _club.PaySeason(summary.Record.Games);
             var card = OpenOverlay($"{CareerState.YearOf(summary.Record.Season)} 시즌 종료");
             var body = UiKit.ScrollList(card, 6);
             UiKit.Height(body.parent, 0, 1);
@@ -1477,6 +1480,7 @@ namespace BaseballGame
                 ? pitching.ToString().Replace(" · ", "  ") + (pitching.BlownSaves > 0 ? $"  블론 {pitching.BlownSaves}" : "")
                 : $"타율 {Stats.Rate(Stats.Avg(line))}  {line.HomeRuns}홈런  {line.RunsBattedIn}타점  OPS {Stats.Rate(Stats.Ops(line))}");
             Line($"인기 {summary.Popularity}  ·  광고 수입 {summary.Sponsor:N0}만원");
+            Line($"<color=#FFD24D>시즌 완주 구단 코인 +{seasonCoins}</color>" + (summary.Record.Games >= League.FullSeason ? "  <size=24><color=#BAC4D8>(144경기 4배)</color></size>" : ""));
 
             var post = summary.Postseason;
             Section("가을야구");
@@ -2058,7 +2062,7 @@ namespace BaseballGame
 
             void LengthStep(RectTransform card)
             {
-                UiKit.Height(UiKit.Label(card, "한 시즌이 1년이에요. 짧을수록 하루 성장과 보상이 커요. 시즌 사이에 바꿀 수 있어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 90);
+                UiKit.Height(UiKit.Label(card, "한 시즌이 1년이에요. 짧을수록 하루 성장과 보상이 커요. 144경기는 시즌 완주 코인 4배, 빠른 진행 무료. 시즌 사이에 바꿀 수 있어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 130);
                 var row = UiKit.Empty(card, "Lengths");
                 UiKit.Height(row, 120);
                 UiKit.Row(row, 16);
@@ -2175,7 +2179,7 @@ namespace BaseballGame
             _ticketButton.interactable = tickets == 0 || (ticketsLeft > 0 && me.Fatigue > 0);
             int unclaimed = ChallengeScreen.Ready(_club, true);
             UiKit.SetButtonLabel(_missionButton, unclaimed > 0 ? $"미션 <color=#FFD24D>●{unclaimed}</color>" : "미션");
-            bool canFast = Premium.Owns(Premium.FastSkip);
+            bool canFast = CanFastSkip;
             _fastButton.gameObject.SetActive(canFast);
             if (!canFast) _fast = false;
             UiKit.SetButtonLabel(_fastButton, _fast ? $"빠른 진행 {Premium.FastSkipDays}일: 켜짐" : "빠른 진행: 꺼짐");

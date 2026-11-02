@@ -102,6 +102,18 @@ namespace BaseballSim.Career
         public const int TicketCoins = 200;
         /// <summary>A retirement ceremony pays this plus two coins per legacy point the career earned.</summary>
         public const int RetirementCoins = 500;
+        /// <summary>Coins for finishing a 36-game season; longer seasons pay in proportion (x2 at 72, x4 at 144).</summary>
+        public const int SeasonCoins = 50;
+
+        public static int SeasonCoinsFor(int games) => SeasonCoins * games / 36;
+
+        /// <summary>Pays the coins for a finished season of this length; returns how many.</summary>
+        public int PaySeason(int games)
+        {
+            int coins = SeasonCoinsFor(games);
+            Coins += coins;
+            return coins;
+        }
 
         public bool Owns(string cosmeticId) => OwnedCosmetics.Contains(cosmeticId);
 

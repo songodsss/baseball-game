@@ -84,6 +84,8 @@ namespace BaseballSim.Career
             Add("holds_100", "100홀드", "통산 100홀드", c => Arm(c).Holds >= 100);
             Add("fan_favorite", "국민 스타", "인기도 100 달성", c => c.Me.Popularity >= 100);
             Add("iron_man", "철인", "부상 없이 시즌 완주", c => c.Me.History.Any(h => h.InjuryFree));
+            Add("full_season", "풀시즌", "144경기 시즌 완주", c => c.Me.History.Any(h => h.Games >= League.FullSeason));
+            Add("full_season_10", "144경기의 사나이", "144경기 시즌 10번 완주", c => c.Me.History.Count(h => h.Games >= League.FullSeason) >= 10);
             return list;
         }
     }
