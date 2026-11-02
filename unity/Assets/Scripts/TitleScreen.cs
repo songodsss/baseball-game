@@ -113,7 +113,12 @@ namespace BaseballGame
                     Id = "store", Name = "구단 스토어", Status = $"코인 {_club.Coins:N0} · 꾸미기·편의",
                     Body = new Color(0.55f, 0.4f, 0.8f), Roof = new Color(0.95f, 0.45f, 0.55f), Open = () => PremiumScreen.Open(_club, Build),
                 },
-                new Building { Id = "stadium", Name = "메인 스타디움", Status = "준비 중", Soon = true, Body = new Color(0.5f, 0.55f, 0.6f), Roof = new Color(0.7f, 0.72f, 0.75f) },
+                new Building
+                {
+                    Id = "stadium", Name = "메인 스타디움",
+                    Status = _club.TeamLeague.Started ? $"내 팀 리그 · {MyTeamLeague.DivisionName(_club.TeamLeague.Division)} {_club.TeamLeague.MyRank}위" : "내 팀 리그",
+                    Body = new Color(0.5f, 0.55f, 0.6f), Roof = new Color(0.7f, 0.72f, 0.75f), Open = () => TeamLeagueScreen.Open(_club, Build),
+                },
                 new Building { Id = "empty_lot", Name = "빈 부지", Status = "새 건물이 들어설 자리", Soon = true, Body = new Color(0.45f, 0.4f, 0.35f), Roof = new Color(0.6f, 0.55f, 0.5f) },
             };
             for (int i = 0; i < buildings.Length; i += 2)

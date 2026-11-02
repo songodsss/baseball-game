@@ -94,6 +94,8 @@ namespace BaseballSim.Career
         public Dictionary<CosmeticKind, string> Worn = new Dictionary<CosmeticKind, string>();
         /// <summary>Season rewind tickets bought, used from any slot.</summary>
         public int RewindTickets;
+        /// <summary>My retired players' league against AI clubs.</summary>
+        public MyTeamLeague TeamLeague = new MyTeamLeague();
 
         public const int MissionCoins = 30;
         /// <summary>Coins for one recovery ticket.</summary>
