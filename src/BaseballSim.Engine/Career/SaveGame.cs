@@ -27,8 +27,9 @@ namespace BaseballSim.Career
         /// 28: the my-team league.
         /// 29: hit streak, manager trust, derby best, story marks.
         /// 30: days missed hurt (comeback years).
-        /// 31: the arena.
-        public const int Version = 31;
+        /// 31: signature skills (career).
+        /// 32: the arena.
+        public const int Version = 32;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -211,7 +212,7 @@ namespace BaseballSim.Career
             WriteList(w, league.Trophies.ToList(), w.Write);
             w.Write(league.Date);
             w.Write(league.GamesToday);
-            // Added in version 31.
+            // Added in version 32.
             var arena = club.Arena;
             w.Write(arena.Rating);
             w.Write(arena.SeasonId);
@@ -363,7 +364,7 @@ namespace BaseballSim.Career
                 league.Date = r.ReadString();
                 league.GamesToday = r.ReadInt32();
             }
-            if (version >= 31)
+            if (version >= 32)
             {
                 var arena = club.Arena;
                 arena.Rating = r.ReadInt32();
