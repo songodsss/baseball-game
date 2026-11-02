@@ -195,12 +195,21 @@ namespace BaseballGame
         void Trophy(RectTransform row, string name, string value, bool got)
         {
             var cell = Cell(row, got ? UiKit.Shade(UiKit.Card, 1.35f) : UiKit.Shade(UiKit.Card, 0.8f));
-            var icon = ArtLibrary.Get("Icons/UI/trophy");
-            if (icon != null) ArtLibrary.Banner(cell, icon, 70).color = got ? Gold : Locked;
+            // A title's own trophy when it's drawn; otherwise the generic cup, tinted.
+            bool drawn = name == "우승 반지" || name.Contains("금메달") || Titled(name);
+            var own = drawn ? ArtLibrary.TrophyIcon(name) : null;
+            var icon = own ?? ArtLibrary.Get("Icons/UI/trophy");
+            if (own != null) ArtLibrary.Banner(cell, own, 90).color = got ? Color.white : Locked;
+            else if (icon != null) ArtLibrary.Banner(cell, icon, 70).color = got ? Gold : Locked;
             else Badge(cell, "★", got ? UiKit.Shade(Gold, 0.75f) : Locked, 70);
             Text(cell, $"<b>{name}</b>", 30, got ? Color.white : Locked, 44);
             Text(cell, value, 28, got ? Gold : Locked, 40);
         }
+
+        /// <summary>Season titles (and only those) get their trophy art: highlights like 올스타 선정 keep the cup.</summary>
+        bool Titled(string name) =>
+            name == Postseason.ChampionTitle || name == Awards.Mvp || name == Awards.Rookie || name == Awards.GoldenGlove
+            || name.EndsWith("왕") || name.EndsWith("1위") || name == "최다안타";
 
         void ShowMyTeam()
         {

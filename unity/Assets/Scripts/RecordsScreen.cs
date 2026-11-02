@@ -413,7 +413,10 @@ namespace BaseballGame
                     : "-";
                 bool reached = by != "-";
                 string name = reached ? $"<b>{a.Name}</b>  <size=24><color=#9EABC2>{a.Description}</color></size>" : $"<color=#5C667A>{a.Name}  <size=24>{a.Description}</size></color>";
-                Row(widths, i, mine.Contains(a.Id), name, by);
+                var row = UiKit.TableRow(_content, widths, new[] { name, by }, 30, Color.white,
+                    mine.Contains(a.Id) ? Highlight : i % 2 == 1 ? Stripe : (Color?)null);
+                var icon = ArtLibrary.Icon(row, ArtLibrary.AchievementIcon(a.Id), 56);
+                if (icon != null && !reached) icon.color = new Color(0.3f, 0.3f, 0.35f, 0.8f);
             }
         }
 

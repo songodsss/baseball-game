@@ -746,14 +746,16 @@ namespace BaseballGame
             foreach (var trait in offer)
             {
                 var t = trait;
-                UiKit.Height(UiKit.Button(card, $"{t.Name}\n<size=26>{t.Description}</size>", () =>
+                var pick = UiKit.Button(card, $"{t.Name}\n<size=26>{t.Description}</size>", () =>
                 {
                     _career.ChooseTrait(t.Id);
                     Log($"<color=#FFD24D>특성 획득: {t.Name}</color> ({t.Description})");
                     CloseOverlay();
                     Save();
                     Refresh();
-                }), 150);
+                });
+                UiKit.ButtonIcon(pick, ArtLibrary.TraitIcon(t.Id), 110);
+                UiKit.Height(pick, 150);
             }
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             Tip("trait", "능력치 총합이 늘 때마다 특성을 하나씩 골라요. 한계에 닿은 능력치를 계속 훈련하면 잠재력이 올라가요(한계 돌파).");
@@ -764,6 +766,7 @@ namespace BaseballGame
         void ShowEvent(StoryEvent ev)
         {
             var card = OpenOverlay(ev.Title);
+            TeamTrim(card);
             ArtLibrary.Banner(card, ArtLibrary.LegendPortrait(ev.Id) ?? ArtLibrary.EventArt(ev.Id), 380);
             UiKit.Height(UiKit.Label(card, ev.TextFor(_career), 36, TextAnchor.MiddleCenter), 0, 1);
             for (int i = 0; i < ev.Choices.Count; i++)
@@ -1269,6 +1272,26 @@ namespace BaseballGame
             return card;
         }
 
+        /// <summary>
+        /// Story pictures are drawn without a club, so the popup wears my club instead: a full-width
+        /// strip and a frame in the team colour.
+        /// </summary>
+        void TeamTrim(RectTransform card)
+        {
+            var color = TeamColor(_career.MyTeam.Name);
+            var strip = card.Find("Accent") as RectTransform;
+            if (strip != null)
+            {
+                strip.GetComponent<Image>().color = color;
+                strip.anchorMin = new Vector2(0.04f, 1);
+                strip.anchorMax = new Vector2(0.96f, 1);
+                strip.offsetMin = new Vector2(0, -14);
+            }
+            var frame = card.gameObject.AddComponent<Outline>();
+            frame.effectColor = new Color(color.r, color.g, color.b, 0.9f);
+            frame.effectDistance = new Vector2(4, -4);
+        }
+
         void CloseOverlay()
         {
             if (_overlay != null) Destroy(_overlay.gameObject);
@@ -1292,6 +1315,14 @@ namespace BaseballGame
                 UiKit.Row(row, 20);
                 string have = current == null ? "없음" : current.Name;
                 UiKit.Width(UiKit.Label(row, $"{have}", 30, TextAnchor.MiddleLeft, UiKit.Muted), 0, 1);
+                var gearIcon = ArtLibrary.Icon(row, ArtLibrary.GearIcon(slot), 84);
+                if (gearIcon != null)
+                {
+                    var tier = gearIcon.gameObject.AddComponent<Outline>();
+                    tier.effectColor = ArtLibrary.GearTierColor(current);
+                    tier.effectDistance = new Vector2(3, -3);
+                    if (current == null) gearIcon.color = new Color(1, 1, 1, 0.35f);
+                }
                 if (next == null)
                 {
                     UiKit.Width(UiKit.Label(row, "최고 등급", 30, TextAnchor.MiddleCenter), 420);
@@ -1323,6 +1354,8 @@ namespace BaseballGame
                 UiKit.Row(row, 20);
                 string now = level == 0 ? "없음" : Facilities.Describe(facility, level);
                 UiKit.Width(UiKit.Label(row, $"{Facilities.Name(facility)} Lv.{level}\n<size=24>{now}</size>", 30, TextAnchor.MiddleLeft, UiKit.Muted), 0, 1);
+                var facilityIcon = ArtLibrary.Icon(row, ArtLibrary.FacilityIcon(facility), 90);
+                if (facilityIcon != null && level == 0) facilityIcon.color = new Color(1, 1, 1, 0.35f);
                 if (level >= Facilities.MaxLevel)
                 {
                     UiKit.Width(UiKit.Label(row, "최고 단계", 30, TextAnchor.MiddleCenter), 420);

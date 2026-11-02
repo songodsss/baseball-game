@@ -36,8 +36,10 @@ namespace BaseballGame
             row.padding = new RectOffset(24, 24, 20, 20);
             row.childForceExpandWidth = false;
             row.childAlignment = TextAnchor.MiddleLeft;
-            var emblem = ArtLibrary.Emblem(band, _career.MyTeam.Name, 150);
-            UiKit.Width(emblem, 150);
+            var portrait = ArtLibrary.Icon(band, ArtLibrary.Portrait(me), 150, first: false);
+            if (portrait != null) portrait.GetComponent<LayoutElement>().preferredHeight = 180;
+            var emblem = ArtLibrary.Emblem(band, _career.MyTeam.Name, portrait != null ? 100 : 150);
+            UiKit.Width(emblem, portrait != null ? 100 : 150);
             string position = me.IsPitcher ? $"{Positions.RoleName(me.Role)} 투수" : Positions.Name(me.Position);
             var title = UiKit.Label(band, $"<b>{me.Name}</b>  {(me.Number > 0 ? "#" + me.Number : "")}\n" +
                 $"<size=30><color=#DDE3EE>{position} · {me.Age}세 · {_career.MyTeam.Name} · {me.History.Count + 1}년차</color></size>", 52);
@@ -62,7 +64,7 @@ namespace BaseballGame
             foreach (var id in me.Traits)
             {
                 var t = Traits.Find(id);
-                if (t != null) Line(content, $"<b>{t.Name}</b>  <color=#9EABC2>{t.Description}</color>");
+                if (t != null) ArtLibrary.IconLine(content, ArtLibrary.TraitIcon(t.Id), $"<b>{t.Name}</b>  <color=#9EABC2>{t.Description}</color>", 28, 60);
             }
 
             Section(content, "장비");
@@ -70,13 +72,19 @@ namespace BaseballGame
             {
                 me.Equipped.TryGetValue(slot, out var gear);
                 string bonus = gear == null ? "" : "  <color=#5FA8FF>" + string.Join(" ", gear.Bonus.Select(b => $"{Stats.Name(b.Key)}+{b.Value}")) + "</color>";
-                Line(content, gear == null ? "<color=#5C667A>비어 있음</color>" : gear.Name + bonus);
+                var gearLine = ArtLibrary.IconLine(content, ArtLibrary.GearIcon(slot), gear == null ? "<color=#5C667A>비어 있음</color>" : gear.Name + bonus, 28, 60);
+                var gearIcon = gearLine.transform.parent.Find("Icon");
+                if (gearIcon != null) gearIcon.GetComponent<Image>().color = gear == null ? new Color(1, 1, 1, 0.3f) : Color.white;
             }
 
             var titles = me.History.SelectMany(h => h.Titles).ToList();
             Section(content, $"수상 {titles.Count}개");
             if (titles.Count == 0) Line(content, "시즌이 끝나고 타이틀을 따면 여기에 쌓여요.", UiKit.Muted);
-            foreach (var g in titles.GroupBy(t => t)) Line(content, $"<color=#FFD24D>★</color> {g.Key}" + (g.Count() > 1 ? $" ×{g.Count()}" : ""));
+            foreach (var g in titles.GroupBy(t => t))
+            {
+                var art = ArtLibrary.TrophyIcon(g.Key);
+                ArtLibrary.IconLine(content, art, (art == null ? "<color=#FFD24D>★</color> " : "") + g.Key + (g.Count() > 1 ? $" ×{g.Count()}" : ""), 28, art == null ? 52 : 64);
+            }
             if (me.AllStarSelections > 0) Line(content, $"올스타 {me.AllStarSelections}회" + (me.AllStarMvps > 0 ? $" (MVP {me.AllStarMvps}회)" : ""));
             if (me.GoldMedals > 0) Line(content, $"{NationalTeam.Name} 금메달 {me.GoldMedals}개");
 
