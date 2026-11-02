@@ -29,7 +29,8 @@ namespace BaseballSim.Career
         /// 30: days missed hurt (comeback years).
         /// 31: signature skills (career).
         /// 32: the arena.
-        public const int Version = 32;
+        /// 33: legend stages and visits, the story's version seed; legends whose record fell on the club.
+        public const int Version = 33;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -223,6 +224,9 @@ namespace BaseballSim.Career
             w.Write(arena.EntriesUsed);
             w.Write(arena.ExtraEntriesBought);
             w.Write(arena.LastSeasonNote ?? "");
+
+            // Added in version 33.
+            WriteList(w, club.LegendsSurpassed.ToList(), w.Write);
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -378,6 +382,8 @@ namespace BaseballSim.Career
                 var note = r.ReadString();
                 arena.LastSeasonNote = note.Length == 0 ? null : note;
             }
+            if (version >= 33)
+                club.LegendsSurpassed = new HashSet<string>(ReadList(r, r.ReadString));
             return club;
         }
 
@@ -578,6 +584,13 @@ namespace BaseballSim.Career
 
             // Added in version 31.
             WriteList(w, career.Me.Specialties, s => w.Write((int)s));
+
+            // Added in version 33.
+            WriteList(w, career.LegendStages.ToList(), kv => { w.Write(kv.Key); w.Write((int)kv.Value); });
+            w.Write(career.LegendLastSeason);
+            w.Write(career.LegendLastDay);
+            w.Write(career.LegendDuoSeen);
+            w.Write(career.Story.Seed);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -773,6 +786,17 @@ namespace BaseballSim.Career
             if (version >= 31) me.Specialties = ReadList(r, () => (Stat)r.ReadInt32());
             else me.Specialties = me.MyStats.Take(CareerPlayer.SpecialtyCount).ToList();
             foreach (var stat in me.MyStats) me.Potential[stat] = CareerPlayer.MaxRating; // limits were dropped in v31
+            if (version >= 33)
+            {
+                foreach (var (id, stage) in ReadList(r, () => (r.ReadString(), (LegendStage)r.ReadInt32()))) career.LegendStages[id] = stage;
+                career.LegendLastSeason = r.ReadInt32();
+                career.LegendLastDay = r.ReadInt32();
+                career.LegendDuoSeen = r.ReadBoolean();
+                career.Story.Seed = r.ReadInt32();
+            }
+            // Legends met before they came back in stages count as a first visit.
+            else
+                foreach (var id in me.MetLegends) career.LegendStages[id] = LegendStage.Met;
             return career;
         }
 

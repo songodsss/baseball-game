@@ -79,18 +79,19 @@ namespace BaseballGame
         void ShowLegends()
         {
             var met = _club.AllLegendsMet(_career);
-            Section($"만난 레전드 {met.Count(id => Legends.All.Any(l => l.Id == id))}/{Legends.All.Count}");
-            Note("2026년 이전 리그를 빛낸 전설들이에요. 시즌 중 이벤트로 찾아와 한 수 가르쳐 줘요.");
+            var surpassed = _club.AllLegendsSurpassed(_career);
+            Section($"만난 레전드 {met.Count(id => Legends.All.Any(l => l.Id == id))}/{Legends.All.Count} · 기록 돌파 {surpassed.Count(id => Legends.All.Any(l => l.Id == id))}");
+            Note("2026년 이전 리그를 빛낸 전설들이에요. 주특기가 늘면 찾아오고, 기록에 절반쯤 다가가면 다시 와요. 기록을 넘는 날엔 직접 축하하러 와요.");
             foreach (var pair in Pairs(Legends.All))
             {
-                var row = GridRow(360);
-                foreach (var legend in pair) LegendCard(row, legend, met.Contains(legend.Id));
+                var row = GridRow(400);
+                foreach (var legend in pair) LegendCard(row, legend, met.Contains(legend.Id), surpassed.Contains(legend.Id));
             }
         }
 
-        void LegendCard(RectTransform row, Legend legend, bool met)
+        void LegendCard(RectTransform row, Legend legend, bool met, bool surpassed)
         {
-            var card = Cell(row, met ? UiKit.Shade(UiKit.Card, 1.35f) : UiKit.Shade(UiKit.Card, 0.8f));
+            var card = Cell(row, surpassed ? UiKit.Shade(Gold, 0.45f) : met ? UiKit.Shade(UiKit.Card, 1.35f) : UiKit.Shade(UiKit.Card, 0.8f));
             var portrait = met ? ArtLibrary.Get("Legends/" + legend.Id) : null;
             if (portrait != null) ArtLibrary.Banner(card, portrait, 150);
             else Badge(card, met ? legend.Name.Substring(0, 1) : "?", met ? UiKit.Shade(Gold, 0.75f) : Locked, 120);
@@ -99,6 +100,7 @@ namespace BaseballGame
                 Text(card, $"<b>{legend.Name}</b>", 34, Color.white, 50);
                 Text(card, $"\"{legend.Nickname}\" · {legend.Years}", 24, Gold, 36);
                 Text(card, $"{legend.Record} · 주특기 {Stats.Name(legend.Speciality)}", 24, UiKit.Muted, 70);
+                Text(card, surpassed ? "<b>★ 기록 돌파</b>" : (legend.ForPitchers ? "투수 레전드" : "타자 레전드"), 24, surpassed ? Gold : UiKit.Muted, 36);
             }
             else
             {

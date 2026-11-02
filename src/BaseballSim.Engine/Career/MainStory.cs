@@ -27,6 +27,8 @@ namespace BaseballSim.Career
         /// <summary>When the last scene was answered; -1 = none yet.</summary>
         public int LastSeason = -1;
         public int LastDay;
+        /// <summary>Picks which version of each scene this career gets; 0 until first needed.</summary>
+        public int Seed;
 
         public int BondOf(Bond b) => Bonds.TryGetValue(b, out var v) ? v : StartBond;
         public bool Has(string flag) => Flags.Contains(flag);
@@ -100,23 +102,48 @@ namespace BaseballSim.Career
         /// <summary>The moments every story is told through, in order.</summary>
         static readonly List<Slot> Slots = new List<Slot>
         {
+            // Prologue: the first days.
             new Slot { Id = "draft", Chapter = 0, Ready = (c, d) => true },
             new Slot { Id = "roommate", Chapter = 0, Ready = (c, d) => true },
+            new Slot { Id = "camp", Chapter = 0, Ready = (c, d) => true },
+            // 1. Debut: the first season.
             new Slot { Id = "first", Chapter = 1, Ready = (c, d) => HasFirstRecord(c) || c.Season > 1 || SeasonPart(c) >= 0.4 },
+            new Slot { Id = "first_pay", Chapter = 1, Ready = (c, d) => c.Season > 1 || SeasonPart(c) >= 0.5 },
             new Slot { Id = "letter", Chapter = 1, Ready = (c, d) => c.Season > 1 || SeasonPart(c) >= 0.6 },
             new Slot { Id = "rival", Chapter = 1, Ready = (c, d) => c.Season > 1 || SeasonPart(c) >= 0.8 },
+            new Slot { Id = "first_winter", Chapter = 1, Ready = (c, d) => c.Season >= 2 },
+            // 2. The first wall: years two to four.
+            new Slot { Id = "sophomore", Chapter = 2, Ready = (c, d) => c.Season >= 2 && SeasonPart(c) >= 0.25 || c.Season >= 3 },
             new Slot { Id = "wall", Chapter = 2, Ready = (c, d) => InASlump(c) || c.Season >= 2 && SeasonPart(c) >= 0.5 || c.Season >= 3 },
             new Slot { Id = "rooftop", Chapter = 2, Ready = (c, d) => true },
+            new Slot { Id = "mentor_past", Chapter = 2, Ready = (c, d) => c.Season >= 3 },
             new Slot { Id = "breakthrough", Chapter = 2, Ready = (c, d) => !c.InFarm && (PlayedWell(d) || DaysSinceLast(c) >= Games(c) / 3) },
+            // 3. The spot that calls your name: about 22 to 26.
+            new Slot { Id = "pressure", Chapter = 3, Ready = (c, d) => c.Me.Age >= 22 || c.Season >= 4 && IsCore(c) },
             new Slot { Id = "spot", Chapter = 3, Ready = (c, d) => c.Season >= 2 && IsCore(c) || c.Me.Age >= 24 },
             new Slot { Id = "injury", Chapter = 3, Ready = (c, d) => DaysSinceLast(c) >= Games(c) / 4 },
+            new Slot { Id = "contract", Chapter = 3, Ready = (c, d) => c.Me.Age >= 25 },
+            new Slot { Id = "kin_visit", Chapter = 3, Ready = (c, d) => c.Me.Age >= 25 && DaysSinceLast(c) >= Games(c) / 4 },
             new Slot { Id = "race", Chapter = 3, Ready = (c, d) => SeasonPart(c) >= 0.5 && DaysSinceLast(c) >= Games(c) / 6 },
+            // 4. The summit: about 27 to 30.
             new Slot { Id = "summit", Chapter = 4, Ready = (c, d) => HasSummit(c) || c.Me.Age >= 28 },
+            new Slot { Id = "bigstage", Chapter = 4, Ready = (c, d) => SeasonPart(c) >= 0.8 },
             new Slot { Id = "family", Chapter = 4, Ready = (c, d) => c.Me.Age >= 27 && DaysSinceLast(c) >= Games(c) / 4 },
+            new Slot { Id = "voice_feature", Chapter = 4, Ready = (c, d) => c.Me.Age >= 29 },
+            new Slot { Id = "rival_peak", Chapter = 4, Ready = (c, d) => c.Me.Age >= 30 && SeasonPart(c) >= 0.5 },
+            // 5. Veteran: about 31 to 36.
             new Slot { Id = "body", Chapter = 5, Ready = (c, d) => c.Me.Age >= 32 },
+            new Slot { Id = "role_change", Chapter = 5, Ready = (c, d) => c.Me.Age >= 33 },
             new Slot { Id = "friend", Chapter = 5, Ready = (c, d) => DaysSinceLast(c) >= Games(c) / 4 },
+            new Slot { Id = "mentor_old", Chapter = 5, Ready = (c, d) => c.Me.Age >= 34 },
+            new Slot { Id = "milestone", Chapter = 5, Ready = (c, d) => c.Me.Age >= 34 && DaysSinceLast(c) >= Games(c) / 4 },
+            new Slot { Id = "rival_end", Chapter = 5, Ready = (c, d) => c.Me.Age >= 35 },
             new Slot { Id = "family_game", Chapter = 5, Ready = (c, d) => SeasonPart(c) >= 0.5 && DaysSinceLast(c) >= Games(c) / 6 },
+            // 6. The last season.
             new Slot { Id = "last", Chapter = 6, Ready = (c, d) => c.Me.Age >= 37 },
+            new Slot { Id = "farewell_tour", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.4 },
+            new Slot { Id = "last_letter", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.7 },
+            new Slot { Id = "last_game", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.9 },
         };
 
         static readonly List<StoryRouteDef> Routes = new List<StoryRouteDef> { LastPickStory.Build(), ProdigyStory.Build(), WalkonStory.Build() };
@@ -147,22 +174,43 @@ namespace BaseballSim.Career
         public static bool IsMain(StoryEvent ev) => ev != null && ev.Id.StartsWith(IdPrefix);
 
         /// <summary>The next scene if its moment has come today, as an event card; null otherwise.</summary>
+        /// <summary>When no scene is due, a legend's visit may come instead.</summary>
         public static StoryEvent Next(Career c, DayResult day)
         {
-            if (c.InMilitary || c.Story.Seen.Count >= Slots.Count) return null;
-            var slot = Slots[c.Story.Seen.Count];
-            if (c.Story.LastSeason >= 0 && DaysSinceLast(c) < MinGap(c)) return null;
-            if (!slot.Ready(c, day)) return null;
-            return ToEvent(c, slot.Id);
+            if (c.InMilitary) return null;
+            var slot = NextSlot(c);
+            if (slot != null && (c.Story.LastSeason < 0 || DaysSinceLast(c) >= MinGap(c)) && slot.Ready(c, day)) return ToEvent(c, slot.Id);
+            return LegendStory.Next(c, day);
         }
+
+        /// <summary>
+        /// The first slot after the last one answered. Saves from before a slot was added skip the
+        /// new ones that come earlier in the story, so an old career never jumps back a chapter.
+        /// </summary>
+        static Slot NextSlot(Career c)
+        {
+            int after = -1;
+            for (int i = 0; i < Slots.Count; i++)
+                if (c.Story.Seen.Contains(Slots[i].Id)) after = i;
+            return after + 1 < Slots.Count ? Slots[after + 1] : null;
+        }
+
+        /// <summary>True once the last slot has been answered.</summary>
+        public static bool IsFinished(Career c) => NextSlot(c) == null;
 
         /// <summary>The card for a slot of this career's story, whatever the day; for tests and previews.</summary>
         public static StoryEvent Preview(Career c, string slot) => ToEvent(c, slot);
 
-        static StoryEvent ToEvent(Career c, string slotId)
+        /// <summary>How many versions a slot has for this career's story.</summary>
+        public static int VariantCount(Career c, string slot) => Options(c, slot).Count;
+
+        /// <summary>One version of a slot's card, for tests and previews.</summary>
+        public static StoryEvent Preview(Career c, string slot, int variant) => ToEvent(c, slot, Options(c, slot)[variant]);
+
+        static StoryEvent ToEvent(Career c, string slotId, StoryScene scene = null)
         {
             var slot = Slots.First(s => s.Id == slotId);
-            var scene = RouteOf(c).Scenes.First(s => s.Slot == slotId);
+            scene = scene ?? SceneFor(c, slotId);
             string title = $"{ChapterNames[slot.Chapter]} · {Fill(scene.Title, c)}";
             var ev = new StoryEvent { Id = IdPrefix + slotId, Title = title, Text = Fill(scene.Text(c), c), Weight = (_, __) => 0 };
             foreach (var o in scene.Options(c))
@@ -184,6 +232,34 @@ namespace BaseballSim.Career
                 });
             }
             return ev;
+        }
+
+        /// <summary>
+        /// The version of a slot's scene this career gets: one of the story's own and the shared ones,
+        /// picked at random once per career (the same pick every time it's asked for).
+        /// </summary>
+        static StoryScene SceneFor(Career c, string slotId)
+        {
+            var options = Options(c, slotId);
+            if (options.Count == 1) return options[0];
+            if (c.Story.Seed == 0) c.Story.Seed = SeedFor(c.Me);
+            uint h = (uint)c.Story.Seed;
+            foreach (char ch in slotId) h = h * 31 + ch;
+            h ^= h >> 15; h *= 2246822519u; h ^= h >> 13;
+            return options[(int)(h % (uint)options.Count)];
+        }
+
+        static List<StoryScene> Options(Career c, string slotId) =>
+            RouteOf(c).Scenes.Where(s => s.Slot == slotId).Concat(SharedScenes.All.Where(s => s.Slot == slotId)).ToList();
+
+        /// <summary>A stable number from who the player is, for saves made before the seed existed.</summary>
+        static int SeedFor(CareerPlayer me)
+        {
+            uint h = 2166136261u;
+            foreach (char ch in me.Name + me.Number + (int)me.Position) h = (h ^ ch) * 16777619u;
+            // Starting ratings, not potential: potential is the same cap for everyone since limits were dropped.
+            foreach (var stat in me.MyStats) h = (h ^ (uint)me.Ratings[stat]) * 16777619u;
+            return (int)(h | 1);
         }
 
         /// <summary>At least three days of a full season between scenes (one day in shorter seasons).</summary>
@@ -241,22 +317,46 @@ namespace BaseballSim.Career
 
         // ---------- Text ----------
 
-        /// <summary>Fills {name} {team} {rival} {rivalTeam} {mentor} {first} {spot} {mound}.</summary>
+        /// <summary>
+        /// Fills {name} {team} {rival} {rivalTeam} {mentor} {first} {spot} {mound}, and the four people of
+        /// the story by name: {coach} {pal} {kin} {voice}. A name may carry its particle, e.g. {pal:이}
+        /// or {name:을}, which becomes 이/가, 을/를 and so on to suit the name.
+        /// </summary>
         public static string Fill(string text, Career c)
         {
             if (string.IsNullOrEmpty(text) || text.IndexOf('{') < 0) return text;
             var me = c.Me;
             var route = RouteOf(c);
-            return text
-                .Replace("{name}", me.Name)
-                .Replace("{team}", c.MyTeam.Name)
-                .Replace("{rivalTeam}", c.RivalTeam?.Name ?? "다른 팀")
-                .Replace("{rival}", c.Rival?.Name ?? "그 녀석")
-                .Replace("{mentor}", c.Story.Has("manager") ? route.MentorAfter : route.MentorBefore)
-                .Replace("{first}", FirstRecordName(me))
-                .Replace("{spot}", SpotName(me))
-                .Replace("{mound}", me.IsPitcher ? "마운드" : "타석");
+            string NameOf(string key)
+            {
+                switch (key)
+                {
+                    case "name": return me.Name;
+                    case "team": return c.MyTeam.Name;
+                    case "rivalTeam": return c.RivalTeam?.Name ?? "다른 팀";
+                    case "rival": return c.Rival?.Name ?? "그 녀석";
+                    case "mentor": return c.Story.Has("manager") ? route.MentorAfter : route.MentorBefore;
+                    case "coach": return route.BondNames[(int)Bond.Mentor];
+                    case "pal": return route.BondNames[(int)Bond.Friend];
+                    case "kin": return route.BondNames[(int)Bond.Family];
+                    case "voice": return route.BondNames[(int)Bond.Voice];
+                    case "voiceRole": return route.BondRoles[(int)Bond.Voice];
+                    case "first": return FirstRecordName(me);
+                    case "spot": return SpotName(me);
+                    case "mound": return me.IsPitcher ? "마운드" : "타석";
+                    default: return null;
+                }
+            }
+            return Placeholder.Replace(text, m =>
+            {
+                string word = NameOf(m.Groups[1].Value);
+                if (word == null) return m.Value;
+                return m.Groups[2].Success ? word + Josa.After(word, m.Groups[2].Value) : word;
+            });
         }
+
+        static readonly System.Text.RegularExpressions.Regex Placeholder =
+            new System.Text.RegularExpressions.Regex(@"\{([a-zA-Z]+)(?::([가-힣]+))?\}");
 
         static string FirstRecordName(CareerPlayer me)
         {
@@ -312,6 +412,7 @@ namespace BaseballSim.Career
                 lines.Add(c.Story.Has("rival_respect")
                     ? $"{c.Rival.Name} 선수가 보낸 화환도 있었다. '덕분에 나도 여기까지 왔다.'"
                     : $"{c.Rival.Name} 선수의 이름이 적힌 화환도 있었다. 끝까지 지기 싫은 상대였다.");
+            lines.AddRange(LegendStory.EndingLines(c));
             lines.Add(route.Closing(c, retired, ending));
             return lines.Select(l => Fill(l, c)).ToList();
         }

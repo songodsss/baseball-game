@@ -273,7 +273,7 @@ namespace BaseballSim.Career
                             e.Fatigue(25);
                             if (e.MaybeInjure(0.15, 3, InjuryKind.Hamstring)) e.Say("...결국 허벅지가 탈이 났다.");
                         }),
-                    O("{mentor}을 찾아간다", "\"나도 서른둘에 그랬다. 그때부터가 진짜 야구다.\"",
+                    O("{mentor:을} 찾아간다", "\"나도 서른둘에 그랬다. 그때부터가 진짜 야구다.\"",
                         (e, k) => { e.Morale(6); ChangeBond(e, k, Bond.Mentor, 10); }),
                 },
             },
@@ -318,7 +318,7 @@ namespace BaseballSim.Career
             new StoryScene
             {
                 Slot = "last", Title = "마지막 대화",
-                Text = c => "서른일곱의 봄, 스프링캠프 마지막 날.\n{mentor}이 불렀다. 자기도 올해가 마지막 시즌이라고 했다.\n\n" +
+                Text = c => "서른일곱의 봄, 스프링캠프 마지막 날.\n{mentor:이} 불렀다. 자기도 올해가 마지막 시즌이라고 했다.\n\n" +
                             "\"마지막 순번으로 너 뽑던 날 말이다. 사람들이 다 웃었다.\"\n\"지금은 아무도 안 웃지.\"",
                 Options = c => new List<StoryOption>
                 {
