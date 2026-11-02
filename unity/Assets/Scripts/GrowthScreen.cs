@@ -268,6 +268,7 @@ namespace BaseballGame
         /// <summary>Makes a label open something when tapped, with no button look.</summary>
         void Tappable(Text label, UnityEngine.Events.UnityAction onClick)
         {
+            label.raycastTarget = true; // labels skip taps by default
             var button = label.gameObject.AddComponent<Button>();
             button.targetGraphic = label;
             button.onClick.AddListener(UiSound.Tap);

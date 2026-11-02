@@ -83,9 +83,11 @@ namespace BaseballGame
         void BuildWorld()
         {
             // Smooth the jagged edges of foul lines and stands, and keep ground textures sharp at a glance.
-            QualitySettings.antiAliasing = 4;
+            // Phones get lighter settings: 2x smoothing, shorter hard-edged shadows.
+            bool phone = Application.isMobilePlatform;
+            QualitySettings.antiAliasing = phone ? 2 : 4;
             QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
-            QualitySettings.shadowDistance = 160;
+            QualitySettings.shadowDistance = phone ? 90 : 160;
 
             var camGo = new GameObject("MatchCamera", typeof(Camera));
             camGo.transform.SetParent(transform, false);
@@ -119,7 +121,7 @@ namespace BaseballGame
                 var light = lightGo.GetComponent<Light>();
                 light.type = LightType.Directional;
                 light.intensity = 1.1f;
-                light.shadows = LightShadows.Soft;
+                light.shadows = Application.isMobilePlatform ? LightShadows.Hard : LightShadows.Soft;
             }
 
             BuildGrass();
@@ -214,7 +216,7 @@ namespace BaseballGame
                     var row = Shape(PrimitiveType.Cube, "Bleacher", Color.white);
                     row.localScale = new Vector3(r * Mathf.Deg2Rad * 110f / (segments + 8) + 0.4f, 3 + t * 3f, 4.5f);
                     row.SetPositionAndRotation(Direction(angle) * r + Vector3.up * row.localScale.y / 2, Quaternion.Euler(0, angle, 0));
-                    row.GetComponent<Renderer>().material.mainTexture = crowd;
+                    Paint(row, Color.white, crowd, castShadows: false);
                 }
             }
 
@@ -229,7 +231,7 @@ namespace BaseballGame
                     stand.localScale = new Vector3(4.5f, 2.5f + t * 2.5f, FenceRadius - 25);
                     stand.SetPositionAndRotation(along * (FenceRadius / 2 + 8) + outward * (16 + t * 4.5f) + Vector3.up * stand.localScale.y / 2,
                         Quaternion.Euler(0, sign * 45, 0));
-                    stand.GetComponent<Renderer>().material.mainTexture = crowd;
+                    Paint(stand, Color.white, crowd, castShadows: false);
                 }
 
                 var pole = Shape(PrimitiveType.Cylinder, "Foul Pole", new Color(1f, 0.85f, 0.2f));
@@ -358,8 +360,32 @@ namespace BaseballGame
             Destroy(go.GetComponent<Collider>());
             go.transform.SetParent(transform, false);
             // Tints the built-in default material, so builds need no extra shaders or assets.
-            go.GetComponent<Renderer>().material.color = color;
+            Paint(go.transform, color, null, castShadows: true);
             return go.transform;
+        }
+
+        // One material per colour and texture, shared by every shape that uses it, so the stands draw in a
+        // handful of batches instead of one draw call per bleacher row.
+        readonly Dictionary<(Color, Texture), Material> _materials = new Dictionary<(Color, Texture), Material>();
+
+        void Paint(Transform t, Color color, Texture texture, bool castShadows)
+        {
+            var r = t.GetComponent<Renderer>();
+            if (!_materials.TryGetValue((color, texture), out var m))
+            {
+                m = new Material(r.sharedMaterial) { color = color, mainTexture = texture, enableInstancing = true };
+                _materials[(color, texture)] = m;
+            }
+            r.sharedMaterial = m;
+            if (!castShadows) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        void OnDestroy()
+        {
+            foreach (var m in _materials.Values) Destroy(m);
+            _materials.Clear();
+            // Per-object materials (tinted players, textured turf) and the made-up textures go with the scene.
+            Resources.UnloadUnusedAssets();
         }
 
         /// <summary>

@@ -243,6 +243,9 @@ namespace BaseballGame
             t.color = color ?? Color.white;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
             t.verticalOverflow = VerticalWrapMode.Truncate;
+            // Text never takes taps itself (buttons and scroll views have their own images), which keeps
+            // the raycaster from testing hundreds of labels on every touch.
+            t.raycastTarget = false;
             // A soft drop shadow keeps text readable over pictures and light buttons.
             var shadow = go.AddComponent<Shadow>();
             shadow.effectColor = new Color(0, 0, 0, 0.6f);
