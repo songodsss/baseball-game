@@ -87,8 +87,9 @@ namespace BaseballSim.Career
 
         /// <summary>
         /// Club coins: the account-wide currency, apart from a player's salary money. Earned by playing
-        /// (missions, check-ins, retirement ceremonies) and never sold for real money. Spent on looks,
-        /// recovery tickets and other conveniences, never on strength.
+        /// (missions, check-ins, seasons, retirement ceremonies) and never sold for real money. Spent on
+        /// looks, recovery tickets and the draw boxes (see <see cref="Gacha"/>). Ratings are never sold:
+        /// draws only give training cards (faster training) and gear for my retired players' team.
         /// </summary>
         public int Coins;
         public HashSet<string> OwnedCosmetics = new HashSet<string>();
@@ -96,6 +97,94 @@ namespace BaseballSim.Career
         public Dictionary<CosmeticKind, string> Worn = new Dictionary<CosmeticKind, string>();
         /// <summary>Season rewind tickets bought, used from any slot.</summary>
         public int RewindTickets;
+        /// <summary>Draw tickets: one draw each, from either box. Earned as rewards or bought.</summary>
+        public int DrawTickets;
+        /// <summary>Every draw ever made, for missions and records.</summary>
+        public int Draws;
+        /// <summary>Training cards owned and their level (1 to Gacha.MaxLevel).</summary>
+        public Dictionary<string, int> CardLevels = new Dictionary<string, int>();
+        /// <summary>Team gear owned and its level.</summary>
+        public Dictionary<string, int> GearLevels = new Dictionary<string, int>();
+        /// <summary>Draws since the last SSR, per box.</summary>
+        public int[] Pity = new int[2];
+
+        public int PityCount(GachaBox box) => Pity[(int)box];
+        public void SetPityCount(GachaBox box, int count) => Pity[(int)box] = count;
+        public int DrawsToPity(GachaBox box) => Gacha.Pity - PityCount(box);
+
+        Dictionary<string, int> Levels(GachaBox box) => box == GachaBox.Cards ? CardLevels : GearLevels;
+
+        public int LevelOf(GachaBox box, string id) => Levels(box).TryGetValue(id, out var l) ? l : 0;
+
+        /// <summary>Adds one copy: a new item, a level up, or coins back once it is at the top level.</summary>
+        public DrawResult AddCopy(GachaBox box, string id, Rarity rarity, bool fromPity = false)
+        {
+            var levels = Levels(box);
+            int level = LevelOf(box, id);
+            var result = new DrawResult
+            {
+                Box = box, Id = id, Rarity = rarity, FromPity = fromPity, New = level == 0,
+                Name = box == GachaBox.Cards ? Gacha.Card(id)?.Name : Gacha.GearPiece(id)?.Name,
+            };
+            if (level >= Gacha.MaxLevel)
+            {
+                result.Refund = Gacha.Refund(rarity);
+                Coins += result.Refund;
+            }
+            else levels[id] = ++level;
+            result.Level = Math.Max(1, level);
+            return result;
+        }
+
+        /// <summary>
+        /// The gear my team wears: for each stat, the owned piece that adds the most. Nothing to pick by
+        /// hand, so a better piece goes on as soon as it is drawn.
+        /// </summary>
+        public Dictionary<Stat, (TeamGear Gear, int Level, int Bonus)> TeamGearWorn()
+        {
+            var worn = new Dictionary<Stat, (TeamGear, int, int)>();
+            foreach (var kv in GearLevels)
+            {
+                var g = Gacha.GearPiece(kv.Key);
+                if (g == null) continue;
+                int bonus = Gacha.GearBonus(g.Rarity, kv.Value);
+                if (!worn.TryGetValue(g.Stat, out var best) || bonus > best.Item3) worn[g.Stat] = (g, kv.Value, bonus);
+            }
+            return worn;
+        }
+
+        /// <summary>Rating points my retired players get in one stat from team gear.</summary>
+        public int TeamGearBonus(Stat stat) => TeamGearWorn().TryGetValue(stat, out var w) ? w.Bonus : 0;
+
+        /// <summary>Puts an owned card in one of the player's card slots (null empties it).</summary>
+        public bool EquipCard(Career career, int slot, string cardId)
+        {
+            if (slot < 0 || slot >= Gacha.CardSlots) return false;
+            while (career.Cards.Count < Gacha.CardSlots) career.Cards.Add(null);
+            if (cardId != null)
+            {
+                if (LevelOf(GachaBox.Cards, cardId) == 0) return false;
+                for (int k = 0; k < career.Cards.Count; k++) if (career.Cards[k] == cardId) career.Cards[k] = null;
+            }
+            career.Cards[slot] = cardId;
+            RefreshCards(career);
+            return true;
+        }
+
+        /// <summary>Copies the current card levels into the career, so its training sees level ups.</summary>
+        public void RefreshCards(Career career)
+        {
+            career.CardBoost.Clear();
+            foreach (var id in career.Cards)
+            {
+                var card = id == null ? null : Gacha.Card(id);
+                int level = card == null ? 0 : LevelOf(GachaBox.Cards, id);
+                if (level == 0) continue;
+                career.CardBoost.TryGetValue(card.Stat, out var have);
+                career.CardBoost[card.Stat] = have + Gacha.CardBonus(card.Rarity, level);
+            }
+        }
+
         /// <summary>My retired players' league against AI clubs.</summary>
         public MyTeamLeague TeamLeague = new MyTeamLeague();
         /// <summary>The arena: my team against other clubs' teams of the same weight class.</summary>

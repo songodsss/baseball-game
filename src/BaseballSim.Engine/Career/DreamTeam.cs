@@ -32,14 +32,16 @@ namespace BaseballSim.Career
         public static string TierName(ChallengeTier tier) => TierNames[(int)tier];
         public static int Reward(ChallengeTier tier) => TierReward[(int)tier];
 
-        /// <summary>My retired hitters (best nine), starters (best five), closer and setup man; the rest ordinary players.</summary>
+        /// <summary>My retired hitters (best nine), starters (best five), closer and setup man, wearing the team gear; the rest ordinary players.</summary>
         public static Team Build(Club club, IRandom random)
         {
             var team = new RosterGenerator(random).CreateTeam(Name);
             int i = 0;
+            // Team gear lifts every retired player in its stat.
+            var gear = club.TeamGearWorn();
             Player FromRetired(RetiredPlayer r)
             {
-                int Peak(Stat s) => r.PeakRatings.TryGetValue(s, out var v) ? v : 40;
+                int Peak(Stat s) => (r.PeakRatings.TryGetValue(s, out var v) ? v : 40) + (gear.TryGetValue(s, out var g) ? g.Bonus : 0);
                 string number = r.ShownNumber > 0 ? $" #{r.ShownNumber}" : "";
                 var p = new Player($"club{i++}", r.Name + number);
                 if (r.IsPitcher)

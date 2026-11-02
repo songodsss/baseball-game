@@ -97,14 +97,19 @@ namespace BaseballSim
             return odds;
         }
 
-        // Above SoftCap each point counts for less, so a maxed-out star still has bad days.
-        public const int SoftCap = 70;
-        const double OverCapWeight = 0.55;
+        // Above SoftCap each point counts for less, so a maxed-out star still has bad days. Ratings have no
+        // ceiling any more; past 100 each point counts for less again, so a 150 is better than a 100 but
+        // not a different sport.
+        public const int SoftCap = 70, HardCap = 100;
+        const double OverCapWeight = 0.55, PastHundredWeight = 0.3;
 
         static double Centre(int rating, int condition)
         {
-            double r = Clamp(rating + condition, 1, 100);
+            double r = Clamp(rating + condition, 1, 400);
+            double over = Math.Max(0, r - HardCap);
+            r = Math.Min(r, HardCap);
             if (r > SoftCap) r = SoftCap + (r - SoftCap) * OverCapWeight;
+            r += over * OverCapWeight * PastHundredWeight;
             return (r - 50) / 50.0;
         }
 

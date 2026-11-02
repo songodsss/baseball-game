@@ -98,7 +98,7 @@ public class TraitTests
         career.Me.GainExp(Stat.Power, 100000);
         Assert.True(career.Me.Ratings[Stat.Power] > 70);
         career.Me.GainExp(Stat.Power, 10_000_000);
-        Assert.Equal(CareerPlayer.MaxRating, career.Me.Ratings[Stat.Power]);
+        Assert.True(career.Me.Ratings[Stat.Power] > 99, career.Me.Ratings[Stat.Power].ToString()); // no ceiling at 99 any more
     }
 
     [Fact]

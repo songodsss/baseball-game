@@ -123,6 +123,11 @@ namespace BaseballGame
                 },
                 new Building
                 {
+                    Id = "scout", Name = "스카우트 센터", Status = $"카드 {_club.CardLevels.Count} · 장비 {_club.GearLevels.Count} · 뽑기권 {_club.DrawTickets}",
+                    Body = new Color(0.2f, 0.45f, 0.6f), Roof = new Color(0.95f, 0.85f, 0.4f), Open = () => GachaScreen.Open(_club, null, Build),
+                },
+                new Building
+                {
                     Id = "arena", Name = "결투장", Status = $"{_club.Arena.Tier} · 점수 {_club.Arena.Rating}",
                     Body = new Color(0.55f, 0.22f, 0.25f), Roof = new Color(0.85f, 0.75f, 0.5f), Open = () => ArenaScreen.Open(_club, Build),
                 },

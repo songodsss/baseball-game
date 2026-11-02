@@ -6,7 +6,7 @@ namespace BaseballSim.Career
     {
         TrainerRoom,  // 트레이너실: faster fatigue recovery
         RehabCenter,  // 재활 센터: fewer and shorter injuries
-        Conditioning, // 컨디셔닝 센터: slower decline after 32
+        Conditioning, // 컨디셔닝 센터: injuries take fewer rating points for good
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ namespace BaseballSim.Career
             {
                 case Facility.TrainerRoom: return $"매일 피로 회복 +{ExtraRecovery(level)}";
                 case Facility.RehabCenter: return $"부상 확률·기간 -{(int)(InjuryReduction(level) * 100)}%";
-                default: return $"노쇠화 -{(int)(DeclineReduction(level) * 100)}%";
+                default: return $"부상 후유증(능력치 하락) -{(int)(DeclineReduction(level) * 100)}%";
             }
         }
 

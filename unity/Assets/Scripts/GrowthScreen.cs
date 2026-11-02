@@ -985,7 +985,8 @@ namespace BaseballGame
         {
             string label = Actions.First(a => a.Action == r.Action).Label;
             var lines = new List<string> { $"<b>{r.Day + 1}일차</b> {label}" };
-            if (r.GotInjured) lines.Add($"<color=#F28C40>무리하다 부상! {Injuries.Name(r.Injury)}로 {_career.Me.InjuryDaysLeft}일 쉬어야 합니다. 복귀 후에도 한동안 {StatNames[_career.Me.RoleStat(Injuries.StatOf(r.Injury))]}이(가) 조금 떨어져요.</color>");
+            if (r.GotInjured) lines.Add($"<color=#F28C40>무리하다 부상! {Injuries.Name(r.Injury)}로 {_career.Me.InjuryDaysLeft}일 쉬어야 합니다. 복귀 후에도 한동안 {StatNames[_career.Me.RoleStat(Injuries.StatOf(r.Injury))]}이(가) 조금 떨어져요." +
+                (_career.LastInjuryLoss.Points > 0 ? $" 후유증으로 {StatNames[_career.LastInjuryLoss.Stat]} {_career.LastInjuryLoss.Points} 영구 하락." : "") + "</color>");
             foreach (var a in r.NewAchievements) lines.Add($"<color=#5FA8FF>업적 달성: {a.Name}</color>");
             if (r.ConditionStars >= 4 && !r.GotInjured)
                 lines.Add($"<color={(r.ConditionStars >= 5 ? "#FFD24D" : "#5FA8FF")}>컨디션 {CareerState.ConditionLabel(r.ConditionStars)}! 훈련 효과 +{Mathf.RoundToInt((float)(CareerState.ConditionTraining(r.ConditionStars) - 1) * 100)}%</color>");
@@ -1349,6 +1350,9 @@ namespace BaseballGame
         void ShowShop()
         {
             var card = OpenOverlay($"상점  (보유 {_career.Me.Money:N0}만원)");
+            int worn = _career.Cards.Count(id => id != null);
+            UiKit.Height(UiKit.Button(card, $"훈련 카드 장착·뽑기 ({worn}/{Gacha.CardSlots} 장착 · 구단 코인 {_club.Coins:N0})",
+                () => { CloseOverlay(); GachaScreen.Open(_club, _career, Refresh); }, new Color(0.2f, 0.45f, 0.6f)), 100);
             UiKit.Height(UiKit.Label(card, "장비", 30, TextAnchor.LowerLeft, UiKit.Muted), 40);
             foreach (EquipmentSlot slot in System.Enum.GetValues(typeof(EquipmentSlot)))
             {
@@ -2155,6 +2159,7 @@ namespace BaseballGame
                 string gear = bonus > 0 ? $"<color=#5FA8FF>+{bonus}</color>" : "";
                 bool maxed = me.Ratings[stat] >= CareerPlayer.MaxRating;
                 string special = me.Specialties.Contains(stat) ? " <size=24><color=#FFD24D>★주특기</color></size>" : "";
+                if (_career.CardBoost.TryGetValue(stat, out int cardBoost) && cardBoost > 0) special += $" <size=22><color=#C58CFF>카드+{cardBoost}%</color></size>";
                 // A rating that went up since the last refresh swells for a moment.
                 if (_shownRatings.TryGetValue(stat, out int shown) && me.Ratings[stat] > shown) UiAnim.Pulse(_ratingTexts[stat]);
                 _shownRatings[stat] = me.Ratings[stat];

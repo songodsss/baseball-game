@@ -30,7 +30,7 @@ namespace BaseballSim.Career
         /// 31: signature skills (career).
         /// 32: the arena.
         /// 33: legend stages and visits, the story's version seed; legends whose record fell on the club.
-        public const int Version = 33;
+        public const int Version = 34;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -227,6 +227,13 @@ namespace BaseballSim.Career
 
             // Added in version 33.
             WriteList(w, club.LegendsSurpassed.ToList(), w.Write);
+
+            // Added in version 34.
+            w.Write(club.DrawTickets);
+            w.Write(club.Draws);
+            WriteList(w, club.CardLevels.ToList(), kv => { w.Write(kv.Key); w.Write(kv.Value); });
+            WriteList(w, club.GearLevels.ToList(), kv => { w.Write(kv.Key); w.Write(kv.Value); });
+            WriteList(w, club.Pity.ToList(), w.Write);
         }
 
         static Club ReadClub(BinaryReader r, int version)
@@ -384,6 +391,15 @@ namespace BaseballSim.Career
             }
             if (version >= 33)
                 club.LegendsSurpassed = new HashSet<string>(ReadList(r, r.ReadString));
+            if (version >= 34)
+            {
+                club.DrawTickets = r.ReadInt32();
+                club.Draws = r.ReadInt32();
+                foreach (var (id, level) in ReadList(r, () => (r.ReadString(), r.ReadInt32()))) club.CardLevels[id] = level;
+                foreach (var (id, level) in ReadList(r, () => (r.ReadString(), r.ReadInt32()))) club.GearLevels[id] = level;
+                var pity = ReadList(r, r.ReadInt32);
+                for (int k = 0; k < pity.Count && k < club.Pity.Length; k++) club.Pity[k] = pity[k];
+            }
             return club;
         }
 
@@ -591,6 +607,9 @@ namespace BaseballSim.Career
             w.Write(career.LegendLastDay);
             w.Write(career.LegendDuoSeen);
             w.Write(career.Story.Seed);
+
+            // Added in version 34.
+            WriteList(w, career.Cards, id => w.Write(id ?? ""));
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -797,6 +816,11 @@ namespace BaseballSim.Career
             // Legends met before they came back in stages count as a first visit.
             else
                 foreach (var id in me.MetLegends) career.LegendStages[id] = LegendStage.Met;
+            if (version >= 34)
+            {
+                career.Cards = ReadList(r, () => { var id = r.ReadString(); return id.Length == 0 ? null : id; });
+                club?.RefreshCards(career);
+            }
             return career;
         }
 

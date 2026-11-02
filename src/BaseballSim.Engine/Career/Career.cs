@@ -461,8 +461,8 @@ namespace BaseballSim.Career
             var (main, side) = TrainingTargets(action);
             result.ConditionStars = ConditionStars;
             double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
-            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * VeteranGrowth(main))));
-            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult * VeteranGrowth(side))));
+            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * VeteranGrowth(main) * CardMultiplier(main))));
+            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult * VeteranGrowth(side) * CardMultiplier(side))));
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
         }
 
@@ -512,15 +512,16 @@ namespace BaseballSim.Career
         public static bool IsSavvyStat(Stat stat) => stat == Stat.Contact || stat == Stat.Eye || stat == Stat.Control || stat == Stat.Breaking;
         public static bool IsBodyStat(Stat stat) => stat == Stat.Speed || stat == Stat.Velocity || stat == Stat.Stamina || stat == Stat.Defense;
 
-        /// <summary>Body ratings start slipping at this age, a little more each year.</summary>
-        public const int DeclineAge = 35;
         /// <summary>From this age to VeteranUntil, every birthday adds one to each savvy rating (노련함).</summary>
         public const int VeteranFrom = 30, VeteranUntil = 37;
 
         /// <summary>Past 31 savvy ratings still grow at the 28~31 pace instead of slowing to a crawl.</summary>
         double VeteranGrowth(Stat stat) => Me.Age >= 32 && IsSavvyStat(stat) ? 0.7 / 0.4 : 1.0;
 
-        /// <summary>A year older: savvy ratings rise, body ratings slip from 35 (less with the conditioning room).</summary>
+        /// <summary>
+        /// A year older: savvy ratings rise from 30 to 37. Nothing falls with age any more (the owner's call,
+        /// 2026-11-02): ratings only drop from injuries, and growth just slows down late in a career.
+        /// </summary>
         void Age(SeasonSummary summary)
         {
             foreach (var stat in Me.MyStats)
@@ -531,12 +532,6 @@ namespace BaseballSim.Career
                     if (Me.Ratings[stat] > Me.PeakRatings[stat]) Me.PeakRatings[stat] = Me.Ratings[stat];
                     summary.Veteran[stat] = 1;
                 }
-                if (!IsBodyStat(stat) || Me.Age < DeclineAge) continue;
-                int drop = (int)(_random.NextDouble() * (Me.Age - DeclineAge + 2));
-                drop = (int)Math.Round(drop * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
-                int before = Me.Ratings[stat];
-                Me.Ratings[stat] = Math.Max(20, before - drop);
-                if (before != Me.Ratings[stat]) summary.Decline[stat] = before - Me.Ratings[stat];
             }
         }
 
@@ -548,8 +543,19 @@ namespace BaseballSim.Career
             return age >= 28 && Me.Traits.Contains(Traits.LateBloomer) ? growth * 1.6 : growth;
         }
 
+        /// <summary>The rating and points the latest injury took for good; for the injury message, not saved.</summary>
+        public (Stat Stat, int Points) LastInjuryLoss;
+
+        /// <summary>Training card ids in the card slots (null = empty), saved with the career.</summary>
+        public List<string> Cards = new List<string>();
+        /// <summary>Extra training exp per stat in percent from the worn cards; Club.RefreshCards fills it.</summary>
+        public Dictionary<Stat, int> CardBoost = new Dictionary<Stat, int>();
+
+        /// <summary>Training exp multiplier from worn cards for a stat (1 = no card).</summary>
+        public double CardMultiplier(Stat stat) => 1 + (CardBoost.TryGetValue(stat, out var p) ? p : 0) / 100.0;
+
         /// <summary>Puts the player out for some days (fewer with the quick-recovery trait); the injury lingers as long again.</summary>
-        internal int Injure(InjuryKind kind, int days)
+        public int Injure(InjuryKind kind, int days)
         {
             if (Me.Traits.Contains(Traits.Recovery)) days = (int)Math.Ceiling(days * 0.6);
             days = Math.Max(1, days);
@@ -557,6 +563,13 @@ namespace BaseballSim.Career
             Me.InjuryDaysLeft = days;
             Me.LingerDays = days;
             InjuredThisSeason = true;
+            // The only way a rating falls: an injury takes a point or two for good (less with the conditioning room).
+            var hurt = Me.RoleStat(Injuries.StatOf(kind));
+            int loss = (int)Math.Round(Injuries.Penalty(kind) / 3.0 * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
+            int before = Me.Ratings.TryGetValue(hurt, out var r) ? r : 0;
+            int after = before > 0 ? Math.Max(Math.Min(20, before), before - loss) : 0;
+            if (before > 0) Me.Ratings[hurt] = after;
+            LastInjuryLoss = (hurt, before - after);
             SeasonNotes.Add($"{MonthText} {Injuries.Name(kind)} ({days}일)");
             return days;
         }

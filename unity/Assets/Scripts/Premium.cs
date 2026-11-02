@@ -15,7 +15,7 @@ namespace BaseballGame
         Support,
     }
 
-    /// <summary>A paid product. None of them touch ratings, money, gear or results.</summary>
+    /// <summary>A paid product. None of them touch ratings, money or results directly; draw tickets give training cards and my team's gear.</summary>
     public class PremiumProduct
     {
         public string Id;
@@ -42,6 +42,7 @@ namespace BaseballGame
         public const string StarterPack = "starter_pack";
         public const string Tickets5 = "tickets_5";
         public const string Rewind = "season_rewind";
+        public const string Draws10 = "draw_tickets_10";
         public const string SeasonPassId = "season_pass";
         public const string SupportSmall = "support_small";
         public const string SupportBig = "support_big";
@@ -82,6 +83,11 @@ namespace BaseballGame
             {
                 Id = Rewind, Name = "시즌 되감기권", Price = 2900, Kind = ProductKind.Consumable, Where = "시즌 결과 화면",
                 Description = $"부상이나 부진으로 망한 시즌을 처음부터 다시 해요. 선수 한 명당 {BaseballSim.Career.Career.MaxRewinds}번까지.",
+            },
+            new PremiumProduct
+            {
+                Id = Draws10, Name = "뽑기권 10장", Price = 3900, Kind = ProductKind.Consumable, Where = "스카우트 센터",
+                Description = $"훈련 카드·내 팀 장비 뽑기 10회 (코인으로는 {Gacha.TenCoins:N0}코인). 확률은 코인 뽑기와 같고 SSR {Gacha.Pity}회 확정도 함께 쌓여요.",
             },
             new PremiumProduct
             {
@@ -166,6 +172,7 @@ namespace BaseballGame
                     break;
                 case Tickets5: club.Daily.RecoveryTickets += 5; break;
                 case Rewind: club.RewindTickets++; break;
+                case Draws10: club.DrawTickets += 10; break;
                 case SeasonPassId: club.Daily.Pass.Premium = true; break;
                 case SupportSmall:
                 case SupportBig: club.GrantCosmetic(Cosmetics.SupporterFrame); break;

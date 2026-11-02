@@ -97,8 +97,11 @@ namespace BaseballSim.Career
         public const double SpecialtyBoost = 1.5;
         public const int SpecialtyCount = 2;
 
-        /// <summary>Highest rating anyone can train to.</summary>
-        public const int MaxRating = 99;
+        /// <summary>
+        /// No real ceiling: ratings keep growing past 100, each point costing more exp than the last. This
+        /// number only guards against overflow; nobody trains near it.
+        /// </summary>
+        public const int MaxRating = 999;
 
         /// <summary>Left over from the old breakthrough gauge; still read and written so saves line up.</summary>
         public Dictionary<Stat, int> BreakthroughExp = new Dictionary<Stat, int>();

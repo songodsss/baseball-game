@@ -44,22 +44,24 @@ public class FacilityTests
     }
 
     [Fact]
-    public void ConditioningSlowsDecline()
+    public void NothingFallsWithAgeOnlyWithInjuries()
     {
-        int TotalDecline(int level)
+        var career = NewCareer(1);
+        career.Me.Age = 38;
+        foreach (var s in CareerPlayer.AllStats) career.Me.Ratings[s] = 70;
+        Assert.Empty(career.EndSeason().Decline);
+        Assert.All(career.Me.MyStats, s => Assert.True(career.Me.Ratings[s] >= 70));
+
+        int Loss(int level)
         {
-            int total = 0;
-            for (int seed = 1; seed <= 20; seed++)
-            {
-                var career = NewCareer(seed);
-                career.Me.Age = 35;
-                foreach (var s in CareerPlayer.AllStats) { career.Me.Ratings[s] = 70; career.Me.Potential[s] = 80; }
-                if (level > 0) career.Me.Facilities[Facility.Conditioning] = level;
-                total += career.EndSeason().Decline.Values.Sum();
-            }
-            return total;
+            var c = NewCareer(2);
+            foreach (var s in CareerPlayer.AllStats) c.Me.Ratings[s] = 70;
+            if (level > 0) c.Me.Facilities[Facility.Conditioning] = level;
+            c.Injure(InjuryKind.Hamstring, 10);
+            return c.LastInjuryLoss.Points;
         }
-        Assert.True(TotalDecline(3) < TotalDecline(0) / 2);
+        Assert.True(Loss(0) >= 1);
+        Assert.True(Loss(5) < Loss(0));
     }
 
     [Fact]
