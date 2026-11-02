@@ -65,6 +65,12 @@ namespace BaseballSim.Career
         public Dictionary<Facility, int> Facilities = new Dictionary<Facility, int>();
         /// <summary>League legends this player has met in story events, so each visits once.</summary>
         public List<string> MetLegends = new List<string>();
+        /// <summary>Story event memory: "seen:&lt;id&gt;" and follow-up marks, each set to the stamp (Season*1000+Day) it was made.</summary>
+        public Dictionary<string, int> StoryMarks = new Dictionary<string, int>();
+        /// <summary>How much the manager trusts the player, about -6..6; moved by event choices.</summary>
+        public int ManagerTrust;
+        /// <summary>Best home run derby (or radar gun) result so far; 0 = never in one.</summary>
+        public int DerbyBest;
         /// <summary>Achievement ids unlocked in this career, in the order reached.</summary>
         public List<string> Achievements = new List<string>();
         /// <summary>Clubs moved to by trade, free agency or tryout, in order. Empty means a one-club career.</summary>

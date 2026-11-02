@@ -109,6 +109,29 @@ namespace BaseballSim.Career
 
         public void Say(string text) => Outcome.Text += "\n" + text;
 
+        internal Career Career => _career;
+
+        /// <summary>True with the given chance.</summary>
+        /// <summary>Today's rating in a stat, read as this player's role (contact means control for a pitcher).</summary>
+        public int Rating(Stat stat) => Me.GameRating(Me.RoleStat(stat));
+
+        public bool Chance(double p) => _random.NextDouble() < p;
+
+        public double Roll() => _random.NextDouble();
+
+        /// <summary>Remembers something for a follow-up event later.</summary>
+        public void Mark(string key) => Me.StoryMarks[key] = _career.Stamp;
+
+        public void Unmark(string key) => Me.StoryMarks.Remove(key);
+
+        /// <summary>Changes the manager's trust; shown as 감독 신뢰 on the result card.</summary>
+        public void Trust(int delta)
+        {
+            int before = Me.ManagerTrust;
+            Me.ManagerTrust = Math.Max(-6, Math.Min(6, Me.ManagerTrust + delta));
+            if (Me.ManagerTrust != before) Outcome.Changes.Add($"감독 신뢰 {Signed(Me.ManagerTrust - before)}");
+        }
+
         public void MeetLegend(string id)
         {
             if (!Me.MetLegends.Contains(id)) Me.MetLegends.Add(id);
@@ -117,7 +140,7 @@ namespace BaseballSim.Career
         static string Signed(int v) => v >= 0 ? $"+{v:N0}" : $"{v:N0}";
     }
 
-    public static class StoryEvents
+    public static partial class StoryEvents
     {
         public static readonly List<StoryEvent> All = Build();
 
@@ -379,6 +402,7 @@ namespace BaseballSim.Career
                 },
             });
 
+            AddLifeEvents(list);
             foreach (var legend in Legends.All) list.Add(LegendVisit(legend));
             return list;
         }

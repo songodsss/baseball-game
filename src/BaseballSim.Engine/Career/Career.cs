@@ -157,6 +157,23 @@ namespace BaseballSim.Career
         /// <summary>Games in a row with at bats and no hit. Story events react to slumps.</summary>
         public int HitlessStreak;
 
+        /// <summary>Games in a row with a hit. Record-chase events react to it.</summary>
+        public int HitStreak;
+
+        /// <summary>Today as one number, for story marks: Season*1000+Day.</summary>
+        public int Stamp => Season * 1000 + Day;
+
+        /// <summary>Games played since a story mark was made, or -1 if it isn't there.</summary>
+        public int GamesSince(string mark)
+        {
+            if (!Me.StoryMarks.TryGetValue(mark, out int stamp)) return -1;
+            return (Season - stamp / 1000) * League.GamesPerSeason + Day - stamp % 1000;
+        }
+
+        public bool HasMark(string mark) => Me.StoryMarks.ContainsKey(mark);
+        public bool Seen(string eventId) => HasMark("seen:" + eventId);
+        public bool SeenThisSeason(string eventId) => Me.StoryMarks.TryGetValue("seen:" + eventId, out int stamp) && stamp / 1000 == Season;
+
         /// <summary>Missed at least one game hurt this season.</summary>
         public bool InjuredThisSeason;
 
@@ -264,7 +281,7 @@ namespace BaseballSim.Career
             if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
             {
                 var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
-                PendingEvent = MainStory.Next(this, result) ?? random;
+                PendingEvent = MainStory.Next(this, result) ?? StoryEvents.Scheduled(this, result) ?? random;
             }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
@@ -284,6 +301,7 @@ namespace BaseballSim.Career
         {
             if (PendingEvent == null) throw new InvalidOperationException("No story event to resolve.");
             var picked = PendingEvent.Choices[choice];
+            Me.StoryMarks["seen:" + PendingEvent.Id] = Stamp;
             PendingEvent = null;
             var outcome = new EventOutcome { Text = picked.Result };
             picked.Apply(new EventEffects(this, _random, outcome));
@@ -486,6 +504,7 @@ namespace BaseballSim.Career
             result.MyGamePlayer = gamePlayer;
             result.MyLine = result.MyGame.Batting.TryGetValue(gamePlayer, out var line) ? line : new BattingLine();
             if (result.MyLine.AtBats > 0) HitlessStreak = result.MyLine.Hits == 0 ? HitlessStreak + 1 : 0;
+            if (result.MyLine.AtBats > 0) HitStreak = result.MyLine.Hits == 0 ? 0 : HitStreak + 1;
             Accumulate(SeasonLine, result.MyLine);
             Me.CareerStolenBases += result.MyLine.StolenBases;
             Accumulate(StintLine, result.MyLine);
@@ -602,6 +621,7 @@ namespace BaseballSim.Career
             Day = 0;
             InjuredThisSeason = false;
             SeasonLine = new BattingLine();
+            HitStreak = 0;
             PaidMonths = 0;
             PendingBonus = 0;
             SeasonPitching = new PitcherLine();
