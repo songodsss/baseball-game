@@ -68,6 +68,8 @@ namespace BaseballGame
             SaveStore.TryLoadCareer(SaveStore.CurrentSlot, _club, _random, out _career);
             BuildUi();
             Refresh();
+            GameAudio.PlayMusic(GameAudio.MusicTraining);
+            GameAudio.PlayAmbience(null);
 
             if (_career == null) ShowNewPlayer();
             else if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
@@ -398,10 +400,23 @@ namespace BaseballGame
                 ShowEvent(result.Event);
                 Tip("event", "가끔 이벤트가 생겨요. 고르는 답에 따라 경험치, 피로, 사기가 달라져요. 사기가 높으면 경기 컨디션이 좋아져요.");
             }
+            DaySound(result);
             Save();
             Refresh();
             ShowGains(result);
             ShowTips();
+        }
+
+        /// <summary>One sound for the day's biggest news: the popup that opens, or else how the day went.</summary>
+        void DaySound(DayResult result)
+        {
+            if (_career.IsSeasonOver) GameAudio.Sfx(GameAudio.SeasonEnd);
+            else if (result.Move != null) GameAudio.Sfx(result.Move.Kind == RosterMoveKind.Demoted ? GameAudio.Lose : result.Move.Kind == RosterMoveKind.Promoted ? GameAudio.Achievement : GameAudio.Popup);
+            else if (result.Trade != null) GameAudio.Sfx(GameAudio.Popup);
+            else if (result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.NewAchievements.Count > 0)
+                GameAudio.Sfx(GameAudio.Achievement);
+            else if (result.TraitOffer != null || result.Event != null) GameAudio.Sfx(GameAudio.Event);
+            else if (result.GotInjured) GameAudio.Sfx(GameAudio.Error);
         }
 
         // ---------- Growth feedback ----------
@@ -421,6 +436,7 @@ namespace BaseballGame
         {
             var me = _career.Me;
             int shown = 0;
+            bool leveled = false;
             foreach (var stat in me.MyStats)
             {
                 if (!_before.TryGetValue(stat, out var was) || !_ratingTexts.TryGetValue(stat, out var label)) continue;
@@ -428,10 +444,15 @@ namespace BaseballGame
                 int exp = me.Exp[stat] - was.Exp;
                 string text = up > 0 ? $"▲{up}" : exp > 0 ? $"+{exp}" : null;
                 if (text == null) continue;
+                if (up > 0) leveled = true;
                 UiAnim.FloatUp(label.rectTransform, text, up > 0 ? Gold : new Color(0.55f, 0.8f, 1f), up > 0 ? 44 : 32, 0.08f * shown++);
             }
             int earned = me.Money - _moneyBefore;
             if (earned > 0) UiAnim.FloatUp(_money.rectTransform, $"+{earned:N0}만원", Gold, 32);
+            // A rating going up rings out; plain experience only ticks softly.
+            if (leveled) GameAudio.Sfx(GameAudio.LevelUp);
+            else if (shown > 0) GameAudio.Sfx(GameAudio.Exp, 0.6f, 0.05f);
+            if (earned > 0) GameAudio.Sfx(GameAudio.Coin, leveled ? 0.5f : 0.8f);
             _before.Clear();
         }
 
@@ -446,6 +467,7 @@ namespace BaseballGame
             if (result.AtBat.Pitching) { ShowPitchChoice(result); return; }
             var s = result.AtBat;
             if (s.Stealing) { ShowSteal(result); return; }
+            GameAudio.Sfx(GameAudio.Popup);
             var card = OpenOverlay("찬스 타석!");
             SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 찬스: " + result.AtBatLog.Last() : null);
             PitchMix(card, $"투수 {s.Pitcher.Name}의 승부구", s.FastballShare);
@@ -695,6 +717,7 @@ namespace BaseballGame
         void ShowChoiceResult(List<string> entries, System.Action next)
         {
             var card = OpenOverlay(_career.Me.IsPitcher ? "승부 결과" : "노림수 결과");
+            ChoiceSound(entries);
             foreach (var entry in entries)
             {
                 int open = entry.LastIndexOf('(');
@@ -708,6 +731,22 @@ namespace BaseballGame
             }
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Button(card, "계속", () => next()), 120);
+        }
+
+        /// <summary>The bat or the mitt for the big at-bat that just ended, with the crowd when it went my way.</summary>
+        void ChoiceSound(List<string> entries)
+        {
+            if (entries.Count == 0) return;
+            string last = entries[entries.Count - 1];
+            int open = last.LastIndexOf('(');
+            string note = open > 0 ? last.Substring(open) : "";
+            bool good = note.Contains("적중") || note.Contains("성공") || note.Contains("안타");
+            bool homeRun = last.Contains("홈런");
+            bool hitBall = homeRun || last.Contains("안타") || last.Contains("루타") || last.Contains("아웃") || last.Contains("플라이") || last.Contains("병살");
+            if (homeRun) GameAudio.Sfx(GameAudio.BatHomeRun);
+            else if (hitBall) GameAudio.Sfx(GameAudio.BatHit, 1f, 0.06f);
+            else GameAudio.Sfx(GameAudio.Mitt, 1f, 0.05f);
+            if (good) GameAudio.Sfx(homeRun && !_career.Me.IsPitcher ? GameAudio.CheerBig : GameAudio.CheerSmall, 0.8f);
         }
 
         // ---------- Season goals ----------
@@ -1138,11 +1177,8 @@ namespace BaseballGame
             }
 
             UiKit.Height(UiKit.Label(card, "소리", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
-            UiKit.Height(UiKit.Button(card, UiSound.Muted ? "효과음: 꺼짐" : "효과음: 켜짐", () =>
-            {
-                UiSound.Muted = !UiSound.Muted;
-                ShowSettings();
-            }, UiSound.Muted ? UiKit.Background : UiKit.Accent), 110);
+            VolumeRow(card, "배경음악", GameAudio.MusicLevel, level => GameAudio.MusicLevel = level);
+            VolumeRow(card, "효과음", GameAudio.SfxLevel, level => GameAudio.SfxLevel = level);
 
             UiKit.Height(UiKit.Label(card, "도움말", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
             UiKit.Height(UiKit.Button(card, "도움말 처음부터 다시 보기", () =>
@@ -1173,8 +1209,27 @@ namespace BaseballGame
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             UiKit.Height(UiKit.Label(card, "프로토타입 0.1 · 결제와 광고는 아직 테스트용이라 실제로 청구되지 않아요.", 24, TextAnchor.MiddleCenter, UiKit.Muted), 60);
             UiKit.Height(UiKit.Label(card, "아이콘: game-icons.net (Delapouite, Lorc, Skoll · CC BY 3.0) · 글꼴: Pretendard (SIL OFL)\n" +
-                "선수 모델: Quaternius · 잔디·흙·하늘: Poly Haven · 버튼·효과음: Kenney (모두 CC0)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 70);
+                "선수 모델: Quaternius · 잔디·흙·하늘: Poly Haven · 버튼·효과음: Kenney (모두 CC0)\n" +
+                "관중 소리: Gregor Quendel (CC BY 4.0) · 배경음악·효과음: OpenGameArt (CC0)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 100);
             UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+        }
+
+        /// <summary>One sound line in the settings: a name and the volume steps (off, quiet, normal, loud).</summary>
+        void VolumeRow(RectTransform card, string name, int current, System.Action<int> set)
+        {
+            var row = UiKit.Empty(card, name);
+            UiKit.Height(row, 100);
+            UiKit.Row(row, 12);
+            UiKit.Width(UiKit.Label(row, name, 30, TextAnchor.MiddleLeft), 170);
+            for (int i = 0; i < GameAudio.LevelNames.Length; i++)
+            {
+                int level = i;
+                UiKit.Button(row, GameAudio.LevelNames[i], () =>
+                {
+                    set(level);
+                    ShowSettings();
+                }, i == current ? UiKit.Accent : UiKit.Background);
+            }
         }
 
         void ConfirmReset()
@@ -1306,9 +1361,11 @@ namespace BaseballGame
                 {
                     if (_career.Buy(item.Id))
                     {
+                        GameAudio.Sfx(GameAudio.Coin);
                         Log($"{item.Name} 구입!");
                         Save();
                     }
+                    else GameAudio.Sfx(GameAudio.Error);
                     ShowShop();
                     Refresh();
                 }, _career.Me.Money >= item.Price ? UiKit.Accent : new Color(0.3f, 0.3f, 0.35f));
