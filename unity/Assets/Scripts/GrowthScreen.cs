@@ -56,6 +56,12 @@ namespace BaseballGame
         bool _fast;
         /// <summary>Fast skip is free in a 144-game season (it's long enough); shorter seasons need the paid unlock.</summary>
         bool CanFastSkip => Premium.Owns(Premium.FastSkip) || _career != null && _career.League.GamesPerSeason >= League.FullSeason;
+        /// <summary>
+        /// Days per fast skip: 7 with the paid unlock; the free 144-game skip goes 4 days at a time, so a
+        /// season takes about as many taps as a 36-game one.
+        /// </summary>
+        int FastSkipDays => Premium.Owns(Premium.FastSkip) ? Premium.FastSkipDays : FreeFastSkipDays;
+        const int FreeFastSkipDays = 4;
         GameObject _canvas;
         DayResult _lastDay;
         int _goalSkippedSeason;
@@ -345,12 +351,12 @@ namespace BaseballGame
         /// </summary>
         void FastForward(DailyAction action)
         {
-            for (int i = 0; i < Premium.FastSkipDays; i++)
+            for (int i = 0; i < FastSkipDays; i++)
             {
                 var result = _career.PlayDay(action);
                 if (result.AtBat != null) _club.Daily.Count(MissionKind.BigMoment);
                 while (result.AtBat != null) result = _career.ChooseApproach(Approach.Normal);
-                bool stop = i == Premium.FastSkipDays - 1 || _career.IsSeasonOver || result.Move != null || result.Trade != null ||
+                bool stop = i == FastSkipDays - 1 || _career.IsSeasonOver || result.Move != null || result.Trade != null ||
                     result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.TraitOffer != null ||
                     result.Event != null || result.GotInjured || _career.GoalOffer != null ||
                     (action != DailyAction.Rest && _career.Me.Fatigue >= 80) || !_career.TrainingChoices.Contains(action);
@@ -2062,7 +2068,7 @@ namespace BaseballGame
 
             void LengthStep(RectTransform card)
             {
-                UiKit.Height(UiKit.Label(card, "한 시즌이 1년이에요. 짧을수록 하루 성장과 보상이 커요. 144경기는 시즌 완주 코인 4배, 빠른 진행 무료. 시즌 사이에 바꿀 수 있어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 130);
+                UiKit.Height(UiKit.Label(card, "한 시즌이 1년이에요. 짧을수록 하루 성장과 보상이 커요. 144경기는 시즌 완주 코인 4배, 4일씩 빠른 진행 무료. 시즌 사이에 바꿀 수 있어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 130);
                 var row = UiKit.Empty(card, "Lengths");
                 UiKit.Height(row, 120);
                 UiKit.Row(row, 16);
@@ -2182,7 +2188,7 @@ namespace BaseballGame
             bool canFast = CanFastSkip;
             _fastButton.gameObject.SetActive(canFast);
             if (!canFast) _fast = false;
-            UiKit.SetButtonLabel(_fastButton, _fast ? $"빠른 진행 {Premium.FastSkipDays}일: 켜짐" : "빠른 진행: 꺼짐");
+            UiKit.SetButtonLabel(_fastButton, _fast ? $"빠른 진행 {FastSkipDays}일: 켜짐" : "빠른 진행: 꺼짐");
             _fastButton.GetComponent<Image>().color = _fast ? UiKit.Warning : UiKit.Card;
             _watchButton.interactable = _lastDay?.MyGame != null;
         }
