@@ -114,10 +114,10 @@ namespace BaseballGame
             SaveStore.Save(_club, _retired ? null : _career);
         }
 
-        void StartNewCareer(string name, int games, int team, Position position, int number, PitcherRole role)
+        void StartNewCareer(string name, int games, int team, Position position, int number, PitcherRole role, List<Stat> specialties)
         {
             var league = new League(new RosterGenerator(_random), games);
-            var me = CareerState.NewPlayer(name, _random, _club.PotentialBonus, position, number, role);
+            var me = CareerState.NewPlayer(name, _random, _club.StartBonus, position, number, role, specialties);
             _career = new CareerState(me, league, league.Teams[team], _random) { DecideAtBats = true };
             _career.Story.Route = MainStory.NextRoute(_club);
             _shownRatings.Clear();
@@ -299,7 +299,7 @@ namespace BaseballGame
             UiKit.Height(card, 440);
             Keep(card);
             UiKit.Column(card, 24, 8);
-            UiKit.Height(UiKit.Label(card, "<b>능력치</b>  <size=24><color=#BAC4D8>지금 / 최대(잠재력) · 막대: 다음 +1까지 경험치</color></size>", 32, TextAnchor.MiddleLeft, Gold), 48);
+            UiKit.Height(UiKit.Label(card, "<b>능력치</b>  <size=24><color=#BAC4D8>★주특기는 1.5배 성장 · 막대: 다음 +1까지 경험치</color></size>", 32, TextAnchor.MiddleLeft, Gold), 48);
             foreach (var stat in StatNames.Keys)
             {
                 var row = UiKit.Empty(card, StatNames[stat]);
@@ -800,7 +800,7 @@ namespace BaseballGame
                 UiKit.Height(pick, 150);
             }
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
-            Tip("trait", "능력치 총합이 늘 때마다 특성을 하나씩 골라요. 한계에 닿은 능력치를 계속 훈련하면 잠재력이 올라가요(한계 돌파).");
+            Tip("trait", "능력치 총합이 늘 때마다 특성을 하나씩 골라요.");
         }
 
         // ---------- Story events ----------
@@ -1021,8 +1021,6 @@ namespace BaseballGame
                 lines.Add($"<color={(up ? "#5FA8FF" : "#F28C40")}>타순 변경: {CareerState.SlotName(r.OldSlot.Value)} → {CareerState.SlotName(_career.LineupSlot)}</color>");
             }
             foreach (var m in r.Milestones) lines.Add($"<color=#FFD24D>{m} 달성!</color>");
-            foreach (var stat in r.Breakthroughs)
-                lines.Add($"<color=#F28C40>한계 돌파! {StatNames[stat]} 잠재력 +{CareerPlayer.BreakthroughGain} → {_career.Me.Potential[stat]}</color>");
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
             if (r.Tournament != null)
                 lines.Add($"<color=#FFD24D>{NationalTeam.Name}</color> 대한민국 {r.Tournament.Medal ?? "조별리그 탈락"}" + (r.Tournament.Selected ? " (국가대표 출전)" : "") +
@@ -1548,7 +1546,7 @@ namespace BaseballGame
             if (post.Bonus > 0) Line($"가을야구 보너스 {post.Bonus:N0}만원");
             Line($"나이 {_career.Me.Age}세가 되었습니다.");
             if (summary.Veteran.Count > 0)
-                Line("<color=#7CD992>노련함: " + string.Join(", ", summary.Veteran.Select(d => $"{StatNames[d.Key]} 한계 +{d.Value}")) + "</color>");
+                Line("<color=#7CD992>노련함: " + string.Join(", ", summary.Veteran.Select(d => $"{StatNames[d.Key]} +{d.Value}")) + "</color>");
             if (summary.Decline.Count > 0)
                 Line("<color=#F28C40>노쇠화: " + string.Join(", ", summary.Decline.Select(d => $"{StatNames[d.Key]} -{d.Value}")) + "</color>");
 
@@ -1757,7 +1755,7 @@ namespace BaseballGame
                 honours + "\n" +
                 $"전성기 능력치 종합 {retired.Overall}로 내 팀에 합류했습니다.\n" +
                 donation +
-                $"명예 포인트 +{retired.LegacyPoints + retired.DonationPoints} (다음 선수 잠재력 +{_club.PotentialBonus})\n" +
+                $"명예 포인트 +{retired.LegacyPoints + retired.DonationPoints} (다음 선수 시작 능력치 +{_club.StartBonus})\n" +
                 $"<color=#FFD24D>은퇴식 구단 코인 +{retired.Coins:N0}</color>\n\n" +
                 $"내 팀 선수 {_club.Roster.Count}명";
             UiKit.Height(UiKit.Label(card, text, 30, TextAnchor.UpperCenter), 0, 1);
@@ -1835,7 +1833,7 @@ namespace BaseballGame
         /// <summary>Name the next player and pick a season length. Shown on first launch and after each retirement.</summary>
         /// <summary>
         /// Registering a player, one step per screen so nothing is cramped: name and club, position,
-        /// number, season length. Choices carry over when going back and forth.
+        /// specialties, number, season length. Choices carry over when going back and forth.
         /// </summary>
         void ShowNewPlayer()
         {
@@ -1846,8 +1844,9 @@ namespace BaseballGame
             var role = PitcherRole.Starter;
             int number = 1 + (int)(_random.NextDouble() * 99);
             int games = _career != null ? _career.League.GamesPerSeason : 36;
-            const int Steps = 4;
-            string[] titles = { "이름과 입단 팀", "포지션", "등번호", "시즌 길이" };
+            var specialties = new List<Stat>();
+            const int Steps = 5;
+            string[] titles = { "이름과 입단 팀", "포지션", "주특기", "등번호", "시즌 길이" };
             int step = 0;
             Text namePlaceholder = null;
 
@@ -1859,7 +1858,8 @@ namespace BaseballGame
                 {
                     case 0: NameAndTeam(card); break;
                     case 1: PositionStep(card); break;
-                    case 2: NumberStep(card); break;
+                    case 2: SpecialtyStep(card); break;
+                    case 3: NumberStep(card); break;
                     default: LengthStep(card); break;
                 }
                 UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
@@ -1876,17 +1876,18 @@ namespace BaseballGame
                             if (namePlaceholder != null) namePlaceholder.color = UiKit.Warning;
                             return;
                         }
+                        if (step == 2 && specialties.Count < CareerPlayer.SpecialtyCount) return;
                         step++;
                         Show();
                     });
                 else
                     UiKit.Button(nav, "육성 시작", () =>
                     {
-                        StartNewCareer(name.Trim(), games, team, position, number, role);
+                        StartNewCareer(name.Trim(), games, team, position, number, role, specialties);
                         CloseOverlay();
                         _logLines.Clear();
                         Log($"{CareerState.StartYear}년, {_career.Me.Name} 선수 {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
-                        Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 잠재력(/ 뒤 숫자)까지 키울 수 있어요.");
+                        Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 한계는 없지만 높을수록 오르기 어려워요. 주특기(★)는 1.5배 빨리 자라요.");
                         Refresh();
                         CheckIn();
                     });
@@ -1896,7 +1897,7 @@ namespace BaseballGame
             {
                 string intro = first
                     ? "18세 신인을 프로 1군에 입단시켜 은퇴할 때까지 키워 보세요. 은퇴한 선수는 내 팀에 남습니다."
-                    : $"내 팀 선수 {_club.Roster.Count}명 · 명예 포인트 덕분에 새 선수 잠재력 +{_club.PotentialBonus}";
+                    : $"내 팀 선수 {_club.Roster.Count}명 · 명예 포인트 덕분에 새 선수 시작 능력치 +{_club.StartBonus}";
                 UiKit.Height(UiKit.Label(card, intro, 28, TextAnchor.MiddleLeft, UiKit.Muted), 80);
 
                 UiKit.Height(UiKit.Label(card, "선수 이름", 30, TextAnchor.LowerLeft), 50);
@@ -1996,6 +1997,41 @@ namespace BaseballGame
                 Mark();
             }
 
+            // Two ratings that grow 1.5 times as fast. Nothing about the ceiling is random, so the
+            // picks are the whole difference between one rookie and the next.
+            void SpecialtyStep(RectTransform card)
+            {
+                var stats = position == Position.Pitcher ? CareerPlayer.PitcherStats : CareerPlayer.HitterStats;
+                specialties.RemoveAll(s => !stats.Contains(s));
+                UiKit.Height(UiKit.Label(card, $"{CareerPlayer.SpecialtyCount}개를 고르세요. 주특기는 경험치를 {CareerPlayer.SpecialtyBoost:0.#}배로 받아서 빨리 자라요. 능력치에 한계는 없지만, 높을수록 오르기 어려워요. 등록하면 바꿀 수 없어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 130);
+                var list = UiKit.Empty(card, "Specialties");
+                UiKit.Height(list, stats.Length * 112);
+                UiKit.Column(list, 0, 12);
+                var buttons = new List<(Stat Stat, Button Button)>();
+                void Mark()
+                {
+                    foreach (var (s, b) in buttons)
+                    {
+                        bool on = specialties.Contains(s);
+                        b.GetComponent<Image>().color = on ? UiKit.Accent : UiKit.Background;
+                        b.GetComponentInChildren<Text>().text = (on ? "★ " : "") + StatNames[s];
+                    }
+                }
+                foreach (var stat in stats)
+                {
+                    var s = stat;
+                    var b = UiKit.Button(list, StatNames[s], () =>
+                    {
+                        if (specialties.Contains(s)) specialties.Remove(s);
+                        else if (specialties.Count < CareerPlayer.SpecialtyCount) specialties.Add(s);
+                        Mark();
+                    });
+                    UiKit.Height(b, 100);
+                    buttons.Add((s, b));
+                }
+                Mark();
+            }
+
             void NumberStep(RectTransform card)
             {
                 var big = UiKit.Label(card, "", 160, TextAnchor.MiddleCenter, TeamColor(League.DefaultTeamNames[team]));
@@ -2037,7 +2073,7 @@ namespace BaseballGame
                 var summary = UiKit.Panel(card, "Summary", UiKit.Background);
                 UiKit.Height(summary, 200);
                 UiKit.Column(summary, 20, 6);
-                UiKit.Height(UiKit.Label(summary, $"<b>{name.Trim()}</b>  #{number}  {pos}", 40, TextAnchor.MiddleLeft), 70);
+                UiKit.Height(UiKit.Label(summary, $"<b>{name.Trim()}</b>  #{number}  {pos}  <size=28><color=#BAC4D8>주특기 {string.Join("·", specialties.Select(s => StatNames[s]))}</color></size>", 40, TextAnchor.MiddleLeft), 70);
                 var club = UiKit.Label(summary, League.DefaultTeamNames[team], 32, TextAnchor.MiddleLeft, TeamColor(League.DefaultTeamNames[team]));
                 UiKit.Height(club, 60);
             }
@@ -2102,17 +2138,13 @@ namespace BaseballGame
             {
                 int bonus = me.EffectiveRating(stat) - me.Ratings[stat];
                 string gear = bonus > 0 ? $"<color=#5FA8FF>+{bonus}</color>" : "";
-                bool maxed = me.Ratings[stat] >= me.Potential[stat];
-                bool canBreak = maxed && me.BreakthroughCount(stat) < CareerPlayer.MaxBreakthroughs && me.Potential[stat] < 99;
-                string limit = canBreak ? $" <color=#F28C40>돌파 {me.BreakthroughCount(stat)}/{CareerPlayer.MaxBreakthroughs}</color>" : "";
+                bool maxed = me.Ratings[stat] >= CareerPlayer.MaxRating;
+                string special = me.Specialties.Contains(stat) ? " <size=24><color=#FFD24D>★주특기</color></size>" : "";
                 // A rating that went up since the last refresh swells for a moment.
                 if (_shownRatings.TryGetValue(stat, out int shown) && me.Ratings[stat] > shown) UiAnim.Pulse(_ratingTexts[stat]);
                 _shownRatings[stat] = me.Ratings[stat];
-                _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear} <size=24><color=#BAC4D8>/ {me.Potential[stat]}</color>{limit}</size>";
-                // At the limit the bar shows progress toward the next breakthrough instead.
-                UiKit.SetBar(_expFills[stat], canBreak
-                    ? (float)me.BreakthroughProgress(stat) / me.BreakthroughNeed(stat)
-                    : maxed ? 1f : (float)me.Exp[stat] / me.ExpToNext(stat));
+                _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear}{special}";
+                UiKit.SetBar(_expFills[stat], maxed ? 1f : (float)me.Exp[stat] / me.ExpToNext(stat));
             }
 
             var choices = _career.TrainingChoices;

@@ -27,7 +27,7 @@ namespace BaseballSim.Career
         /// 28: the my-team league.
         /// 29: hit streak, manager trust, derby best, story marks.
         /// 30: days missed hurt (comeback years).
-        public const int Version = 30;
+        public const int Version = 31;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -548,6 +548,9 @@ namespace BaseballSim.Career
             // Added in version 30.
             w.Write(career.InjuryDays);
             WriteList(w, career.Me.History, h => w.Write(h.InjuryDays));
+
+            // Added in version 31.
+            WriteList(w, career.Me.Specialties, s => w.Write((int)s));
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -740,6 +743,9 @@ namespace BaseballSim.Career
                 int k = 0;
                 ReadList(r, () => { var h = me.History[k++]; h.InjuryDays = r.ReadInt32(); return h; });
             }
+            if (version >= 31) me.Specialties = ReadList(r, () => (Stat)r.ReadInt32());
+            else me.Specialties = me.MyStats.Take(CareerPlayer.SpecialtyCount).ToList();
+            foreach (var stat in me.MyStats) me.Potential[stat] = CareerPlayer.MaxRating; // limits were dropped in v31
             return career;
         }
 

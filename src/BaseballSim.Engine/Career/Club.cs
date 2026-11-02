@@ -150,14 +150,14 @@ namespace BaseballSim.Career
             return all;
         }
 
-        /// <summary>Added to every potential of the next new player, at most +8.</summary>
-        public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
+        /// <summary>Added to every starting rating of the next new player, at most +4.</summary>
+        public int StartBonus => Math.Min(4, LegacyPoints / 400);
 
         /// <summary>
         /// Hall of Fame bar: about half of well-raised careers clear it. The score is career totals plus
         /// steady good seasons; titles, rings and All-Star votes stay out since team and rivals sway them.
         /// </summary>
-        public const int HallOfFameLine = 800;
+        public const int HallOfFameLine = 840;
         /// <summary>A season mostly in the first team at OPS .850 or better (pitchers on the same scale) earns this.</summary>
         public const int GoodSeasonPoints = 20;
         /// <summary>And at .950 or better, this much more.</summary>
@@ -186,13 +186,13 @@ namespace BaseballSim.Career
                 {
                     var p = r.Pitching;
                     total += scale * (me.Role == PitcherRole.Starter
-                        ? 0.75 * (p.Wins + p.Strikeouts / 10.0)
-                        : 0.75 * (p.Saves + p.Holds + p.Strikeouts / 10.0));
+                        ? 0.77 * (p.Wins + p.Strikeouts / 10.0)
+                        : 0.8 * (p.Saves + p.Holds + p.Strikeouts / 10.0));
                     form = Career.PitchingForm(p);
                 }
                 else
                 {
-                    total += scale * (r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0);
+                    total += scale * 0.85 * (r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0);
                     form = Career.Ops(r.Line);
                 }
                 if (!IsSteadySeason(r)) continue;

@@ -103,17 +103,16 @@ namespace BaseballGame
             var chart = chartRt.gameObject.AddComponent<RadarGraphic>();
             chart.raycastTarget = false;
             chart.Values = stats.Select(s => me.EffectiveRating(s) / 100f).ToList();
-            chart.Ceiling = stats.Select(s => me.Potential[s] / 100f).ToList();
             chart.SetVerticesDirty();
             for (int i = 0; i < stats.Count; i++)
             {
                 var s = stats[i];
-                var label = UiKit.Label(chartRt, $"{Stats.Name(s)}\n<b><size=34>{me.EffectiveRating(s)}</size></b><size=24><color=#BAC4D8>/{me.Potential[s]}</color></size>", 26, TextAnchor.MiddleCenter);
+                var label = UiKit.Label(chartRt, $"{(me.Specialties.Contains(s) ? "★" : "")}{Stats.Name(s)}\n<b><size=34>{me.EffectiveRating(s)}</size></b>", 26, TextAnchor.MiddleCenter);
                 label.rectTransform.sizeDelta = new Vector2(180, 90);
                 label.rectTransform.anchoredPosition = chart.AxisPoint(i, 1.3f);
             }
             UiAnim.PopIn(chartRt, 0.35f);
-            var legend = UiKit.Label(holder, "<color=#5FA8FF>■</color> 현재 능력치(장비 포함)   <color=#FFD24D>■</color> 잠재력", 24, TextAnchor.LowerCenter, UiKit.Muted);
+            var legend = UiKit.Label(holder, "<color=#5FA8FF>■</color> 현재 능력치(장비 포함)   ★ 주특기", 24, TextAnchor.LowerCenter, UiKit.Muted);
             UiKit.Stretch(legend.rectTransform);
         }
 

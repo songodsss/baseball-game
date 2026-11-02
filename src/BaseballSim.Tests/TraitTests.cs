@@ -92,29 +92,13 @@ public class TraitTests
     }
 
     [Fact]
-    public void TrainingPastTheLimitBreaksThrough()
+    public void TrainingNeverHitsAWall()
     {
-        var career = NewCareer(5, 50); // every stat at its potential
-        int before = career.Me.Potential[Stat.Power];
-        DayResult broke = null;
-        for (int i = 0; i < 36 && broke == null; i++)
-        {
-            career.Me.Fatigue = 0;
-            var day = career.PlayDay(DailyAction.TrainPower);
-            if (day.TraitOffer != null) career.ChooseTrait(day.TraitOffer[0].Id);
-            if (day.Breakthroughs.Contains(Stat.Power)) broke = day;
-        }
-        Assert.NotNull(broke);
-        Assert.Equal(before + CareerPlayer.BreakthroughGain, career.Me.Potential[Stat.Power]);
-        Assert.Equal(1, career.Me.BreakthroughCount(Stat.Power));
-        Assert.True(career.Me.BreakthroughNeed(Stat.Power) > 600);
-
-        // Capped.
-        career.Me.Breakthroughs[Stat.Power] = CareerPlayer.MaxBreakthroughs;
-        career.Me.Ratings[Stat.Power] = career.Me.Potential[Stat.Power];
-        int capped = career.Me.Potential[Stat.Power];
+        var career = NewCareer(5, 50);
         career.Me.GainExp(Stat.Power, 100000);
-        Assert.Equal(capped, career.Me.Potential[Stat.Power]);
+        Assert.True(career.Me.Ratings[Stat.Power] > 70);
+        career.Me.GainExp(Stat.Power, 10_000_000);
+        Assert.Equal(CareerPlayer.MaxRating, career.Me.Ratings[Stat.Power]);
     }
 
     [Fact]

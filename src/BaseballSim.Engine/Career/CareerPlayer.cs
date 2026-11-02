@@ -89,17 +89,21 @@ namespace BaseballSim.Career
         public int Number;
         /// <summary>Trait ids picked, in order.</summary>
         public List<string> Traits = new List<string>();
-        /// <summary>Exp put into a stat already at its potential; enough of it raises the potential.</summary>
+        /// <summary>
+        /// Two ratings picked at registration that grow faster. Nothing about a player's ceiling is
+        /// rolled at random, so there's no reason to start over for a better draw.
+        /// </summary>
+        public List<Stat> Specialties = new List<Stat>();
+        public const double SpecialtyBoost = 1.5;
+        public const int SpecialtyCount = 2;
+
+        /// <summary>Highest rating anyone can train to.</summary>
+        public const int MaxRating = 99;
+
+        /// <summary>Left over from the old breakthrough gauge; still read and written so saves line up.</summary>
         public Dictionary<Stat, int> BreakthroughExp = new Dictionary<Stat, int>();
         public Dictionary<Stat, int> Breakthroughs = new Dictionary<Stat, int>();
-        /// <summary>Stats whose potential went up since the last day result took them.</summary>
-        public List<Stat> NewBreakthroughs = new List<Stat>();
-
-        public const int BreakthroughGain = 3;
-        public const int MaxBreakthroughs = 4;
         public int BreakthroughCount(Stat stat) => Breakthroughs.TryGetValue(stat, out var n) ? n : 0;
-        /// <summary>Exp to break through a stat's limit: grows with each breakthrough.</summary>
-        public int BreakthroughNeed(Stat stat) => 600 + 300 * BreakthroughCount(stat);
         public int BreakthroughProgress(Stat stat) => BreakthroughExp.TryGetValue(stat, out var e) ? e : 0;
 
         public int FacilityLevel(Facility f) => Facilities.TryGetValue(f, out var level) ? level : 0;
@@ -164,52 +168,41 @@ namespace BaseballSim.Career
 
         public int EffectiveRating(Stat stat) => Math.Min(100, Ratings[stat] + EquipmentBonus(stat) + BaseballSim.Career.Traits.BoostFor(this, stat));
 
-        /// <summary>Exp needed for the next point; higher ratings cost more, and pitchers' points cost more again.</summary>
+        /// <summary>
+        /// Exp needed for the next point. There's no ceiling, but past 60 every point costs more and
+        /// more, so 90s take a whole career of focus. Pitchers' points cost more again.
+        /// </summary>
         public static int ExpToNext(int rating, bool pitcher = false) =>
-            (int)((80 + (int)(rating * 1.6) + rating * rating * 3 / 100) * (pitcher ? PitcherGrowthCost : GrowthCost));
+            (int)((80 + (int)(rating * 1.6) + rating * rating * 3 / 100)
+                * (1 + Math.Max(0, rating - SteepFrom) * Steepness)
+                * (pitcher ? PitcherGrowthCost : GrowthCost));
         public int ExpToNext(Stat stat) => ExpToNext(Ratings[stat], IsPitcher);
 
+        /// <summary>Past this rating each point costs Steepness more per point above it.</summary>
+        public const int SteepFrom = 55;
+        public const double Steepness = 0.15;
         /// <summary>
-        /// Scales every point's exp cost, so a well-raised player reaches every limit by 31 in about
-        /// 6~7 careers out of 10 instead of almost all of them. Pitchers get exp from every start and
-        /// train only four ratings, so their points cost more to keep the two careers even.
+        /// Scales every point's exp cost. Pitchers get exp from every start and train only four
+        /// ratings, so their points cost more to keep the two careers even.
         /// </summary>
-        public const double GrowthCost = 1.12, PitcherGrowthCost = 1.7;
+        public const double GrowthCost = 1.0, PitcherGrowthCost = 1.5;
 
-        /// <summary>Adds exp and converts it into rating points. Returns points gained.</summary>
+        /// <summary>Adds exp (more for a specialty) and converts it into rating points. Returns points gained.</summary>
         public int GainExp(Stat stat, int amount)
         {
-            if (Ratings[stat] >= Potential[stat])
-            {
-                BreakThrough(stat, amount);
-                return 0;
-            }
+            if (Ratings[stat] >= MaxRating || amount <= 0) return 0;
+            if (Specialties.Contains(stat)) amount = (int)Math.Round(amount * SpecialtyBoost);
             Exp[stat] += amount;
             int gained = 0;
-            while (Ratings[stat] < Potential[stat] && Exp[stat] >= ExpToNext(stat))
+            while (Ratings[stat] < MaxRating && Exp[stat] >= ExpToNext(stat))
             {
                 Exp[stat] -= ExpToNext(stat);
                 Ratings[stat]++;
                 gained++;
             }
-            if (Ratings[stat] >= Potential[stat]) Exp[stat] = 0;
+            if (Ratings[stat] >= MaxRating) Exp[stat] = 0;
             if (Ratings[stat] > PeakRatings[stat]) PeakRatings[stat] = Ratings[stat];
             return gained;
-        }
-
-        /// <summary>
-        /// Training past the limit isn't wasted: it fills a gauge, and a full gauge lifts the potential
-        /// by 3, up to four times a stat. Effort can make up for an unlucky roll.
-        /// </summary>
-        void BreakThrough(Stat stat, int amount)
-        {
-            if (BreakthroughCount(stat) >= MaxBreakthroughs || Potential[stat] >= 99 || amount <= 0) return;
-            BreakthroughExp[stat] = BreakthroughProgress(stat) + amount;
-            if (BreakthroughExp[stat] < BreakthroughNeed(stat)) return;
-            BreakthroughExp[stat] = 0;
-            Breakthroughs[stat] = BreakthroughCount(stat) + 1;
-            Potential[stat] = Math.Min(99, Potential[stat] + BreakthroughGain);
-            NewBreakthroughs.Add(stat);
         }
 
         /// <summary>Builds the match-engine player for one game: ratings plus gear, form from fatigue.</summary>

@@ -82,7 +82,7 @@ public class ReliefTests
         var career = NewReliever(4, PitcherRole.Closer);
         career.Me.Fatigue = CareerState.ReliefFatigueLimit;
         Assert.False(career.CanPitchToday);
-        var d = career.PlayDay(DailyAction.Rest);
+        var d = career.PlayDay(DailyAction.TrainControl); // a rest day would bring him back under the limit
         Assert.Null(d.MyPitching);
     }
 

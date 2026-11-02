@@ -9,7 +9,7 @@ public class SaveGameTests
     static CareerState NewCareer(IRandom random, Club club)
     {
         var league = new League(new RosterGenerator(random), 36);
-        var me = CareerState.NewPlayer("테스트", random, club.PotentialBonus);
+        var me = CareerState.NewPlayer("테스트", random, club.StartBonus);
         return new CareerState(me, league, league.Teams[3], random);
     }
 
@@ -94,7 +94,7 @@ public class SaveGameTests
         var (club, _) = MidCareer();
         var (loadedClub, loaded) = SaveGame.FromBytes(SaveGame.ToBytes(club, null), new SeededRandom(3));
         Assert.Null(loaded);
-        Assert.Equal(club.PotentialBonus, loadedClub.PotentialBonus);
+        Assert.Equal(club.StartBonus, loadedClub.StartBonus);
     }
 
     [Fact]

@@ -28,15 +28,38 @@ public class BalanceTests
     }
 
     [Fact]
-    public void StartingPotentialsStayClose()
+    public void NoRandomCeilingAndChosenSpecialties()
     {
-        var all = Enumerable.Range(0, 300)
-            .SelectMany(s => { var me = CareerState.NewPlayer("x", new SeededRandom(s)); return me.MyStats.Select(st => me.Potential[st]); })
-            .ToList();
-        double mean = all.Average();
-        double sd = System.Math.Sqrt(all.Average(p => (p - mean) * (p - mean)));
-        Assert.InRange(mean, 66, 70);
-        Assert.InRange(sd, 4.5, 7.5);
+        for (int s = 0; s < 50; s++)
+        {
+            var me = CareerState.NewPlayer("x", new SeededRandom(s), 0, Position.CenterField, 0, PitcherRole.Starter, new[] { Stat.Eye, Stat.Speed });
+            Assert.All(me.MyStats, st => Assert.InRange(me.Ratings[st], CareerState.StartRating, CareerState.StartRating + CareerState.StartSpread - 1));
+            Assert.All(me.MyStats, st => Assert.Equal(CareerPlayer.MaxRating, me.Potential[st]));
+            Assert.Equal(new[] { Stat.Eye, Stat.Speed }, me.Specialties);
+        }
+        // Missing or wrong picks fall back to the first ratings of the position.
+        var pitcher = CareerState.NewPlayer("p", new SeededRandom(1), 0, Position.Pitcher, 0, PitcherRole.Starter, new[] { Stat.Power });
+        Assert.Equal(new[] { Stat.Velocity, Stat.Control }, pitcher.Specialties);
+    }
+
+    [Fact]
+    public void SpecialtiesGrowFaster()
+    {
+        var me = CareerState.NewPlayer("x", new SeededRandom(2), 0, Position.CenterField, 0, PitcherRole.Starter, new[] { Stat.Power, Stat.Speed });
+        foreach (var st in me.MyStats) me.Ratings[st] = 50;
+        me.GainExp(Stat.Power, 20000);
+        me.GainExp(Stat.Contact, 20000);
+        Assert.True(me.Ratings[Stat.Power] > me.Ratings[Stat.Contact]);
+    }
+
+    [Fact]
+    public void OldSavesLoseTheirCeiling()
+    {
+        var career = NewCareer(6);
+        foreach (var st in career.Me.MyStats) career.Me.Potential[st] = 55;
+        var (_, loaded) = SaveGame.FromBytes(SaveGame.ToBytes(new Club(), career), new SeededRandom(1));
+        Assert.All(loaded.Me.MyStats, st => Assert.Equal(CareerPlayer.MaxRating, loaded.Me.Potential[st]));
+        Assert.Equal(career.Me.Specialties, loaded.Me.Specialties);
     }
 
     [Fact]
@@ -122,7 +145,7 @@ public class BalanceTests
         var career = NewCareer(4);
         var me = career.Me;
         me.Age = 35;
-        foreach (var stat in me.MyStats) { me.Ratings[stat] = 60; me.Potential[stat] = 70; }
+        foreach (var stat in me.MyStats) me.Ratings[stat] = 60;
         while (!career.IsSeasonOver)
         {
             var day = career.PlayDay(DailyAction.Rest);
@@ -135,7 +158,7 @@ public class BalanceTests
         Assert.DoesNotContain(Stat.Contact, summary.Decline.Keys);
         Assert.DoesNotContain(Stat.Eye, summary.Decline.Keys);
         Assert.Equal(1, summary.Veteran[Stat.Contact]);
-        Assert.Equal(71, me.Potential[Stat.Eye]);
+        Assert.True(me.Ratings[Stat.Eye] >= 61);
         Assert.All(summary.Decline.Keys, s => Assert.True(CareerState.IsBodyStat(s)));
     }
 }

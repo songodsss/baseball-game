@@ -59,8 +59,6 @@ namespace BaseballSim.Career
         public AtBatSituation AtBat;
         /// <summary>The rival's line in today's game when my club played his; null otherwise.</summary>
         public BattingLine RivalLine;
-        /// <summary>Stats whose potential went up today through training past the limit.</summary>
-        public List<Stat> Breakthroughs = new List<Stat>();
         /// <summary>A trait slot opened: pick one with ChooseTrait. Stays on offer until picked.</summary>
         public List<Trait> TraitOffer;
         /// <summary>Set when the batting order changed today: the slot I batted in before. LineupSlot is the new one.</summary>
@@ -83,7 +81,7 @@ namespace BaseballSim.Career
         public int OldSalary;
         public int NewSalary;
         public Dictionary<Stat, int> Decline = new Dictionary<Stat, int>();
-        /// <summary>Limits raised by a year's experience (노련함).</summary>
+        /// <summary>Ratings raised by a year's experience (노련함).</summary>
         public Dictionary<Stat, int> Veteran = new Dictionary<Stat, int>();
         public List<SeasonAward> Awards = new List<SeasonAward>();
         public PostseasonResult Postseason;
@@ -330,24 +328,31 @@ namespace BaseballSim.Career
         int DayWeight => League.FullSeason / League.GamesPerSeason;
         public bool MustRetire => Me.Age >= RetirementAge || Released && PendingOffers.Count == 0;
 
-        /// <summary>Creates a fresh 18-year-old with random starting ratings and potential.</summary>
-        public static CareerPlayer NewPlayer(string name, IRandom random, int potentialBonus = 0, Position position = Position.CenterField, int number = 0,
-            PitcherRole role = PitcherRole.Starter)
+        /// <summary>
+        /// Creates a fresh 18-year-old. Starting ratings vary only a little; the specialties (two of
+        /// the player's ratings, picked by the user) grow faster. Missing picks default to the first two.
+        /// startBonus (from legacy points) lifts every starting rating.
+        /// </summary>
+        public static CareerPlayer NewPlayer(string name, IRandom random, int startBonus = 0, Position position = Position.CenterField, int number = 0,
+            PitcherRole role = PitcherRole.Starter, IEnumerable<Stat> specialties = null)
         {
             var me = new CareerPlayer { Id = "me", Name = name, Age = 18, Position = position, Number = number, Role = position == Position.Pitcher ? role : PitcherRole.Starter };
             foreach (var stat in me.MyStats)
             {
-                int start = 30 + (int)(random.NextDouble() * 16);
-                // A narrow spread: the start is a small roll, breakthroughs (effort) make the real difference.
-                int potential = (int)Math.Round(Normal(random, PotentialMean, PotentialSpread)) + potentialBonus;
-                potential = Math.Max(start + 10, Math.Min(99, potential));
+                int start = StartRating + (int)(random.NextDouble() * StartSpread) + startBonus;
                 me.Ratings[stat] = start;
                 me.PeakRatings[stat] = start;
-                me.Potential[stat] = potential;
+                me.Potential[stat] = CareerPlayer.MaxRating;
                 me.Exp[stat] = 0;
             }
+            me.Specialties = (specialties ?? Enumerable.Empty<Stat>()).Where(s => me.MyStats.Contains(s)).Distinct().Take(CareerPlayer.SpecialtyCount).ToList();
+            foreach (var s in me.MyStats)
+                if (me.Specialties.Count < CareerPlayer.SpecialtyCount && !me.Specialties.Contains(s)) me.Specialties.Add(s);
             return me;
         }
+
+        /// <summary>Starting ratings: StartRating plus up to StartSpread-1.</summary>
+        public const int StartRating = 35, StartSpread = 6;
 
         public DayResult PlayDay(DailyAction action)
         {
@@ -412,8 +417,6 @@ namespace BaseballSim.Career
             }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
-            result.Breakthroughs = new List<Stat>(Me.NewBreakthroughs);
-            Me.NewBreakthroughs.Clear();
             if (PendingTraitOffer == null && Me.Traits.Count < Traits.SlotsEarned(Me))
             {
                 var offer = Traits.Offer(Me, _random);
@@ -486,9 +489,6 @@ namespace BaseballSim.Career
             }
         }
 
-        /// <summary>Starting potential: mean and spread of the roll at registration.</summary>
-        public const double PotentialMean = 68, PotentialSpread = 6;
-
         /// <summary>Growth bonus (training and game exp) in a comeback year, so one unlucky season doesn't sink a career.</summary>
         public const double ComebackGrowth = 1.3;
 
@@ -514,29 +514,28 @@ namespace BaseballSim.Career
 
         /// <summary>Body ratings start slipping at this age, a little more each year.</summary>
         public const int DeclineAge = 35;
-        /// <summary>From this age to VeteranUntil, every birthday lifts each savvy rating's limit by one (노련함).</summary>
+        /// <summary>From this age to VeteranUntil, every birthday adds one to each savvy rating (노련함).</summary>
         public const int VeteranFrom = 30, VeteranUntil = 37;
 
         /// <summary>Past 31 savvy ratings still grow at the 28~31 pace instead of slowing to a crawl.</summary>
         double VeteranGrowth(Stat stat) => Me.Age >= 32 && IsSavvyStat(stat) ? 0.7 / 0.4 : 1.0;
 
-        /// <summary>A year older: savvy limits rise, body ratings slip from 35 (less with the conditioning room).</summary>
+        /// <summary>A year older: savvy ratings rise, body ratings slip from 35 (less with the conditioning room).</summary>
         void Age(SeasonSummary summary)
         {
             foreach (var stat in Me.MyStats)
             {
-                if (IsSavvyStat(stat) && Me.Age >= VeteranFrom && Me.Age <= VeteranUntil && Me.Potential[stat] < 99)
+                if (IsSavvyStat(stat) && Me.Age >= VeteranFrom && Me.Age <= VeteranUntil && Me.Ratings[stat] < CareerPlayer.MaxRating)
                 {
-                    Me.Potential[stat]++;
+                    Me.Ratings[stat]++;
+                    if (Me.Ratings[stat] > Me.PeakRatings[stat]) Me.PeakRatings[stat] = Me.Ratings[stat];
                     summary.Veteran[stat] = 1;
                 }
                 if (!IsBodyStat(stat) || Me.Age < DeclineAge) continue;
                 int drop = (int)(_random.NextDouble() * (Me.Age - DeclineAge + 2));
                 drop = (int)Math.Round(drop * (1 - Facilities.DeclineReduction(Me.FacilityLevel(Facility.Conditioning))));
                 int before = Me.Ratings[stat];
-                // The ceiling drops too, or training would simply win the points back.
-                Me.Potential[stat] = Math.Max(20, Me.Potential[stat] - drop);
-                Me.Ratings[stat] = Math.Max(20, Math.Min(Me.Potential[stat], before - drop));
+                Me.Ratings[stat] = Math.Max(20, before - drop);
                 if (before != Me.Ratings[stat]) summary.Decline[stat] = before - Me.Ratings[stat];
             }
         }

@@ -422,7 +422,7 @@ namespace BaseballGame
 
         void ShowMyTeam()
         {
-            Section($"명예 포인트 {_club.LegacyPoints:N0}  ·  다음 선수 잠재력 +{_club.PotentialBonus}");
+            Section($"명예 포인트 {_club.LegacyPoints:N0}  ·  다음 선수 시작 능력치 +{_club.StartBonus}");
             if (_club.Roster.Count == 0)
             {
                 Note("은퇴한 선수가 내 팀에 들어와요. 내 팀으로 도전 경기를 치를 수 있어요.");

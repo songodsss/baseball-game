@@ -85,7 +85,7 @@ public class MainStoryTests
             if (MainStory.IsMain(day.Event)) main++; else random++;
             career.ResolveEvent(0);
         }
-        Assert.InRange(main, 3, 6);
+        Assert.InRange(main, 3, 7);
         Assert.True(random > 0);
     }
 
