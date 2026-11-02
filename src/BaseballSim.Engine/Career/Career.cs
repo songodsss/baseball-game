@@ -382,6 +382,11 @@ namespace BaseballSim.Career
         /// <summary>When on, my big at bats pause the game for the user to pick an approach. Off plays them straight.</summary>
         public bool DecideAtBats;
 
+        /// <summary>Seasons this career has replayed with a rewind ticket; at most MaxRewinds.</summary>
+        public int RewindsUsed;
+        public const int MaxRewinds = 3;
+        public bool CanRewind => RewindsUsed < MaxRewinds;
+
         /// <summary>A game of mine paused at a big at bat; resumed by replaying it from its seed with the answers so far.</summary>
         class MyGameState
         {

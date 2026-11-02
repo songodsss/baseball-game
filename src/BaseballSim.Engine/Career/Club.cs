@@ -24,6 +24,8 @@ namespace BaseballSim.Career
         /// <summary>Money left at retirement, given to youth baseball for legacy points.</summary>
         public int Donation;
         public int DonationPoints;
+        /// <summary>Club coins the retirement ceremony paid; shown on the farewell card, not saved.</summary>
+        public int Coins;
         public Position Position = Position.CenterField;
         /// <summary>Number worn in the career; 0 if none was picked.</summary>
         public int Number;
@@ -80,6 +82,63 @@ namespace BaseballSim.Career
         /// <summary>Legend ids and rival names met by any player of mine, for the album.</summary>
         public HashSet<string> LegendsMet = new HashSet<string>();
         public List<string> RivalsMet = new List<string>();
+
+        /// <summary>
+        /// Club coins: the account-wide currency, apart from a player's salary money. Earned by playing
+        /// (missions, check-ins, retirement ceremonies) and never sold for real money. Spent on looks,
+        /// recovery tickets and other conveniences, never on strength.
+        /// </summary>
+        public int Coins;
+        public HashSet<string> OwnedCosmetics = new HashSet<string>();
+        /// <summary>The cosmetic worn for each kind; missing = the plain default.</summary>
+        public Dictionary<CosmeticKind, string> Worn = new Dictionary<CosmeticKind, string>();
+        /// <summary>Season rewind tickets bought, used from any slot.</summary>
+        public int RewindTickets;
+
+        public const int MissionCoins = 30;
+        /// <summary>Coins for one recovery ticket.</summary>
+        public const int TicketCoins = 200;
+        /// <summary>A retirement ceremony pays this plus two coins per legacy point the career earned.</summary>
+        public const int RetirementCoins = 500;
+
+        public bool Owns(string cosmeticId) => OwnedCosmetics.Contains(cosmeticId);
+
+        /// <summary>Buys a cosmetic with coins; false if not sold for coins, owned already or too dear.</summary>
+        public bool BuyCosmetic(string id)
+        {
+            var c = Cosmetics.Find(id);
+            if (c == null || c.Coins <= 0 || c.PassOnly || Owns(id) || Coins < c.Coins) return false;
+            Coins -= c.Coins;
+            OwnedCosmetics.Add(id);
+            return true;
+        }
+
+        /// <summary>Hands over a cosmetic bought with money, earned from the pass or a support pack.</summary>
+        public void GrantCosmetic(string id)
+        {
+            if (Cosmetics.Find(id) != null) OwnedCosmetics.Add(id);
+        }
+
+        /// <summary>Wears an owned cosmetic, or takes the kind off when it is already worn.</summary>
+        public bool Wear(string id)
+        {
+            var c = Cosmetics.Find(id);
+            if (c == null || !Owns(id)) return false;
+            if (WornId(c.Kind) == id) Worn.Remove(c.Kind);
+            else Worn[c.Kind] = id;
+            return true;
+        }
+
+        public string WornId(CosmeticKind kind) => Worn.TryGetValue(kind, out var id) ? id : null;
+
+        /// <summary>Buys recovery tickets with coins.</summary>
+        public bool BuyTickets(int count)
+        {
+            if (count <= 0 || Coins < TicketCoins * count) return false;
+            Coins -= TicketCoins * count;
+            Daily.RecoveryTickets += count;
+            return true;
+        }
 
         /// <summary>Legends met so far, counting the career in progress.</summary>
         public HashSet<string> AllLegendsMet(Career career)
@@ -155,6 +214,8 @@ namespace BaseballSim.Career
             retired.Route = career.Story.Route;
             Roster.Add(retired);
             LegacyPoints += retired.LegacyPoints + retired.DonationPoints;
+            retired.Coins = RetirementCoins + 2 * retired.LegacyPoints;
+            Coins += retired.Coins;
             return retired;
         }
     }

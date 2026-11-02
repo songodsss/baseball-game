@@ -20,7 +20,7 @@ namespace BaseballSim.Career
 
         public bool Done => Progress >= Goal;
         public string Text => DailyMissions.Describe(Kind, Goal);
-        public string RewardText => DailyMissions.DescribeReward(Reward, Amount);
+        public string RewardText => DailyMissions.DescribeReward(Reward, Amount) + $" + 코인 {Club.MissionCoins}";
     }
 
     /// <summary>
@@ -42,6 +42,13 @@ namespace BaseballSim.Career
         public int Streak;
         public int TotalCheckIns;
         public int RecoveryTickets;
+        /// <summary>Tickets used on Date; at most MaxTicketsPerDay, however many are held.</summary>
+        public int TicketsUsedToday;
+        public const int MaxTicketsPerDay = 5;
+        public int TicketsLeftToday => Math.Max(0, MaxTicketsPerDay - TicketsUsedToday);
+
+        /// <summary>Club coins for the check-in on a day of the week cycle (1-7): 20, 30, ... 80.</summary>
+        public static int CheckInCoins(int streak) => 20 + 10 * ((streak - 1) % 7);
 
         static readonly (RewardKind Kind, int Amount)[] CheckInRewards =
         {
@@ -59,6 +66,7 @@ namespace BaseballSim.Career
             if (Date == today) return false;
             Date = today;
             Today = Generate(today);
+            TicketsUsedToday = 0;
             return true;
         }
 
@@ -77,6 +85,7 @@ namespace BaseballSim.Career
             TotalCheckIns++;
             var reward = CheckInReward(Streak);
             Give(reward.Kind, reward.Amount, club, career);
+            club.Coins += CheckInCoins(Streak);
             return reward;
         }
 
@@ -108,14 +117,16 @@ namespace BaseballSim.Career
             // Money needs a player to hold it; between careers it turns into legacy points.
             if (m.Reward == RewardKind.Money && career == null) Give(RewardKind.Legacy, Math.Max(1, m.Amount / 100), club, null);
             else Give(m.Reward, m.Amount, club, career);
+            club.Coins += Club.MissionCoins;
             m.Claimed = true;
             return true;
         }
 
         public bool UseTicket(Career career)
         {
-            if (RecoveryTickets <= 0 || career == null || career.Me.Fatigue == 0) return false;
+            if (RecoveryTickets <= 0 || TicketsLeftToday <= 0 || career == null || career.Me.Fatigue == 0) return false;
             RecoveryTickets--;
+            TicketsUsedToday++;
             career.RecoverFatigue(TicketRecovery);
             return true;
         }
