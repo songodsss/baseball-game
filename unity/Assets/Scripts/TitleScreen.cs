@@ -72,7 +72,7 @@ namespace BaseballGame
             TopBar();
 
             // The town: a scrolling patch of ground with the buildings on it.
-            var ground = UiKit.Panel(_root, "Town", new Color(0.16f, 0.32f, 0.2f, 0.85f));
+            var ground = UiKit.Panel(_root, "Town", new Color(0.2f, 0.3f, 0.24f, 0.9f));
             UiKit.Height(ground, 0, 1);
             UiKit.Column(ground, 16, 0);
             var town = UiKit.ScrollList(ground, 26);
@@ -134,39 +134,81 @@ namespace BaseballGame
             return row;
         }
 
-        static readonly Color RoadEdge = new Color(0.44f, 0.36f, 0.26f, 0.95f);
-        static readonly Color RoadFill = new Color(0.72f, 0.6f, 0.42f, 0.95f);
+        static readonly Color Sidewalk = new Color(0.74f, 0.74f, 0.72f, 1f);
+        static readonly Color Asphalt = new Color(0.23f, 0.25f, 0.29f, 1f);
+        static readonly Color Paint = new Color(0.95f, 0.95f, 0.9f, 0.9f);
+        const float RoadWidth = 84, Curb = 14, RowGap = 26; // RowGap = the town's row spacing
 
         /// <summary>
-        /// Dirt roads behind a row of buildings: one down the middle of the town that runs on into
-        /// the next row, and one across the row at the buildings' feet so each door meets it.
-        /// Added before the tiles so the buildings stand on top.
+        /// City streets behind a row of buildings: an avenue down the middle of the town that runs on
+        /// into the next row, and a street across the row at the buildings' feet. Each has sidewalks,
+        /// lane paint and people walking; the cross streets get a car and crosswalks. Added before the
+        /// tiles so the buildings stand in front.
         /// </summary>
         static void Roads(RectTransform row, bool crossRoad, bool last)
         {
-            const float width = 46, edge = 6, gap = 26; // gap = the town's row spacing
-            // Down the middle: from the row's top (or from the big building's feet) to the next row.
-            RoadPiece(row, "RoadDown", new Vector2(0.5f, 0f), new Vector2(0.5f, crossRoad ? 1f : 0.25f),
-                new Vector2(-width / 2, last ? 0.29f * 420 : -gap), new Vector2(width / 2, 0), edge);
-            if (crossRoad)
-                RoadPiece(row, "RoadAcross", new Vector2(0.04f, 0.29f), new Vector2(0.96f, 0.29f),
-                    new Vector2(0, -width / 2), new Vector2(0, width / 2), edge);
+            float h = 420;
+            var down = Street(row, "RoadDown", vertical: true, new Vector2(0.5f, 0f), new Vector2(0.5f, crossRoad ? 1f : 0.25f),
+                new Vector2(-RoadWidth / 2, last ? 0.29f * h - RoadWidth / 2 : -RowGap), new Vector2(RoadWidth / 2, 0));
+            Townsfolk.Walker(down, vertical: true, lateral: RoadWidth / 2 - Curb / 2, seed: row.GetSiblingIndex() * 7 + 1);
+            if (!crossRoad) return;
+
+            var across = Street(row, "RoadAcross", vertical: false, new Vector2(0f, 0.29f), new Vector2(1f, 0.29f),
+                new Vector2(0, -RoadWidth / 2), new Vector2(0, RoadWidth / 2));
+            Crosswalk(across, 0.38f);
+            Crosswalk(across, 0.62f);
+            int seed = row.GetSiblingIndex() * 13;
+            Townsfolk.Walker(across, vertical: false, lateral: RoadWidth / 2 - Curb / 2, seed: seed + 2);
+            Townsfolk.Walker(across, vertical: false, lateral: -(RoadWidth / 2 - Curb / 2), seed: seed + 3);
+            Townsfolk.Walker(across, vertical: false, lateral: RoadWidth / 2 - Curb / 2, seed: seed + 4);
+            Townsfolk.Car(across, lateral: (RoadWidth / 2 - Curb) / 2, seed: seed + 5);
         }
 
-        static void RoadPiece(RectTransform row, string name, Vector2 min, Vector2 max, Vector2 offMin, Vector2 offMax, float edge)
+        static RectTransform Street(RectTransform row, string name, bool vertical, Vector2 min, Vector2 max, Vector2 offMin, Vector2 offMax)
         {
-            var outer = UiKit.Panel(row, name, RoadEdge);
-            outer.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
-            outer.anchorMin = min;
-            outer.anchorMax = max;
-            outer.offsetMin = offMin;
-            outer.offsetMax = offMax;
-            outer.GetComponent<Image>().raycastTarget = false;
-            var inner = UiKit.Panel(outer, "Fill", RoadFill);
-            UiKit.Stretch(inner);
-            inner.offsetMin = new Vector2(edge, edge);
-            inner.offsetMax = new Vector2(-edge, -edge);
-            inner.GetComponent<Image>().raycastTarget = false;
+            var walk = UiKit.Panel(row, name, Sidewalk, rounded: false);
+            walk.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            walk.anchorMin = min;
+            walk.anchorMax = max;
+            walk.offsetMin = offMin;
+            walk.offsetMax = offMax;
+            walk.GetComponent<Image>().raycastTarget = false;
+
+            var road = UiKit.Panel(walk, "Asphalt", Asphalt, rounded: false);
+            UiKit.Stretch(road);
+            road.offsetMin = vertical ? new Vector2(Curb, 0) : new Vector2(0, Curb);
+            road.offsetMax = vertical ? new Vector2(-Curb, 0) : new Vector2(0, -Curb);
+            road.GetComponent<Image>().raycastTarget = false;
+
+            // Dashed centre line.
+            int dashes = vertical ? 6 : 16;
+            for (int i = 0; i < dashes; i++)
+            {
+                var dash = UiKit.Panel(road, "Dash", Paint, rounded: false);
+                dash.GetComponent<Image>().raycastTarget = false;
+                float f0 = (i + 0.2f) / dashes, f1 = (i + 0.7f) / dashes;
+                dash.anchorMin = vertical ? new Vector2(0.5f, f0) : new Vector2(f0, 0.5f);
+                dash.anchorMax = vertical ? new Vector2(0.5f, f1) : new Vector2(f1, 0.5f);
+                dash.offsetMin = vertical ? new Vector2(-2, 0) : new Vector2(0, -2);
+                dash.offsetMax = vertical ? new Vector2(2, 0) : new Vector2(0, 2);
+            }
+            return road;
+        }
+
+        /// <summary>Zebra stripes across a street at a point along it.</summary>
+        static void Crosswalk(RectTransform road, float at)
+        {
+            const int stripes = 5;
+            for (int i = 0; i < stripes; i++)
+            {
+                var stripe = UiKit.Panel(road, "Zebra", Paint, rounded: false);
+                stripe.GetComponent<Image>().raycastTarget = false;
+                float y0 = (i + 0.15f) / stripes, y1 = (i + 0.75f) / stripes;
+                stripe.anchorMin = new Vector2(at, y0);
+                stripe.anchorMax = new Vector2(at, y1);
+                stripe.offsetMin = new Vector2(-18, 0);
+                stripe.offsetMax = new Vector2(18, 0);
+            }
         }
 
         // ---------- Home pieces ----------
