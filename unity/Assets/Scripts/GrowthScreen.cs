@@ -1123,41 +1123,8 @@ namespace BaseballGame
 
         void ShowMissions()
         {
-            var daily = _club.Daily;
-            daily.Refresh(Today);
-            var card = OpenOverlay("오늘의 미션");
-            UiKit.Height(UiKit.Label(card, "매일 자정에 새 미션 3개가 나와요. 다 하면 보상을 받으세요.\n모든 슬롯이 함께 써요.", 28, TextAnchor.MiddleCenter, UiKit.Muted), 100);
-            for (int i = 0; i < daily.Today.Count; i++)
-            {
-                int index = i;
-                var m = daily.Today[i];
-                var row = UiKit.Panel(card, "Mission", UiKit.Shade(UiKit.Card, 1.3f));
-                UiKit.Height(row, 170);
-                var layout = UiKit.Row(row, 16);
-                layout.padding = new RectOffset(24, 24, 16, 16);
-                layout.childForceExpandWidth = false;
-                var info = UiKit.Empty(row, "Info");
-                UiKit.Width(info, 0, 1);
-                UiKit.Column(info, 0, 6);
-                UiKit.Height(UiKit.Label(info, $"<b>{m.Text}</b>", 30), 50);
-                UiKit.Height(UiKit.Label(info, $"보상 {m.RewardText}  ·  {m.Progress}/{m.Goal}", 26, TextAnchor.MiddleLeft, UiKit.Muted), 40);
-                var bar = UiKit.Bar(info, m.Done ? new Color(0.2f, 0.75f, 0.45f) : UiKit.Accent);
-                UiKit.Height(bar.parent, 22);
-                UiKit.SetBar(bar, (float)m.Progress / m.Goal);
-                var claim = UiKit.Button(row, m.Claimed ? "받음" : m.Done ? "받기" : "진행 중", () =>
-                {
-                    if (!daily.Claim(index, _club, _career)) return;
-                    Log($"<color=#5FA8FF>미션 보상</color> {m.RewardText}");
-                    Save();
-                    Refresh();
-                    ShowMissions();
-                }, m.Done && !m.Claimed ? new Color(0.2f, 0.75f, 0.45f) : UiKit.Background);
-                claim.interactable = m.Done && !m.Claimed;
-                UiKit.Width(claim, 200);
-            }
-            UiKit.Height(UiKit.Label(card, $"출석 {daily.Streak}일 연속 · 피로 회복권 {daily.RecoveryTickets}장", 28, TextAnchor.MiddleCenter, UiKit.Muted), 70);
-            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
-            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+            CloseOverlay();
+            ChallengeScreen.Open(_club, _career, () => { Save(); Refresh(); });
         }
 
         void UseRecoveryTicket()
@@ -2163,7 +2130,7 @@ namespace BaseballGame
             int ticketsLeft = _club.Daily.TicketsLeftToday;
             UiKit.SetButtonLabel(_ticketButton, tickets == 0 ? "회복권 사기" : ticketsLeft == 0 ? "회복권 (오늘 끝)" : $"회복권 {tickets}장");
             _ticketButton.interactable = tickets == 0 || (ticketsLeft > 0 && me.Fatigue > 0);
-            int unclaimed = _club.Daily.Unclaimed;
+            int unclaimed = ChallengeScreen.Ready(_club, true);
             UiKit.SetButtonLabel(_missionButton, unclaimed > 0 ? $"미션 <color=#FFD24D>●{unclaimed}</color>" : "미션");
             bool canFast = Premium.Owns(Premium.FastSkip);
             _fastButton.gameObject.SetActive(canFast);

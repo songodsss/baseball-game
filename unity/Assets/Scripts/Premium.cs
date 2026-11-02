@@ -42,6 +42,7 @@ namespace BaseballGame
         public const string StarterPack = "starter_pack";
         public const string Tickets5 = "tickets_5";
         public const string Rewind = "season_rewind";
+        public const string SeasonPassId = "season_pass";
         public const string SupportSmall = "support_small";
         public const string SupportBig = "support_big";
         public const string CosmeticPrefix = "cos_";
@@ -84,6 +85,11 @@ namespace BaseballGame
             },
             new PremiumProduct
             {
+                Id = SeasonPassId, Name = "시즌 패스 (30일)", Price = 7900, Kind = ProductKind.Consumable, Where = "클럽하우스",
+                Description = "이번 패스 시즌 동안 유료 보상 줄이 열려요: 코인, 회복권, 패스 전용 꾸미기 3종.",
+            },
+            new PremiumProduct
+            {
                 Id = SupportSmall, Name = "응원 팩", Price = 1200, Kind = ProductKind.Support, Where = "야구 박물관",
                 Description = "개발 응원! 후원자 카드 테두리를 드려요.",
             },
@@ -113,11 +119,12 @@ namespace BaseballGame
         public static bool StarterPackAvailable =>
             !Owns(StarterPack) && !(Owns(RemoveAds) && Owns(ExtraSlots) && Owns(FastSkip));
 
-        public static bool CanBuy(string id)
+        public static bool CanBuy(string id, Club club = null)
         {
             var p = Find(id);
             if (p == null) return false;
             if (id == StarterPack) return StarterPackAvailable;
+            if (id == SeasonPassId) return club != null && !club.Daily.Pass.Premium;
             return p.Kind != ProductKind.Permanent || !Owns(id);
         }
 
@@ -127,7 +134,7 @@ namespace BaseballGame
         /// </summary>
         public static void Buy(string id, Club club, System.Action<bool> onDone)
         {
-            if (!CanBuy(id)) { onDone(false); return; }
+            if (!CanBuy(id, club)) { onDone(false); return; }
             Monetization.Store.Buy(id, bought =>
             {
                 if (bought) Grant(id, club);
@@ -159,6 +166,7 @@ namespace BaseballGame
                     break;
                 case Tickets5: club.Daily.RecoveryTickets += 5; break;
                 case Rewind: club.RewindTickets++; break;
+                case SeasonPassId: club.Daily.Pass.Premium = true; break;
                 case SupportSmall:
                 case SupportBig: club.GrantCosmetic(Cosmetics.SupporterFrame); break;
                 default: Remember(id); break;

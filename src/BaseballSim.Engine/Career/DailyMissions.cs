@@ -5,9 +5,9 @@ using System.Linq;
 
 namespace BaseballSim.Career
 {
-    public enum MissionKind { Train, Games, Performance, Rest, BigMoment, WatchGame }
+    public enum MissionKind { Train, Games, Performance, Rest, BigMoment, WatchGame, DailyDone }
 
-    public enum RewardKind { Money, RecoveryTicket, Legacy }
+    public enum RewardKind { Money, RecoveryTicket, Legacy, Coins }
 
     public class Mission
     {
@@ -15,12 +15,14 @@ namespace BaseballSim.Career
         public int Goal;
         public int Progress;
         public bool Claimed;
+        /// <summary>A weekly challenge: no extra mission coins, its reward is the coins.</summary>
+        public bool Weekly;
         public RewardKind Reward;
         public int Amount;
 
         public bool Done => Progress >= Goal;
         public string Text => DailyMissions.Describe(Kind, Goal);
-        public string RewardText => DailyMissions.DescribeReward(Reward, Amount) + $" + 코인 {Club.MissionCoins}";
+        public string RewardText => DailyMissions.DescribeReward(Reward, Amount) + (Weekly ? "" : $" + 코인 {Club.MissionCoins}");
     }
 
     /// <summary>
@@ -50,6 +52,22 @@ namespace BaseballSim.Career
         /// <summary>Club coins for the check-in on a day of the week cycle (1-7): 20, 30, ... 80.</summary>
         public static int CheckInCoins(int streak) => 20 + 10 * ((streak - 1) % 7);
 
+        /// <summary>This week's challenges (weeks start on Monday), shared by every slot like the dailies.</summary>
+        public string WeekKey = "";
+        public List<Mission> Week = new List<Mission>();
+        public const int PerWeek = 4;
+
+        /// <summary>The 30-day season pass, fed by missions, check-ins and weekly challenges.</summary>
+        public SeasonPass Pass = new SeasonPass();
+
+        /// <summary>The Monday of a date's week, as yyyy-MM-dd.</summary>
+        public static string WeekOf(string date)
+        {
+            var day = DateTime.ParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+            int back = ((int)day.DayOfWeek + 6) % 7;
+            return DateOf(day.AddDays(-back));
+        }
+
         static readonly (RewardKind Kind, int Amount)[] CheckInRewards =
         {
             (RewardKind.Money, 500), (RewardKind.RecoveryTicket, 1), (RewardKind.Money, 1000), (RewardKind.RecoveryTicket, 2),
@@ -63,6 +81,12 @@ namespace BaseballSim.Career
         /// <summary>Starts a new day's missions when the date has changed. True if it did.</summary>
         public bool Refresh(string today)
         {
+            if (WeekOf(today) != WeekKey)
+            {
+                WeekKey = WeekOf(today);
+                Week = GenerateWeek(WeekKey);
+            }
+            Pass.Refresh(today);
             if (Date == today) return false;
             Date = today;
             Today = Generate(today);
@@ -86,6 +110,8 @@ namespace BaseballSim.Career
             var reward = CheckInReward(Streak);
             Give(reward.Kind, reward.Amount, club, career);
             club.Coins += CheckInCoins(Streak);
+            Pass.Refresh(today);
+            Pass.Add(SeasonPass.CheckInPoints);
             return reward;
         }
 
@@ -104,7 +130,7 @@ namespace BaseballSim.Career
 
         public void Count(MissionKind kind, int amount = 1)
         {
-            foreach (var m in Today)
+            foreach (var m in Today.Concat(Week))
                 if (m.Kind == kind && !m.Claimed) m.Progress = Math.Min(m.Goal, m.Progress + amount);
         }
 
@@ -119,8 +145,24 @@ namespace BaseballSim.Career
             else Give(m.Reward, m.Amount, club, career);
             club.Coins += Club.MissionCoins;
             m.Claimed = true;
+            Pass.Add(SeasonPass.MissionPoints);
+            Count(MissionKind.DailyDone);
             return true;
         }
+
+        /// <summary>Collects a finished weekly challenge: its reward plus pass points.</summary>
+        public bool ClaimWeekly(int index, Club club, Career career)
+        {
+            if (index < 0 || index >= Week.Count) return false;
+            var m = Week[index];
+            if (!m.Done || m.Claimed) return false;
+            Give(m.Reward, m.Amount, club, career);
+            m.Claimed = true;
+            Pass.Add(SeasonPass.WeeklyPoints);
+            return true;
+        }
+
+        public int UnclaimedWeekly => Week.Count(m => m.Done && !m.Claimed);
 
         public bool UseTicket(Career career)
         {
@@ -142,6 +184,7 @@ namespace BaseballSim.Career
                     else club.LegacyPoints += Math.Max(1, amount / 100);
                     break;
                 case RewardKind.RecoveryTicket: RecoveryTickets += amount; break;
+                case RewardKind.Coins: club.Coins += amount; break;
                 default: club.LegacyPoints += amount; break;
             }
         }
@@ -158,6 +201,27 @@ namespace BaseballSim.Career
             (MissionKind.BigMoment, 1, RewardKind.Money, 1500),
             (MissionKind.WatchGame, 1, RewardKind.RecoveryTicket, 1),
         };
+
+        static readonly (MissionKind Kind, int Goal, RewardKind Reward, int Amount)[] WeekPool =
+        {
+            (MissionKind.Train, 40, RewardKind.Coins, 200),
+            (MissionKind.Games, 20, RewardKind.Coins, 200),
+            (MissionKind.Performance, 40, RewardKind.Coins, 250),
+            (MissionKind.Rest, 10, RewardKind.RecoveryTicket, 2),
+            (MissionKind.BigMoment, 5, RewardKind.Coins, 200),
+            (MissionKind.WatchGame, 3, RewardKind.RecoveryTicket, 1),
+            (MissionKind.DailyDone, 12, RewardKind.Coins, 300),
+        };
+
+        /// <summary>Four challenges of different kinds for a week, the same for everyone.</summary>
+        public static List<Mission> GenerateWeek(string weekKey)
+        {
+            int seed = weekKey.Aggregate(31, (h, ch) => unchecked(h * 37 + ch));
+            var random = new Random(seed);
+            return WeekPool.OrderBy(_ => random.Next()).Take(PerWeek)
+                .Select(p => new Mission { Kind = p.Kind, Goal = p.Goal, Reward = p.Reward, Amount = p.Amount, Weekly = true })
+                .ToList();
+        }
 
         /// <summary>Three missions of different kinds, the same for everyone on a given date.</summary>
         public static List<Mission> Generate(string date)
@@ -182,8 +246,9 @@ namespace BaseballSim.Career
                 case MissionKind.Games: return $"경기 {goal}번 나가기";
                 case MissionKind.Performance: return $"안타 또는 탈삼진 {goal}개";
                 case MissionKind.Rest: return $"휴식 {goal}번 하기";
-                case MissionKind.BigMoment: return "찬스 타석이나 위기 승부 한 번 맞이하기";
-                default: return "오늘 경기 직접 보기";
+                case MissionKind.BigMoment: return goal == 1 ? "찬스 타석이나 위기 승부 한 번 맞이하기" : $"찬스 타석이나 위기 승부 {goal}번 맞이하기";
+                case MissionKind.DailyDone: return $"오늘의 미션 {goal}개 완료하기";
+                default: return goal == 1 ? "오늘 경기 직접 보기" : $"경기 직접 보기 {goal}번";
             }
         }
 
@@ -193,6 +258,7 @@ namespace BaseballSim.Career
             {
                 case RewardKind.Money: return $"{amount:N0}만원";
                 case RewardKind.RecoveryTicket: return $"피로 회복권 {amount}장";
+                case RewardKind.Coins: return $"코인 {amount}";
                 default: return $"명예 포인트 {amount}";
             }
         }
