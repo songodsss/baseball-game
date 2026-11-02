@@ -153,13 +153,57 @@ namespace BaseballSim.Career
         /// <summary>Added to every potential of the next new player, at most +8.</summary>
         public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
 
-        public const int HallOfFameLine = 650;
+        /// <summary>
+        /// Hall of Fame bar: about half of well-raised careers clear it. The score is career totals plus
+        /// steady good seasons; titles, rings and All-Star votes stay out since team and rivals sway them.
+        /// </summary>
+        public const int HallOfFameLine = 770;
+        /// <summary>A season mostly in the first team at OPS .850 or better (pitchers on the same scale) earns this.</summary>
+        public const int GoodSeasonPoints = 20;
+        /// <summary>And at .950 or better, this much more.</summary>
+        public const int GreatSeasonPoints = 10;
+        public const double GoodSeasonForm = 0.850, GreatSeasonForm = 0.950;
         const int HallOfFamePoints = 100;
         /// <summary>만원 of leftover money per legacy point when donated at retirement.</summary>
         public const int DonationPerPoint = 10000;
 
         /// <summary>Achievement ids any retired player of mine ever reached.</summary>
         public HashSet<string> Collection => new HashSet<string>(Roster.SelectMany(p => p.Achievements));
+
+        /// <summary>
+        /// Career totals scaled to full seasons (hits and homers, a starter's wins and strikeouts, a
+        /// reliever's saves, holds and strikeouts; weighted so each kind of career scores alike) plus
+        /// points for every good and great season, so a long steady career counts more than one hot year.
+        /// </summary>
+        public static int HallOfFameScore(CareerPlayer me)
+        {
+            double total = 0;
+            foreach (var r in me.History)
+            {
+                double scale = (double)League.FullSeason / Math.Max(1, r.Games);
+                double form;
+                if (r.Pitching != null)
+                {
+                    var p = r.Pitching;
+                    total += scale * (me.Role == PitcherRole.Starter
+                        ? 0.75 * (p.Wins + p.Strikeouts / 10.0)
+                        : 0.75 * (p.Saves + p.Holds + p.Strikeouts / 10.0));
+                    form = Career.PitchingForm(p);
+                }
+                else
+                {
+                    total += scale * (r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0);
+                    form = Career.Ops(r.Line);
+                }
+                if (!IsSteadySeason(r)) continue;
+                if (form >= GoodSeasonForm) total += GoodSeasonPoints;
+                if (form >= GreatSeasonForm) total += GreatSeasonPoints;
+            }
+            return (int)total;
+        }
+
+        /// <summary>A season that can count as good: not in the army and at most half of it in 2군.</summary>
+        static bool IsSteadySeason(SeasonRecord r) => !r.Military && r.FarmDays * 2 < r.Games;
 
         public RetiredPlayer Retire(Career career)
         {
@@ -192,10 +236,8 @@ namespace BaseballSim.Career
                 ? r.Pitching.Wins + r.Pitching.Saves * 0.6 + r.Pitching.Holds * 0.4 + r.Pitching.Strikeouts / 10.0
                 : r.Line.Hits / 10.0 + r.Line.HomeRuns / 2.0) * League.FullSeason / r.Games;
             retired.LegacyPoints = (int)me.History.Sum(r => Worth(r) + 5);
-            int titles = retired.Titles.Count(t => t != Postseason.ChampionTitle);
-            int rings = retired.Titles.Count(t => t == Postseason.ChampionTitle);
             retired.AllStars = me.AllStarSelections;
-            retired.HallOfFameScore = (int)(me.History.Sum(Worth) + 20 * titles + 10 * rings + 10 * retired.AllStars);
+            retired.HallOfFameScore = HallOfFameScore(me);
             retired.HallOfFame = retired.HallOfFameScore >= HallOfFameLine;
             if (retired.HallOfFame)
             {

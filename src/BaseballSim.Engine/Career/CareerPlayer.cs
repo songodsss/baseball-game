@@ -18,6 +18,8 @@ namespace BaseballSim.Career
         /// <summary>My titles this season, e.g. "홈런왕", and the championship if won.</summary>
         public List<string> Titles = new List<string>();
         public bool InjuryFree;
+        /// <summary>Days missed hurt; a big injury earns a comeback year next season.</summary>
+        public int InjuryDays;
         /// <summary>Club played for this season; null in saves from before free agency.</summary>
         public string Club;
         /// <summary>Moves this season: "5월 2군 강등", trades, a release.</summary>
@@ -162,8 +164,17 @@ namespace BaseballSim.Career
 
         public int EffectiveRating(Stat stat) => Math.Min(100, Ratings[stat] + EquipmentBonus(stat) + BaseballSim.Career.Traits.BoostFor(this, stat));
 
-        /// <summary>Exp needed for the next point; higher ratings cost more.</summary>
-        public static int ExpToNext(int rating) => 80 + (int)(rating * 1.6) + rating * rating * 3 / 100;
+        /// <summary>Exp needed for the next point; higher ratings cost more, and pitchers' points cost more again.</summary>
+        public static int ExpToNext(int rating, bool pitcher = false) =>
+            (int)((80 + (int)(rating * 1.6) + rating * rating * 3 / 100) * (pitcher ? PitcherGrowthCost : GrowthCost));
+        public int ExpToNext(Stat stat) => ExpToNext(Ratings[stat], IsPitcher);
+
+        /// <summary>
+        /// Scales every point's exp cost, so a well-raised player reaches every limit by 31 in about
+        /// 6~7 careers out of 10 instead of almost all of them. Pitchers get exp from every start and
+        /// train only four ratings, so their points cost more to keep the two careers even.
+        /// </summary>
+        public const double GrowthCost = 1.12, PitcherGrowthCost = 1.7;
 
         /// <summary>Adds exp and converts it into rating points. Returns points gained.</summary>
         public int GainExp(Stat stat, int amount)
@@ -175,9 +186,9 @@ namespace BaseballSim.Career
             }
             Exp[stat] += amount;
             int gained = 0;
-            while (Ratings[stat] < Potential[stat] && Exp[stat] >= ExpToNext(Ratings[stat]))
+            while (Ratings[stat] < Potential[stat] && Exp[stat] >= ExpToNext(stat))
             {
-                Exp[stat] -= ExpToNext(Ratings[stat]);
+                Exp[stat] -= ExpToNext(stat);
                 Ratings[stat]++;
                 gained++;
             }

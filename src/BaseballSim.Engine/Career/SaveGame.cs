@@ -21,11 +21,13 @@ namespace BaseballSim.Career
         /// </summary>
         /// 20: daily missions and the album on the club; club and career can be saved apart (player slots).
         /// 21: stolen bases. 22: main story progress on the career and each retired player's story and ending on the club.
-        /// 23: the league paper. 24: monthly pay.
+        /// 23: the league paper. 24: monthly pay. 25: postseason lines.
         /// 26: club coins, cosmetics, rewind tickets, tickets used today; rewinds used on the career.
         /// 27: weekly challenges and the season pass.
         /// 28: the my-team league.
-        public const int Version = 29;
+        /// 29: hit streak, manager trust, derby best, story marks.
+        /// 30: days missed hurt (comeback years).
+        public const int Version = 30;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -542,6 +544,10 @@ namespace BaseballSim.Career
             w.Write(career.Me.ManagerTrust);
             w.Write(career.Me.DerbyBest);
             WriteList(w, career.Me.StoryMarks.ToList(), kv => { w.Write(kv.Key); w.Write(kv.Value); });
+
+            // Added in version 30.
+            w.Write(career.InjuryDays);
+            WriteList(w, career.Me.History, h => w.Write(h.InjuryDays));
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -727,6 +733,12 @@ namespace BaseballSim.Career
                 me.ManagerTrust = r.ReadInt32();
                 me.DerbyBest = r.ReadInt32();
                 foreach (var (key, stamp) in ReadList(r, () => (r.ReadString(), r.ReadInt32()))) me.StoryMarks[key] = stamp;
+            }
+            if (version >= 30)
+            {
+                career.InjuryDays = r.ReadInt32();
+                int k = 0;
+                ReadList(r, () => { var h = me.History[k++]; h.InjuryDays = r.ReadInt32(); return h; });
             }
             return career;
         }
