@@ -39,8 +39,8 @@ namespace BaseballSim.Career
                 Weight = (c, d) => c.Season == 1 && c.Day >= 2 && !c.Seen("senior_roommate") ? 4 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "90도로 인사한다", Result = "\"됐다, 됐어. 편하게 해.\" 선배가 웃으며 귤을 던져 줬다.", Apply = e => e.Morale(3) },
-                    new EventChoice { Label = "짐 정리를 돕는다", Result = "선배 짐에서 낡은 배팅 장갑이 열 켤레 나왔다. 10년의 흔적이다.", Apply = e => { e.Morale(2); e.Exp(Stat.Contact, 20); } },
+                    new EventChoice { Label = "90도로 인사한다", Result = "\"됐다, 됐어. 편하게 해.\" 선배가 웃으며 귤을 던져 줬다.", Apply = e => { e.Morale(3); e.Close("senior", 1); } },
+                    new EventChoice { Label = "짐 정리를 돕는다", Result = "선배 짐에서 낡은 배팅 장갑이 열 켤레 나왔다. 10년의 흔적이다.", Apply = e => { e.Morale(2); e.Exp(Stat.Contact, 20); e.Close("senior", 1); } },
                 },
             });
 
@@ -52,8 +52,8 @@ namespace BaseballSim.Career
                 Weight = (c, d) => c.Seen("senior_roommate") && SeniorStillPlays(c) && c.Me.Age <= 24 && !c.SeenThisSeason("senior_meal") ? 0.8 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "야구 이야기를 묻는다", Result = "\"직구 노리다 변화구 오면? 그냥 커트해. 다음 공이 진짜야.\"", Apply = e => { e.Exp(Stat.Eye, 35); e.Morale(2); } },
-                    new EventChoice { Label = "그냥 웃고 떠든다", Result = "선배의 신인 시절 흑역사에 배가 아프도록 웃었다.", Apply = e => { e.Morale(5); e.Fatigue(-5); } },
+                    new EventChoice { Label = "야구 이야기를 묻는다", Result = "\"직구 노리다 변화구 오면? 그냥 커트해. 다음 공이 진짜야.\"", Apply = e => { e.Exp(Stat.Eye, 35); e.Morale(2); e.Close("senior", 1); } },
+                    new EventChoice { Label = "그냥 웃고 떠든다", Result = "선배의 신인 시절 흑역사에 배가 아프도록 웃었다.", Apply = e => { e.Morale(5); e.Fatigue(-5); e.Close("senior", 1); } },
                 },
             });
 
@@ -65,8 +65,8 @@ namespace BaseballSim.Career
                 Weight = (c, d) => c.Seen("senior_roommate") && SeniorStillPlays(c) && c.Me.Age <= 23 && !c.Seen("senior_wedding") ? 0.6 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "축가를 부른다", Result = "고음에서 음이 확 나갔다. 하객석이 뒤집어졌고 선배는 울다 웃었다.", Apply = e => { e.Money(-50); e.Morale(4); e.Fans(10); } },
-                    new EventChoice { Label = "축가 대신 사회를 본다", Result = "준비한 멘트가 하나도 안 웃겼다. 그래도 선배는 고맙다고 했다.", Apply = e => { e.Money(-50); e.Morale(3); } },
+                    new EventChoice { Label = "축가를 부른다", Result = "고음에서 음이 확 나갔다. 하객석이 뒤집어졌고 선배는 울다 웃었다.", Apply = e => { e.Money(-50); e.Morale(4); e.Fans(10); e.Close("senior", 2); } },
+                    new EventChoice { Label = "축가 대신 사회를 본다", Result = "준비한 멘트가 하나도 안 웃겼다. 그래도 선배는 고맙다고 했다.", Apply = e => { e.Money(-50); e.Morale(3); e.Close("senior", 2); } },
                 },
             });
 
@@ -78,7 +78,7 @@ namespace BaseballSim.Career
                 Weight = (c, d) => c.Seen("senior_roommate") && SeniorStillPlays(c) && c.Me.Age >= 21 && !c.Seen("senior_slump") ? 0.7 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "말없이 공을 던져 준다", Result = "한 시간 동안 둘 다 아무 말도 안 했다. 끝나고 선배가 \"고맙다\" 한마디 했다.", Apply = e => { e.Fatigue(10); e.Morale(3); e.Mark("senior_owes"); } },
+                    new EventChoice { Label = "말없이 공을 던져 준다", Result = "한 시간 동안 둘 다 아무 말도 안 했다. 끝나고 선배가 \"고맙다\" 한마디 했다.", Apply = e => { e.Fatigue(10); e.Morale(3); e.Mark("senior_owes"); e.Close("senior", 2); } },
                     new EventChoice { Label = "모른 척 지나간다", Result = "선배도 혼자 있고 싶을 거라고 생각했다.", Apply = e => e.Fatigue(-5) },
                 },
             });
@@ -92,7 +92,7 @@ namespace BaseballSim.Career
                     ? (c.Me.Age >= 25 ? 8 : 1.5) : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "\"1년만 더 하세요\"", Result = "\"몸이 먼저 알더라.\" 선배가 머리를 헝클어뜨렸다.", Apply = e => { e.Mark(SeniorLeaving); e.Morale(-1); } },
+                    new EventChoice { Label = "\"1년만 더 하세요\"", Result = "\"몸이 먼저 알더라.\" 선배가 머리를 헝클어뜨렸다.", Apply = e => { e.Mark(SeniorLeaving); e.Morale(-1); e.Close("senior", 1); } },
                     new EventChoice { Label = "\"수고 많으셨습니다\"", Result = "선배가 오래 손을 잡았다.", Apply = e => { e.Mark(SeniorLeaving); e.Morale(2); } },
                 },
             });
@@ -128,7 +128,7 @@ namespace BaseballSim.Career
                 Id = "senior_locker",
                 Title = "비워진 사물함",
                 Text = "{senior} 선배의 사물함이 비었다.\n맨 안쪽에 쪽지 한 장이 붙어 있다. '{name}에게.'",
-                Weight = (c, d) => c.HasMark(SeniorRetired) && !c.Seen("senior_locker") ? 3 : 0,
+                Weight = (c, d) => c.HasMark(SeniorRetired) && c.IsClose("senior") && !c.Seen("senior_locker") ? 3 : 0,
                 Choices =
                 {
                     new EventChoice
@@ -145,7 +145,7 @@ namespace BaseballSim.Career
                 Title = "선배의 은퇴식",
                 Text = "새 시즌 홈 개막 시리즈. 오늘은 {senior} 선배의 은퇴식이다.\n시구는 선배, 시포는 {name}이 맡게 됐다.",
                 Weight = (c, d) => (c.HasMark(SeniorRetired) || c.HasMark(SeniorLeaving)) && SeasonsSince(c, c.HasMark(SeniorRetired) ? SeniorRetired : SeniorLeaving) >= 1
-                    && Progress(c) < 0.35 && !c.InFarm && !c.Seen("senior_ceremony") ? 6 : 0,
+                    && Progress(c) < 0.35 && !c.InFarm && c.IsClose("senior") && !c.Seen("senior_ceremony") ? 6 : 0,
                 Choices =
                 {
                     new EventChoice
@@ -166,7 +166,7 @@ namespace BaseballSim.Career
                 Id = "senior_broadcast",
                 Title = "해설위원 선배",
                 Text = "오늘 중계 해설은 {senior} 위원이었다.\n\"{name} 선수, 신인 때 제 룸메이트였어요. 코를 엄청 골았죠.\"",
-                Weight = (c, d) => SeasonsSince(c, SeniorRetired) >= 1 && Played(d) && !c.SeenThisSeason("senior_broadcast") ? 0.8 : 0,
+                Weight = (c, d) => SeasonsSince(c, SeniorRetired) >= 1 && c.IsClose("senior") && Played(d) && !c.SeenThisSeason("senior_broadcast") ? 0.8 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "다시보기로 챙겨 본다", Result = "칭찬 사이사이 날카로운 지적이 숨어 있었다.", Apply = e => { e.Exp(Stat.Eye, 30); e.Morale(2); } },
@@ -179,7 +179,7 @@ namespace BaseballSim.Career
                 Id = "senior_shop",
                 Title = "선배의 가게",
                 Text = "{senior} 선배가 야구장 근처에 고깃집을 열었다.\n벽에는 현역 시절 유니폼이 걸려 있다.",
-                Weight = (c, d) => SeasonsSince(c, SeniorRetired) >= 2 && !c.Seen("senior_shop") ? 0.8 : 0,
+                Weight = (c, d) => SeasonsSince(c, SeniorRetired) >= 2 && c.IsClose("senior") && !c.Seen("senior_shop") ? 0.8 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "후배들을 데리고 간다 (100만원)", Result = "\"신인이 지갑 꺼내면 혼난다\" 그 말을 이제 내가 하고 있었다.", Apply = e => { e.Money(-100); e.Morale(5); e.Trust(1); } },
@@ -192,7 +192,7 @@ namespace BaseballSim.Career
                 Id = "senior_call",
                 Title = "선배의 전화",
                 Text = "밤늦게 {senior} 선배에게서 전화가 왔다.\n\"너도 이제 그 나이구나. 몸은 괜찮냐?\"",
-                Weight = (c, d) => c.HasMark(SeniorRetired) && c.Me.Age >= 33 && !c.Seen("senior_call") ? 1.5 : 0,
+                Weight = (c, d) => c.HasMark(SeniorRetired) && c.IsClose("senior") && c.Me.Age >= 33 && !c.Seen("senior_call") ? 1.5 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "\"솔직히 좀 힘들어요\"", Result = "\"아프면 쉬어. 그래야 오래 한다. 내가 그거 못 해서 일찍 관뒀다.\"", Apply = e => { e.Fatigue(-15); e.Morale(5); } },

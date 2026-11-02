@@ -37,13 +37,13 @@ namespace BaseballSim.Career
             {
                 Id = "junior_sneak",
                 Title = "몰래 나간 후배",
-                Text = "통금 시간. 막내 후배가 숙소 담을 넘다가 {name}과 눈이 마주쳤다.\n\"선배님... 한 번만 봐 주세요.\"",
+                Text = "통금 시간. 막내 후배 {junior}가 숙소 담을 넘다가 {name}과 눈이 마주쳤다.\n\"선배님... 한 번만 봐 주세요.\"",
                 Weight = (c, d) => c.Me.Age >= 21 && !c.Seen("junior_sneak") ? 0.6 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "못 본 걸로 한다", Result = "후배가 몇 번이나 고개를 숙였다.", Apply = e => { e.Mark("junior_owes"); e.Morale(1); } },
-                    new EventChoice { Label = "따끔하게 타이른다", Result = "\"내일 경기 생각해.\" 후배가 조용히 방으로 돌아갔다.", Apply = e => e.Morale(2) },
-                    new EventChoice { Label = "코치에게 알린다", Result = "규칙은 규칙이다. 코치가 고개를 끄덕였다.", Apply = e => { e.Trust(2); e.Morale(-1); } },
+                    new EventChoice { Label = "못 본 걸로 한다", Result = "후배가 몇 번이나 고개를 숙였다.", Apply = e => { e.Mark("junior_owes"); e.Morale(1); e.Close("junior", 2); } },
+                    new EventChoice { Label = "따끔하게 타이른다", Result = "\"내일 경기 생각해.\" 후배가 조용히 방으로 돌아갔다.", Apply = e => { e.Morale(2); e.Close("junior", 1); } },
+                    new EventChoice { Label = "코치에게 알린다", Result = "규칙은 규칙이다. 코치가 고개를 끄덕였다.", Apply = e => { e.Trust(2); e.Morale(-1); e.Close("junior", -1); } },
                 },
             });
 
@@ -51,14 +51,14 @@ namespace BaseballSim.Career
             {
                 Id = "junior_repay",
                 Title = "후배의 보답",
-                Text = "그때 봐줬던 후배가 전력분석 노트를 들고 왔다.\n\"선배님, 다음 상대 버릇이요. 제가 밤새 찾았어요.\"",
+                Text = "그때 봐줬던 {junior}가 전력분석 노트를 들고 왔다.\n\"선배님, 다음 상대 버릇이요. 제가 밤새 찾았어요.\"",
                 Weight = (c, d) => Due(c, "junior_owes", Gap(c)) && Active(c) ? 5 : 0,
                 Choices =
                 {
                     new EventChoice
                     {
                         Label = "고맙다고 밥을 산다", Result = "노트는 생각보다 훨씬 꼼꼼했다. 후배가 환하게 웃었다.",
-                        Apply = e => { e.Unmark("junior_owes"); e.Exp(Stat.Eye, 70); e.Money(-50); e.Morale(4); },
+                        Apply = e => { e.Unmark("junior_owes"); e.Exp(Stat.Eye, 70); e.Money(-50); e.Morale(4); e.Close("junior", 1); },
                     },
                 },
             });
@@ -425,12 +425,12 @@ namespace BaseballSim.Career
             {
                 Id = "veteran_return",
                 Title = "돌아온 베테랑",
-                Text = "같은 자리를 지키던 베테랑이 부상에서 돌아왔다.\n\"자리 잘 지키고 있었네. 이제 다시 경쟁이다.\"",
+                Text = "같은 자리를 지키던 베테랑 {veteran} 선배가 부상에서 돌아왔다.\n\"자리 잘 지키고 있었네. 이제 다시 경쟁이다.\"",
                 Weight = (c, d) => c.Me.Age <= 25 && !c.SeenThisSeason("veteran_return") && Active(c) ? 0.5 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "옆에서 배운다", Result = "베테랑의 준비 과정은 남달랐다.", Apply = e => { e.Exp(Stat.Defense, 40); e.Exp(Stat.Eye, 30); } },
-                    new EventChoice { Label = "정면으로 경쟁한다", Result = "새벽 6시, 훈련장에 불을 제일 먼저 켰다.", Apply = e => { e.Exp(Stat.Contact, 45); e.Fatigue(15); e.Morale(3); } },
+                    new EventChoice { Label = "옆에서 배운다", Result = "베테랑의 준비 과정은 남달랐다.", Apply = e => { e.Exp(Stat.Defense, 40); e.Exp(Stat.Eye, 30); e.Close("veteran", 2); } },
+                    new EventChoice { Label = "정면으로 경쟁한다", Result = "새벽 6시, 훈련장에 불을 제일 먼저 켰다.", Apply = e => { e.Exp(Stat.Contact, 45); e.Fatigue(15); e.Morale(3); e.Close("veteran", 1); } },
                 },
             });
 
@@ -438,12 +438,12 @@ namespace BaseballSim.Career
             {
                 Id = "mentee",
                 Title = "신인의 질문",
-                Text = "올해 입단한 신인이 쭈뼛거리며 다가왔다.\n\"선배님처럼 하려면 뭐부터 해야 해요?\"",
+                Text = "후배 {junior}가 쭈뼛거리며 다가왔다.\n\"선배님처럼 하려면 뭐부터 해야 해요?\"",
                 Weight = (c, d) => c.Me.Age >= 26 && !c.HasMark("mentee") && !c.SeenThisSeason("mentee") ? 0.6 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "직접 가르친다", Result = "가르치다 보니 내 기본기도 다시 보였다.", Apply = e => { e.Mark("mentee"); e.Exp(Stat.Defense, 30); e.Fatigue(10); e.Morale(2); } },
-                    new EventChoice { Label = "\"꾸준함이 전부야\"", Result = "짧은 한마디에 신인이 눈을 반짝였다.", Apply = e => e.Morale(1) },
+                    new EventChoice { Label = "직접 가르친다", Result = "가르치다 보니 내 기본기도 다시 보였다.", Apply = e => { e.Mark("mentee"); e.Exp(Stat.Defense, 30); e.Fatigue(10); e.Morale(2); e.Close("junior", 2); } },
+                    new EventChoice { Label = "\"꾸준함이 전부야\"", Result = "짧은 한마디에 {junior}가 눈을 반짝였다.", Apply = e => e.Morale(1) },
                 },
             });
 
@@ -451,12 +451,12 @@ namespace BaseballSim.Career
             {
                 Id = "mentee_first",
                 Title = "후배의 첫 홈런 공",
-                Text = "가르쳤던 신인이 데뷔 첫 홈런을 쳤다.\n경기가 끝나자 그 공을 들고 {name}에게 왔다.\n\"선배님이 가지세요.\"",
+                Text = "가르쳤던 {junior}가 데뷔 첫 홈런을 쳤다.\n경기가 끝나자 그 공을 들고 {name}에게 왔다.\n\"선배님이 가지세요.\"",
                 Weight = (c, d) => Due(c, "mentee", Gap(c)) ? 4 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "\"네가 간직해\"", Result = "후배가 공을 꼭 쥐고 고개를 숙였다.", Apply = e => { e.Unmark("mentee"); e.Morale(6); e.Trust(1); } },
-                    new EventChoice { Label = "사물함에 모셔 둔다", Result = "내 첫 홈런 공 옆에 나란히 놓았다.", Apply = e => { e.Unmark("mentee"); e.Morale(8); } },
+                    new EventChoice { Label = "\"네가 간직해\"", Result = "후배가 공을 꼭 쥐고 고개를 숙였다.", Apply = e => { e.Unmark("mentee"); e.Morale(6); e.Trust(1); e.Close("junior", 1); } },
+                    new EventChoice { Label = "사물함에 모셔 둔다", Result = "내 첫 홈런 공 옆에 나란히 놓았다.", Apply = e => { e.Unmark("mentee"); e.Morale(8); e.Close("junior", 1); } },
                 },
             });
 
@@ -631,6 +631,8 @@ namespace BaseballSim.Career
                 var derby = c.Me.IsPitcher ? RadarDerby : HomeRunDerby;
                 if (!c.SeenThisSeason(derby.Id)) return derby;
             }
+            var bond = BondMoment(c);
+            if (bond != null) return bond;
             if (c.Day >= games - 3 && !c.InFarm && !c.SeenThisSeason("last_home")) return LastHome;
             return null;
         }

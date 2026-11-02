@@ -242,12 +242,14 @@ public class LifeEventTests
         Assert.NotEqual(senior, career.MateName);
         Answer(career, roommate, 0);
         Assert.Equal(senior, career.SeniorName); // kept for the career
+        Answer(career, StoryEvents.Find("senior_meal"), 0);
 
         var announce = StoryEvents.Find("senior_announce");
         career.Me.Age = 25;
         career.Day = 22;
         Assert.True(announce.Weight(career, new DayResult()) > 0);
-        Answer(career, announce, 1);
+        Answer(career, announce, 0);
+        Assert.True(career.IsClose("senior"));
         var last = StoryEvents.Find("senior_last_game");
         Assert.Equal(0, last.Weight(career, new DayResult()));
         career.Day = 24;
@@ -274,6 +276,7 @@ public class LifeEventTests
     {
         var career = NewCareer(14);
         Answer(career, StoryEvents.Find("senior_roommate"), 0);
+        Answer(career, StoryEvents.Find("senior_meal"), 1);
         career.Me.Age = 26;
         career.Day = 30;
         Answer(career, StoryEvents.Find("senior_announce"), 0);
@@ -296,5 +299,133 @@ public class LifeEventTests
         var loaded = SaveGame.CareerFromBytes(SaveGame.CareerToBytes(career, club), SaveGame.ClubFromBytes(SaveGame.ClubToBytes(club)), new SeededRandom(1));
         Assert.Equal(senior, loaded.SeniorName);
         Assert.Equal(mate, loaded.MateName);
+    }
+
+    [Fact]
+    public void ADistantRoommateRetiresQuietly()
+    {
+        var career = NewCareer(16);
+        Answer(career, StoryEvents.Find("senior_roommate"), 0); // closeness 1
+        career.Me.Age = 25;
+        career.Day = 22;
+        Answer(career, StoryEvents.Find("senior_announce"), 1);
+        career.Day = 24;
+        Answer(career, StoryEvents.Find("senior_last_game"), 0);
+        Assert.False(career.IsClose("senior"));
+        Assert.Equal(0, StoryEvents.Find("senior_locker").Weight(career, new DayResult()));
+        career.Season += 2;
+        career.Day = 3;
+        Assert.Equal(0, StoryEvents.Find("senior_ceremony").Weight(career, new DayResult()));
+        Assert.Equal(0, StoryEvents.Find("senior_shop").Weight(career, new DayResult()));
+    }
+
+    [Fact]
+    public void ACloseVeteranGetsAFarewellAndAnAfterStory()
+    {
+        var career = NewCareer(17);
+        string veteran = career.VeteranName;
+        var outcome = Answer(career, StoryEvents.Find("veteran_return"), 0);
+        Assert.Contains(outcome.Changes, c => c.Contains(veteran) && c.Contains("친밀 +2"));
+        Answer(career, StoryEvents.Find("senior_advice"), 1);
+        Assert.True(career.IsClose("veteran"));
+
+        career.Day = 25;
+        Assert.Null(FindBond(career)); // too soon
+        career.Season += 6;
+        var farewell = FindBond(career);
+        Assert.Equal("farewell:veteran", farewell.Id);
+        Assert.Contains(veteran, farewell.TextFor(career));
+        outcome = Answer(career, farewell, 0);
+        Assert.Contains(veteran, outcome.Text);
+        Assert.NotEqual(veteran, career.VeteranName); // a new veteran in everyday events
+        Assert.Equal(veteran, career.BondName("exveteran"));
+        Assert.Null(FindBond(career));
+
+        career.Season += 2;
+        var after = FindBond(career);
+        Assert.Equal("after:exveteran", after.Id);
+        Assert.Contains(veteran, after.TextFor(career));
+        Answer(career, after, 0);
+        Assert.Null(FindBond(career));
+    }
+
+    [Fact]
+    public void ACloseCoachLeavesAndComesBackAsTheOtherManager()
+    {
+        var career = NewCareer(18);
+        string coach = career.CoachName;
+        Answer(career, StoryEvents.Find("coach_extra"), 0);
+        Answer(career, StoryEvents.Find("coach_extra"), 0);
+        career.Season += 6;
+        career.Day = 25;
+        var farewell = FindBond(career);
+        Assert.Equal("farewell:coach", farewell.Id);
+        Answer(career, farewell, 1);
+        Assert.NotEqual(coach, career.CoachName);
+        career.Season += 2;
+        var after = FindBond(career);
+        Assert.Equal("after:excoach", after.Id);
+        Assert.Contains(coach, after.TextFor(career));
+    }
+
+    [Fact]
+    public void MainStoryCharactersCanBeBefriended()
+    {
+        var career = NewCareer(19);
+        career.Befriend("최강훈", 2);
+        career.Day = 25;
+        career.Season += 6;
+        Assert.Null(FindBond(career)); // not close enough
+        career.Befriend("최강훈");
+        var farewell = FindBond(career);
+        Assert.Equal("farewell:story:최강훈", farewell.Id);
+        Assert.Contains("최강훈 선배가", farewell.TextFor(career));
+        Answer(career, farewell, 2);
+        career.Season += 2;
+        Assert.Equal("after:story:최강훈", FindBond(career).Id);
+    }
+
+    [Fact]
+    public void AMentoredJuniorRisesAndBecomesCaptain()
+    {
+        var career = NewCareer(20);
+        career.Me.Age = 27;
+        Answer(career, StoryEvents.Find("mentee"), 0);
+        Answer(career, StoryEvents.Find("junior_sneak"), 1);
+        career.Season += 3;
+        career.Day = 20;
+        Assert.Equal("junior_rise", FindBond(career).Id);
+        Answer(career, FindBond(career), 0);
+        career.Me.Age = 34;
+        Assert.Equal("junior_captain", FindBond(career).Id);
+    }
+
+    [Theory]
+    [InlineData("민준", "민준이 왔다. 민준을 봤다.")]
+    [InlineData("서아", "서아가 왔다. 서아를 봤다.")]
+    public void ParticlesFitTheName(string junior, string expected)
+    {
+        var career = NewCareer(21);
+        career.Me.StoryMarks["junior:" + junior] = 1000;
+        Assert.Equal(expected, StoryEvent.Fill("{junior}가 왔다. {junior}를 봤다.", career));
+    }
+
+    [Fact]
+    public void EveryEventTextIsFilled()
+    {
+        var career = NewCareer(22);
+        foreach (var ev in StoryEvents.All)
+        {
+            Assert.DoesNotContain("{", ev.TextFor(career));
+            foreach (var choice in ev.Choices) Assert.DoesNotContain("{", StoryEvent.Fill(choice.Result, career));
+        }
+    }
+
+    // The bond moment due today, if any, without opening day or the last home game in the way.
+    static StoryEvent? FindBond(CareerState career)
+    {
+        if (career.Day <= 3) career.Day = 4;
+        var ev = StoryEvents.Scheduled(career, new DayResult());
+        return ev != null && (ev.Id.StartsWith("farewell:") || ev.Id.StartsWith("after:") || ev.Id.StartsWith("junior_")) ? ev : null;
     }
 }
