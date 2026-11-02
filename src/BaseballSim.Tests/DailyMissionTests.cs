@@ -24,7 +24,7 @@ public class DailyMissionTests
         Assert.Equal(a.Select(m => m.Text), b.Select(m => m.Text));
         // Over a month the pool rotates.
         var kinds = Enumerable.Range(0, 30).SelectMany(d => DailyMissions.Generate(DailyMissions.DateOf(new DateTime(2026, 11, 1).AddDays(d)))).Select(m => m.Kind).Distinct();
-        Assert.Equal(Enum.GetValues(typeof(MissionKind)).Length, kinds.Count());
+        Assert.Equal(Enum.GetValues(typeof(MissionKind)).Length - 1, kinds.Count()); // DailyDone is weekly only
     }
 
     [Fact]
