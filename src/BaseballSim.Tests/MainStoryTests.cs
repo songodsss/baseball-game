@@ -85,7 +85,7 @@ public class MainStoryTests
             if (MainStory.IsMain(day.Event)) main++; else random++;
             career.ResolveEvent(0);
         }
-        Assert.InRange(main, 3, 6);
+        Assert.InRange(main, 3, 9);
         Assert.True(random > 0);
     }
 
@@ -96,19 +96,20 @@ public class MainStoryTests
     {
         foreach (var route in MainStory.AllRoutes)
         foreach (var id in MainStory.SceneIds)
+        for (int variant = 0; variant < MainStory.VariantCount(NewCareer(3, position, role, route: route), id); variant++)
             foreach (bool flags in new[] { false, true })
             {
                 var preview = NewCareer(3, position, role, route: route);
                 preview.PlayDay(DailyAction.Rest); // creates the rival
                 if (flags) preview.Story.Flags.AddRange(new[] { "dawn", "visited", "manager", "bet", "rival_respect" });
-                var ev = MainStory.Preview(preview, id);
+                var ev = MainStory.Preview(preview, id, variant);
                 Assert.DoesNotContain("{", ev.Title + ev.TextFor(preview));
                 for (int choice = 0; choice < ev.Choices.Count; choice++)
                 {
                     var career = NewCareer(3, position, role, route: route);
                     career.PlayDay(DailyAction.Rest);
                     if (flags) career.Story.Flags.AddRange(new[] { "dawn", "visited", "manager", "bet", "rival_respect" });
-                    var card = MainStory.Preview(career, id);
+                    var card = MainStory.Preview(career, id, variant);
                     Assert.DoesNotContain("{", card.Choices[choice].Label + card.Choices[choice].Result);
                     card.Choices[choice].Apply(EffectsFor(career, out var outcome));
                     Assert.Contains(id, career.Story.Seen);
@@ -136,7 +137,7 @@ public class MainStoryTests
     public void ScenesWaitForTheirMoment()
     {
         var career = NewCareer(5);
-        career.Story.Seen.AddRange(new[] { "draft", "roommate", "first", "letter", "rival" });
+        career.Story.Seen.AddRange(new[] { "draft", "roommate", "camp", "first", "first_pay", "letter", "rival", "first_winter", "sophomore" });
         career.Story.LastSeason = 1;
         career.Story.LastDay = -10;
         Assert.Null(MainStory.Next(career, new DayResult())); // season 1, no slump yet
@@ -266,5 +267,55 @@ public class MainStoryTests
         outcome = new EventOutcome { Text = "" };
         var ctor = typeof(EventEffects).GetConstructors(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)[0];
         return (EventEffects)ctor.Invoke(new object[] { career, new SeededRandom(1), outcome });
+    }
+
+    [Fact]
+    public void EveryNewSlotHasMoreThanOneVersion()
+    {
+        var career = NewCareer(3);
+        foreach (var id in MainStory.SceneIds) Assert.True(MainStory.VariantCount(career, id) >= 1, id);
+        Assert.True(MainStory.SceneCount >= 30);
+        Assert.Equal(2, MainStory.VariantCount(career, "camp"));
+        Assert.Equal(2, MainStory.VariantCount(career, "body"));
+    }
+
+    [Fact]
+    public void TheVersionPickedStaysTheSameForACareerButDiffersBetweenPlayers()
+    {
+        var titles = new HashSet<string>();
+        for (int seed = 1; seed <= 12; seed++)
+        {
+            var career = NewCareer(seed);
+            string first = MainStory.Preview(career, "camp").Title;
+            Assert.Equal(first, MainStory.Preview(career, "camp").Title);
+            titles.Add(first);
+        }
+        Assert.Equal(2, titles.Count);
+    }
+
+    [Fact]
+    public void AnOldSaveSkipsNewScenesEarlierThanWhereItIs()
+    {
+        var career = NewCareer(5);
+        // An old career that had answered up to "spot" before the new slots existed.
+        career.Story.Seen.AddRange(new[] { "draft", "roommate", "first", "letter", "rival", "wall", "rooftop", "breakthrough", "spot" });
+        career.Story.LastSeason = 0;
+        career.Story.LastDay = 0;
+        career.Me.Age = 26;
+        var next = MainStory.Next(career, new DayResult());
+        Assert.True(next == null || next.Id == "main_injury" || next.Id.StartsWith(LegendStory.IdPrefix), next?.Id);
+        Assert.Equal(3, MainStory.Chapter(career));
+    }
+
+    [Fact]
+    public void ParticlesFollowTheName()
+    {
+        Assert.Equal("이", Josa.After("윤도현", "가"));
+        Assert.Equal("가", Josa.After("소이", "이"));
+        Assert.Equal("를", Josa.After("하윤이", "을"));
+        Assert.Equal("로", Josa.After("서울", "으로"));
+        var career = NewCareer(3, route: StoryRoute.Prodigy);
+        Assert.Equal("어머니가 웃었다", MainStory.Fill("{kin:이} 웃었다", career));
+        Assert.Equal("백무진 감독이", MainStory.Fill("{mentor:가}", career));
     }
 }

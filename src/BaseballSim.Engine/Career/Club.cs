@@ -81,6 +81,8 @@ namespace BaseballSim.Career
         public DailyMissions Daily = new DailyMissions();
         /// <summary>Legend ids and rival names met by any player of mine, for the album.</summary>
         public HashSet<string> LegendsMet = new HashSet<string>();
+        /// <summary>Legend ids whose record a player of mine has broken.</summary>
+        public HashSet<string> LegendsSurpassed = new HashSet<string>();
         public List<string> RivalsMet = new List<string>();
 
         /// <summary>
@@ -148,6 +150,14 @@ namespace BaseballSim.Career
             return all;
         }
 
+        /// <summary>Legends whose record has fallen, counting the career in progress.</summary>
+        public HashSet<string> AllLegendsSurpassed(Career career)
+        {
+            var all = new HashSet<string>(LegendsSurpassed);
+            if (career != null) all.UnionWith(career.SurpassedLegends);
+            return all;
+        }
+
         /// <summary>Added to every potential of the next new player, at most +8.</summary>
         public int PotentialBonus => Math.Min(8, LegacyPoints / 200);
 
@@ -208,6 +218,7 @@ namespace BaseballSim.Career
             me.Money = 0;
 
             LegendsMet.UnionWith(me.MetLegends);
+            LegendsSurpassed.UnionWith(career.SurpassedLegends);
             if (career.Rival != null && !RivalsMet.Contains(career.Rival.Name)) RivalsMet.Add(career.Rival.Name);
 
             retired.Ending = MainStory.EndingFor(career, retired);

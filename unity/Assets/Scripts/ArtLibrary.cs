@@ -56,8 +56,14 @@ namespace BaseballGame
             return Get("Events/" + (EventNames.TryGetValue(eventId, out var name) ? name : eventId));
         }
 
-        public static Sprite LegendPortrait(string eventId) =>
-            eventId.StartsWith("legend_") ? Get("Legends/" + eventId.Substring("legend_".Length)) : null;
+        /// <summary>The legend's picture for "legend_jang", "legend_jang_2", "legend_jang_3" or "legend_jang_oh".</summary>
+        public static Sprite LegendPortrait(string eventId)
+        {
+            if (!eventId.StartsWith("legend_")) return null;
+            string id = eventId.Substring("legend_".Length);
+            int cut = id.IndexOf('_');
+            return Get("Legends/" + (cut < 0 ? id : id.Substring(0, cut)));
+        }
 
         static readonly Dictionary<DailyAction, string> TrainingIcons = new Dictionary<DailyAction, string>
         {

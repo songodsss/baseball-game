@@ -5,11 +5,13 @@ using CareerState = BaseballSim.Career.Career;
 
 public class StoryEventTests
 {
-    static CareerState NewCareer(int seed, int games = 36)
+    static CareerState NewCareer(int seed, int games = 36) => NewCareer(seed, Position.CenterField, PitcherRole.Starter, games);
+
+    static CareerState NewCareer(int seed, Position position, PitcherRole role, int games = 36)
     {
         var random = new SeededRandom(seed);
         var league = new League(new RosterGenerator(random), games);
-        return new CareerState(CareerState.NewPlayer("테스트", random), league, league.Teams[0], random);
+        return new CareerState(CareerState.NewPlayer("테스트", random, 0, position, 7, role), league, league.Teams[0], random);
     }
 
     [Theory]
@@ -82,25 +84,66 @@ public class StoryEventTests
     }
 
     [Fact]
-    public void EachLegendVisitsOncePerCareer()
+    public void ALegendComesWhenTheSpecialityReachesFiftyThenReturnsHalfwayThenWhenTheRecordFalls()
     {
         var career = NewCareer(7);
-        var visit = StoryEvents.Find("legend_jang");
-        Assert.True(visit.Weight(career, new DayResult()) > 0);
-        Assert.Contains("장태산", visit.TextFor(career));
-        SetPending(career, visit);
-        int before = career.Me.Exp[Stat.Power] + career.Me.Ratings[Stat.Power] * 1000;
-        career.ResolveEvent(0);
+        career.Me.Ratings[Stat.Power] = 49;
+        career.Me.Ratings[Stat.Contact] = career.Me.Ratings[Stat.Eye] = career.Me.Ratings[Stat.Speed] = career.Me.Ratings[Stat.Defense] = 40;
+        Assert.Null(LegendStory.Next(career, new DayResult()));
+
+        career.Me.Ratings[Stat.Power] = 50;
+        var meet = LegendStory.Next(career, new DayResult());
+        Assert.Equal("legend_jang", meet.Id);
+        Assert.Contains("장태산", meet.TextFor(career));
+        Assert.Contains("452홈런", meet.TextFor(career));
+        SetPending(career, meet);
+        career.ResolveEvent(1);
+        Assert.Equal(LegendStage.Met, career.StageOf("jang"));
         Assert.Contains("jang", career.Me.MetLegends);
-        Assert.True(career.Me.Exp[Stat.Power] + career.Me.Ratings[Stat.Power] * 1000 > before);
-        Assert.Equal(0, visit.Weight(career, new DayResult()));
+        Assert.Null(LegendStory.Next(career, new DayResult())); // too soon after the last visit
+
+        // A season later and halfway to the record (36-game seasons: 57 of 113).
+        career.LegendLastSeason = career.Season - 1;
+        career.SeasonLine.HomeRuns = 57;
+        var back = LegendStory.Next(career, new DayResult());
+        Assert.Equal("legend_jang_2", back.Id);
+        SetPending(career, back);
+        career.ResolveEvent(0);
+        Assert.Equal(LegendStage.Returned, career.StageOf("jang"));
+
+        career.LegendLastSeason = career.Season - 1;
+        career.SeasonLine.HomeRuns = 114;
+        var broken = LegendStory.Next(career, new DayResult());
+        Assert.Equal("legend_jang_3", broken.Id);
+        SetPending(career, broken);
+        career.ResolveEvent(0);
+        Assert.Contains("jang", career.SurpassedLegends);
+        Assert.Contains(LegendStory.EndingLines(career), l => l.Contains("장태산"));
+    }
+
+    [Fact]
+    public void PitchersMeetThePitchingLegendsAndOnlyChaseTheirRolesRecord()
+    {
+        var career = NewCareer(8, Position.Pitcher, PitcherRole.Closer);
+        foreach (var s in career.Me.MyStats) career.Me.Ratings[s] = 40;
+        career.Me.Ratings[Stat.Stamina] = 60;
+        var meet = LegendStory.Next(career, new DayResult());
+        Assert.Equal("legend_yoon", meet.Id);
+        Assert.DoesNotContain("기록 도전", meet.TextFor(career)); // 309 wins is a starter's record
+        career.Me.Ratings[Stat.Velocity] = 60;
+        career.LegendStages["yoon"] = LegendStage.Met;
+        var ma = LegendStory.Next(career, new DayResult());
+        Assert.Equal("legend_ma", ma.Id);
+        Assert.Contains("세이브", ma.TextFor(career));
     }
 
     [Fact]
     public void LegendsAreLeagueHistoryNotMyPlayers()
     {
-        Assert.Equal(5, Legends.All.Count);
-        Assert.Equal(CareerPlayer.AllStats.Count(), Legends.All.Select(l => l.Speciality).Distinct().Count());
+        Assert.Equal(7, Legends.All.Count);
+        Assert.Equal(5, Legends.All.Count(l => !l.ForPitchers));
+        Assert.Equal(CareerPlayer.AllStats.Count(), Legends.All.Where(l => !l.ForPitchers).Select(l => l.Speciality).Distinct().Count());
+        Assert.DoesNotContain(StoryEvents.All, e => e.Id.StartsWith("legend_"));
     }
 
     static void SetPending(CareerState career, StoryEvent ev) =>
