@@ -126,7 +126,7 @@ namespace BaseballSim.Career
                 Box = box, Id = id, Rarity = rarity, FromPity = fromPity, New = level == 0,
                 Name = box == GachaBox.Cards ? Gacha.Card(id)?.Name : Gacha.GearPiece(id)?.Name,
             };
-            if (level >= Gacha.MaxLevel)
+            if (level >= Gacha.MaxLevelOf(box, rarity))
             {
                 result.Refund = Gacha.Refund(rarity);
                 Coins += result.Refund;
@@ -151,6 +151,18 @@ namespace BaseballSim.Career
                 if (!worn.TryGetValue(g.Stat, out var best) || bonus > best.Item3) worn[g.Stat] = (g, kv.Value, bonus);
             }
             return worn;
+        }
+
+        /// <summary>Enhances an owned gear piece one level with coins (a copy from a draw does the same for free).</summary>
+        public bool EnhanceGear(string id)
+        {
+            var g = Gacha.GearPiece(id);
+            int level = g == null ? 0 : LevelOf(GachaBox.Gear, id);
+            int cost = g == null ? 0 : Gacha.EnhanceCoins(g.Rarity, level);
+            if (cost == 0 || Coins < cost) return false;
+            Coins -= cost;
+            GearLevels[id] = level + 1;
+            return true;
         }
 
         /// <summary>Rating points my retired players get in one stat from team gear.</summary>

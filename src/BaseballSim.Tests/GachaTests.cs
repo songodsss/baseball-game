@@ -110,6 +110,27 @@ public class GachaTests
     }
 
     [Fact]
+    public void GearGoesUpOnePerLevelToTen()
+    {
+        Assert.Equal(4, Gacha.GearBonus(Rarity.N, 99));
+        Assert.Equal(10, Gacha.GearBonus(Rarity.SSR, 99));
+        var club = new Club();
+        var ssr = Gacha.Gear.First(g => g.Rarity == Rarity.SSR);
+        club.AddCopy(GachaBox.Gear, ssr.Id, Rarity.SSR);
+        Assert.False(club.EnhanceGear(ssr.Id)); // no coins
+        club.Coins = 100000;
+        for (int level = 1; level < Gacha.GearMaxLevel(Rarity.SSR); level++)
+        {
+            int before = club.TeamGearBonus(ssr.Stat);
+            Assert.True(club.EnhanceGear(ssr.Id));
+            Assert.Equal(before + 1, club.TeamGearBonus(ssr.Stat));
+        }
+        Assert.Equal(10, club.TeamGearBonus(ssr.Stat));
+        Assert.False(club.EnhanceGear(ssr.Id)); // top level
+        Assert.True(club.AddCopy(GachaBox.Gear, ssr.Id, Rarity.SSR).Refund > 0);
+    }
+
+    [Fact]
     public void TeamGearLiftsMyTeamAndPicksTheBestPiece()
     {
         var club = new Club();

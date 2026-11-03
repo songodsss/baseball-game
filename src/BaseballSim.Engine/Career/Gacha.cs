@@ -117,7 +117,17 @@ namespace BaseballSim.Career
         public static int CardBonus(Rarity r, int level) => CardPercent[(int)r] + Math.Max(0, Math.Min(MaxLevel, level) - 1);
 
         /// <summary>Rating points a gear piece adds to my team at a level: base by rarity, +1 per level above 1.</summary>
-        public static int GearBonus(Rarity r, int level) => GearPoints[(int)r] + Math.Max(0, Math.Min(MaxLevel, level) - 1);
+        public static int GearBonus(Rarity r, int level) => GearPoints[(int)r] + Math.Max(0, Math.Min(GearMaxLevel(r), level) - 1);
+
+        /// <summary>Top level of a gear piece: every level is +1, up to +4 (N), +6 (R), +8 (SR), +10 (SSR).</summary>
+        public static int GearMaxLevel(Rarity r) => GearTop[(int)r] - GearPoints[(int)r] + 1;
+        static readonly int[] GearTop = { 4, 6, 8, 10 };
+
+        public static int MaxLevelOf(GachaBox box, Rarity r) => box == GachaBox.Cards ? MaxLevel : GearMaxLevel(r);
+
+        /// <summary>Coins to enhance a gear piece from this level to the next; 0 at the top level.</summary>
+        public static int EnhanceCoins(Rarity r, int level) => level <= 0 || level >= GearMaxLevel(r) ? 0 : EnhanceBase[(int)r] * level;
+        static readonly int[] EnhanceBase = { 60, 120, 250, 500 };
 
         public static int Refund(Rarity r) => RefundCoins[(int)r];
 

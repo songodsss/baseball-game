@@ -137,7 +137,8 @@ namespace BaseballGame
             foreach (var (rarity, percent, items) in Gacha.OddsTable(_box))
                 lines.Add($"{Colored(rarity, rarity.ToString())}  {percent:0.0}%  ·  {items}종, 각 {percent / items:0.000}%");
             lines.Add($"<size=24><color=#BAC4D8>SSR 없이 {Gacha.Pity - 1}번 뽑으면 {Gacha.Pity}번째는 SSR 확정 (뽑기마다 따로 셈)" +
-                      "\n10회 뽑기는 SR 이상 1장 이상 보장 · 같은 것이 나오면 레벨업(최대 Lv." + Gacha.MaxLevel + "), 그 뒤엔 코인으로 돌려받아요" +
+                      "\n10회 뽑기는 SR 이상 1장 이상 보장 · 같은 것이 나오면 레벨업, 최고 레벨 뒤엔 코인으로 돌려받아요" +
+                      $"\n카드 최대 Lv.{Gacha.MaxLevel} · 장비는 레벨마다 +1, 최대 N+4 R+6 SR+8 SSR+10 (코인으로도 강화)" +
                       "\n카드·장비는 능력치를 바로 올리지 않아요. 훈련 효율과 내 팀 전력에만 쓰여요.</color></size>");
             Box(body, string.Join("\n", lines), 360, TextAnchor.MiddleLeft);
         }
@@ -234,14 +235,28 @@ namespace BaseballGame
                 UiKit.Height(UiKit.Label(body, $"내 팀 전력 {Arena.MyPower(_club)}", 26, TextAnchor.MiddleLeft, UiKit.Muted), 44);
             foreach (Stat stat in Enum.GetValues(typeof(Stat)))
             {
-                string text = worn.TryGetValue(stat, out var w)
-                    ? $"{Stats.Name(stat)}  {Colored(w.Gear.Rarity, w.Gear.Name)}  Lv.{w.Level}  <color=#5FA8FF>+{w.Bonus}</color>"
+                bool has = worn.TryGetValue(stat, out var w);
+                string text = has
+                    ? $"{Stats.Name(stat)}  {Colored(w.Gear.Rarity, w.Gear.Name)}  Lv.{w.Level}/{Gacha.GearMaxLevel(w.Gear.Rarity)}  <color=#5FA8FF>+{w.Bonus}</color>"
                     : $"{Stats.Name(stat)}  <color=#BAC4D8>없음</color>";
                 var row = UiKit.Panel(body, "Gear", UiKit.Shade(UiKit.Card, 1.15f));
-                UiKit.Height(row, 80);
-                var label = UiKit.Label(row, text, 28);
-                UiKit.Stretch(label.rectTransform);
-                label.rectTransform.offsetMin = new Vector2(24, 0);
+                UiKit.Height(row, 90);
+                var layout = UiKit.Row(row, 12);
+                layout.padding = new RectOffset(24, 16, 8, 8);
+                layout.childForceExpandWidth = false;
+                UiKit.Width(UiKit.Label(row, text, 28), 0, 1);
+                if (!has) continue;
+                int cost = Gacha.EnhanceCoins(w.Gear.Rarity, w.Level);
+                var id = w.Gear.Id;
+                var enhance = UiKit.Button(row, cost == 0 ? "최고" : $"강화 {cost:N0}", () =>
+                {
+                    if (!_club.EnhanceGear(id)) return;
+                    GameAudio.Sfx(GameAudio.LevelUp);
+                    Save();
+                    Fill();
+                }, CoinBrown);
+                enhance.interactable = cost > 0 && _club.Coins >= cost;
+                UiKit.Width(enhance, 200);
             }
             UiKit.Height(UiKit.Label(body, $"모은 장비 {_club.GearLevels.Count}/{Gacha.Gear.Count}", 26, TextAnchor.MiddleLeft, UiKit.Muted), 50);
         }
