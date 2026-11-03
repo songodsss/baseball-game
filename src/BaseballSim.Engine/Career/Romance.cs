@@ -204,9 +204,9 @@ namespace BaseballSim.Career
             if (Heart(c, her.Key) >= HoldOnAt)
                 ev.Choices.Add(new EventChoice
                 {
-                    Label = $"\"가지 마요\" 하고 붙잡는다",
-                    Result = $"\"가지 마요.\" 생각보다 말이 먼저 나왔다.\n{her.Name}{Particle(her.Name, "이")} 한참 나를 봤다. 그러다 고개를 숙이고 작게 웃었다.\n{her.Name}{Particle(her.Name, "이")} 말했다. \"...그 말, 조금 기다렸어요.\"\n\n" +
-                             $"며칠 뒤 {chosen.Name}에게 사실대로 말했다. {chosen.Name}{Particle(chosen.Name, "은")} 잠깐 말이 없다가 웃었다. \"말해 줘서 고마워요. 응원할게요.\"",
+                    Label = "\"떠나기 전에 할 얘기가 있어요\"",
+                    Result = $"그날 저녁, 늘 가던 곳에서 마주 앉았다.\n돌려 말하는 법을 몰라서 그냥 말했다. 솔직히 아쉽다고. 아직 하고 싶은 얘기가 많다고.\n{her.Name}{Particle(her.Name, "이")} 한참 컵만 만지작거렸다.\n{her.Name}{Particle(her.Name, "이")} 말했다. \"...결정은 제가 할게요. 근데 그 말은, 듣고 싶었어요.\"\n\n" +
+                             $"일주일 뒤, 출발을 미뤘다는 문자가 왔다.\n{chosen.Name}에게는 사실대로 말했다. {chosen.Name}{Particle(chosen.Name, "은")} 잠깐 말이 없다가 웃었다. \"말해 줘서 고마워요.\"",
                     Apply = e =>
                     {
                         e.Unmark(SomePrefix + chosen.Key);
