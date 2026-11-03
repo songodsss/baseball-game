@@ -68,7 +68,7 @@ public class MainStoryTests
             Assert.Equal(scenes.Count, career.Story.Log.Count);
             Assert.Equal(new[] { "main_draft", "main_roommate", "main_camp" }, scenes.Take(3));
             // A career that lasts to 37 sees nearly the whole story; any career gets past the first wall.
-            if (career.Me.Age >= 38) Assert.True(scenes.Count >= MainStory.SceneCount - 6, $"seed {seed}: {scenes.Count} scenes");
+            if (career.Me.Age >= 38) Assert.True(scenes.Count >= MainStory.SceneCount - 6, $"seed {seed}: {scenes.Count} scenes: {string.Join(",", scenes)} | {string.Join(",", career.Story.Seen)} age {career.Me.Age}");
             Assert.True(scenes.Count >= 8, $"seed {seed}: only {scenes.Count} scenes");
         }
     }
@@ -359,7 +359,7 @@ public class MainStoryTests
         career.Story.LastDay = 0;
         career.Me.Age = 26;
         var next = MainStory.Next(career, new DayResult());
-        Assert.True(next == null || next.Id == "main_injury" || next.Id.StartsWith(LegendStory.IdPrefix), next?.Id);
+        Assert.True(next == null || next.Id == "main_arc_reveal" || next.Id.StartsWith(LegendStory.IdPrefix), next?.Id);
         Assert.Equal(3, MainStory.Chapter(career));
     }
 
@@ -373,5 +373,58 @@ public class MainStoryTests
         var career = NewCareer(3, route: StoryRoute.Prodigy);
         Assert.Equal("어머니가 웃었다", MainStory.Fill("{kin:이} 웃었다", career));
         Assert.Equal("백무진 감독이", MainStory.Fill("{mentor:가}", career));
+    }
+
+    [Fact]
+    public void EveryStoryTellsItsOwnThreadAndClimax()
+    {
+        foreach (var route in MainStory.AllRoutes)
+        {
+            var career = NewCareer(21, route: route);
+            foreach (var slot in new[] { "arc_hint", "arc_reveal", "arc_crisis", "arc_choice" })
+                Assert.True(MainStory.VariantCount(career, slot) >= 1, $"{route} {slot}");
+            // The climax is the story's own: the shared versions are left out.
+            foreach (var slot in new[] { "mentor_old", "voice_feature", "last_letter", "last_game" })
+                Assert.Equal(1, MainStory.VariantCount(career, slot));
+        }
+    }
+
+    [Fact]
+    public void ANamedLastSeasonTellsTheLastChapterAndEndsTheCareer()
+    {
+        var career = NewCareer(22);
+        career.Story.Seen.AddRange(new[] { "draft", "roommate", "camp", "first", "first_pay", "letter" });
+        career.Me.Age = 31;
+        Assert.False(career.IsFinalSeason);
+        Assert.True(career.DeclareLastSeason());
+        Assert.False(career.DeclareLastSeason());
+        Assert.True(career.IsFinalSeason);
+        // The earlier chapters left untold are passed over: the last chapter opens the season.
+        Assert.Equal("main_last", career.SeasonStartEvent()?.Id);
+        career.ResolveEvent(0);
+        Assert.Equal(6, MainStory.Chapter(career));
+        Assert.False(career.MustRetire);
+        while (!career.IsSeasonOver)
+        {
+            var day = career.PlayDay(career.Me.Fatigue > 60 ? DailyAction.Rest : DailyAction.TrainContact);
+            if (day.Event != null) career.ResolveEvent(0);
+        }
+        Assert.Contains("last_game", career.Story.Seen);
+        career.EndSeason();
+        Assert.True(career.MustRetire);
+    }
+
+    [Fact]
+    public void ChoicesAlongTheThreadChangeTheEnding()
+    {
+        var career = NewCareer(23, route: StoryRoute.Walkon);
+        var retired = new RetiredPlayer { Name = "테스트", Seasons = 12, MainClub = career.MyTeam.Name };
+        var plain = MainStory.EndingLines(career, retired);
+        career.Story.Flags.Add("spoke_up");
+        career.Story.Flags.Add("paid_debt");
+        var saved = MainStory.EndingLines(career, retired);
+        Assert.Contains(saved, l => l.Contains("도봉구 테스트"));
+        Assert.Contains(saved, l => l.Contains("외상 장부"));
+        Assert.DoesNotContain(plain, l => l.Contains("도봉구 테스트"));
     }
 }

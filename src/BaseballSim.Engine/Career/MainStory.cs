@@ -37,6 +37,34 @@ namespace BaseballSim.Career
     public partial class Career
     {
         public MainStoryState Story = new MainStoryState();
+
+        const string FinalPrefix = "final:";
+
+        /// <summary>The season the player said would be the last, or -1 (kept as a story flag).</summary>
+        public int DeclaredLastSeason
+        {
+            get
+            {
+                var flag = Story.Flags.FirstOrDefault(f => f.StartsWith(FinalPrefix));
+                return flag != null && int.TryParse(flag.Substring(FinalPrefix.Length), out var s) ? s : -1;
+            }
+        }
+
+        /// <summary>Between seasons from 30 on: the coming season can be named the last one, so the story's last chapter is told in it.</summary>
+        public bool CanDeclareLastSeason => Day == 0 && Me.Age >= 30 && DeclaredLastSeason < 0 && !MustRetire && !InMilitary;
+
+        /// <summary>Makes the coming season the last: the final chapter plays out in it and the career ends after it.</summary>
+        public bool DeclareLastSeason()
+        {
+            if (!CanDeclareLastSeason) return false;
+            Story.Flags.Add(FinalPrefix + Season);
+            return true;
+        }
+
+        /// <summary>This season is the career's last: the one named so, or the one before the retirement age.</summary>
+        public bool IsFinalSeason => Me.Age >= RetirementAge - 1 || DeclaredLastSeason == Season;
+
+        bool DeclaredSeasonPlayed => DeclaredLastSeason >= 0 && Season > DeclaredLastSeason;
     }
 
     /// <summary>One scene of a story: what it says and the choices. When it comes is set by its slot.</summary>
@@ -50,6 +78,8 @@ namespace BaseballSim.Career
         public bool AtSeasonStart;
         /// <summary>A moment this version needs today on top of its slot's (a home game, a bad night...).</summary>
         public Func<Career, DayResult, bool> When;
+        /// <summary>This story's own telling of the slot: the shared versions are left out (a story's own climax).</summary>
+        public bool Only;
     }
 
     internal class StoryOption
@@ -75,6 +105,8 @@ namespace BaseballSim.Career
         /// <summary>A line for one person, by how close they ended up (0-100).</summary>
         public Func<Career, Bond, int, string> BondLine;
         public Func<Career, RetiredPlayer, StoryEnding, string> Closing;
+        /// <summary>How the story's own thread ended, from the choices made along the way (may be empty).</summary>
+        public Func<Career, List<string>> Epilogue;
     }
 
     /// <summary>
@@ -143,11 +175,15 @@ namespace BaseballSim.Career
                 Ready = (c, d) => DemotedToday(d) || !c.InFarm && (InASlump(c) || BadGame(c, d) && (c.Season >= 3 || c.Season >= 2 && SeasonPart(c) >= 0.5)),
             },
             new Slot { Id = "rooftop", Chapter = 2, Ready = (c, d) => true },
+            // The story's own thread: a hint of what the mentor has kept quiet.
+            new Slot { Id = "arc_hint", Chapter = 2, Ready = (c, d) => c.Season >= 2 && DaysSinceLast(c) >= Games(c) / 6 },
             new Slot { Id = "mentor_past", Chapter = 2, Ready = (c, d) => c.Season >= 3 },
             new Slot { Id = "breakthrough", Chapter = 2, Ready = (c, d) => !c.InFarm && PlayedWell(d) },
             // 3. The spot that calls your name: about 22 to 26.
             new Slot { Id = "pressure", Chapter = 3, Ready = (c, d) => c.Me.Age >= 22 || c.Season >= 4 && IsCore(c) },
             new Slot { Id = "spot", Chapter = 3, Pre = c => c.Season >= 2 && IsCore(c) || c.Me.Age >= 24 },
+            // The thread turns: the secret comes out.
+            new Slot { Id = "arc_reveal", Chapter = 3, Ready = (c, d) => DaysSinceLast(c) >= Games(c) / 4 },
             new Slot { Id = "injury", Chapter = 3, Ready = (c, d) => DaysSinceLast(c) >= Games(c) / 4 },
             new Slot { Id = "contract", Chapter = 3, Ready = (c, d) => c.Me.Age >= 25 },
             new Slot { Id = "kin_visit", Chapter = 3, Ready = (c, d) => c.Me.Age >= 25 && DaysSinceLast(c) >= Games(c) / 4 },
@@ -158,8 +194,11 @@ namespace BaseballSim.Career
                 Id = "summit", Chapter = 4,
                 // The awards come in the winter: told before the next season. A gold medal, the day it's won.
                 Pre = c => WonTitleLastSeason(c),
-                Ready = (c, d) => d?.Tournament?.Medal == NationalTeam.Gold && d.Tournament.Selected || !HasSummit(c) && c.Me.Age >= 28,
+                Ready = (c, d) => d?.Tournament?.Medal == NationalTeam.Gold && d.Tournament.Selected
+                    || c.Me.Age >= 28 && (!HasSummit(c) || DaysSinceLast(c) >= Games(c) / 3),
             },
+            // The thread's crisis, at the top of the career.
+            new Slot { Id = "arc_crisis", Chapter = 4, Ready = (c, d) => c.Me.Age >= 27 && SeasonPart(c) >= 0.3 && DaysSinceLast(c) >= Games(c) / 6 },
             new Slot { Id = "bigstage", Chapter = 4, Ready = (c, d) => SeasonPart(c) >= 0.8 && Played(d) },
             new Slot { Id = "family", Chapter = 4, Ready = (c, d) => c.Me.Age >= 27 && DaysSinceLast(c) >= Games(c) / 4 },
             new Slot { Id = "voice_feature", Chapter = 4, Ready = (c, d) => c.Me.Age >= 29 },
@@ -167,13 +206,15 @@ namespace BaseballSim.Career
             // 5. Veteran: about 31 to 36.
             new Slot { Id = "body", Chapter = 5, Ready = (c, d) => c.Me.Age >= 32 },
             new Slot { Id = "role_change", Chapter = 5, Ready = (c, d) => c.Me.Age >= 33 },
+            // The thread's last big choice, handing something on.
+            new Slot { Id = "arc_choice", Chapter = 5, Ready = (c, d) => c.Me.Age >= 33 && DaysSinceLast(c) >= Games(c) / 4 },
             new Slot { Id = "friend", Chapter = 5, Ready = (c, d) => DaysSinceLast(c) >= Games(c) / 4 && Played(d) },
             new Slot { Id = "mentor_old", Chapter = 5, Ready = (c, d) => c.Me.Age >= 34 },
-            new Slot { Id = "milestone", Chapter = 5, Ready = (c, d) => c.Me.Age >= 34 && DaysSinceLast(c) >= Games(c) / 4 && Played(d) },
-            new Slot { Id = "rival_end", Chapter = 5, Ready = (c, d) => c.Me.Age >= 35 },
-            new Slot { Id = "family_game", Chapter = 5, Ready = (c, d) => SeasonPart(c) >= 0.5 && DaysSinceLast(c) >= Games(c) / 6 && Played(d) },
+            new Slot { Id = "milestone", Chapter = 5, Ready = (c, d) => c.Me.Age >= 35 && DaysSinceLast(c) >= Games(c) / 4 && Played(d) },
+            new Slot { Id = "rival_end", Chapter = 5, Ready = (c, d) => c.Me.Age >= 36 },
+            new Slot { Id = "family_game", Chapter = 5, Ready = (c, d) => c.Me.Age >= 36 && SeasonPart(c) >= 0.5 && DaysSinceLast(c) >= Games(c) / 6 && Played(d) },
             // 6. The last season.
-            new Slot { Id = "last", Chapter = 6, Pre = c => c.Me.Age >= 37 },
+            new Slot { Id = "last", Chapter = 6, Pre = c => c.IsFinalSeason },
             new Slot { Id = "farewell_tour", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.4 && Played(d) },
             new Slot { Id = "last_letter", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.7 },
             new Slot { Id = "last_game", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.95 },
@@ -244,13 +285,29 @@ namespace BaseballSim.Career
         static Slot DueSlot(Career c, DayResult day)
         {
             var slot = NextSlot(c);
-            while (slot != null && slot.Expired(c, day))
+            // The last season has come: what's left of the earlier chapters stays untold.
+            while (slot != null && (slot.Expired(c, day) || c.IsFinalSeason && slot.Chapter < 6))
             {
                 c.Story.Seen.Add(slot.Id);
                 slot = NextSlot(c);
             }
+            if (slot != null && Stale(c, slot))
+            {
+                // One slot at a time, and the clock starts again so the next one gets its chance.
+                c.Story.Seen.Add(slot.Id);
+                c.Story.LastSeason = c.Season;
+                c.Story.LastDay = c.Day - MinGap(c);
+                slot = NextSlot(c);
+            }
             return slot;
         }
+
+        /// <summary>
+        /// Two whole seasons without a scene: a slot whose moment never comes is passed over so the
+        /// story can't stall. A slot told before a season (the last season...) waits for its moment.
+        /// </summary>
+        static bool Stale(Career c, Slot slot) =>
+            slot.Pre == null && c.Story.LastSeason >= 0 && DaysSinceLast(c) >= 2 * Games(c);
 
         /// <summary>
         /// The first slot after the last one answered. Saves from before a slot was added skip the
@@ -318,8 +375,12 @@ namespace BaseballSim.Career
             return options[(int)(h % (uint)options.Count)];
         }
 
-        static List<StoryScene> Options(Career c, string slotId) =>
-            RouteOf(c).Scenes.Where(s => s.Slot == slotId).Concat(SharedScenes.All.Where(s => s.Slot == slotId)).ToList();
+        static List<StoryScene> Options(Career c, string slotId)
+        {
+            var own = RouteOf(c).Scenes.Where(s => s.Slot == slotId).ToList();
+            if (own.Any(s => s.Only)) return own;
+            return own.Concat(SharedScenes.All.Where(s => s.Slot == slotId)).ToList();
+        }
 
         /// <summary>A stable number from who the player is, for saves made before the seed existed.</summary>
         static int SeedFor(CareerPlayer me)
@@ -510,6 +571,7 @@ namespace BaseballSim.Career
                 lines.Add(c.Story.Has("rival_respect")
                     ? $"{c.Rival.Name} 선수가 보낸 화환도 있었다. '덕분에 나도 여기까지 왔다.'"
                     : $"{c.Rival.Name} 선수의 이름이 적힌 화환도 있었다. 끝까지 지기 싫은 상대였다.");
+            if (route.Epilogue != null) lines.AddRange(route.Epilogue(c));
             lines.AddRange(LegendStory.EndingLines(c));
             lines.Add(route.Closing(c, retired, ending));
             return lines.Select(l => Fill(l, c)).ToList();

@@ -333,7 +333,7 @@ namespace BaseballSim.Career
             new StoryScene
             {
                 Slot = "body", Title = "트레이닝실의 거울",
-                Text = c => "트레이닝실 거울 앞. 이마에 주름이 하나 늘었다.\n옆에서 운동하던 신인이 내 무게의 두 배를 든다.\n\n{pal:이} 슬쩍 다가와 속삭였다. \"우리도 저럴 때가 있었지.\"",
+                Text = c => "트레이닝실 거울 앞. 몸은 아직 멀쩡하다. 그런데 옆에서 운동하던 신인이 내 루틴을 힐끔힐끔 따라 하고 있다.\n\n{pal:이} 슬쩍 다가와 속삭였다. \"우리도 저렇게 선배 따라 했었지.\"",
                 Options = c => new List<StoryOption>
                 {
                     O("유연성 훈련으로 바꾼다", "요가 매트 위에서 땀을 흘렸다. 몸이 조금씩 부드러워졌다.",
@@ -422,7 +422,7 @@ namespace BaseballSim.Career
             new StoryScene
             {
                 Slot = "rival_end", Title = "{rival}의 문자",
-                Text = c => "밤늦게 {rival}에게서 문자가 왔다. 처음 있는 일이다.\n\n'요즘 몸이 예전 같지 않다. 너는 어떠냐.\n우리 둘 중 누가 먼저 그만두나, 그것도 승부겠지.'",
+                Text = c => "밤늦게 {rival}에게서 문자가 왔다. 처음 있는 일이다.\n\n'요즘 주변에서 자꾸 은퇴 얘기를 묻는다. 너는 어떠냐.\n우리 둘 중 누가 먼저 그만두나, 그것도 승부겠지.'",
                 Options = c => new List<StoryOption>
                 {
                     O("'그 승부도 내가 이긴다'", "'ㅋㅋ 역시.' 짧은 답장이 왔다. 이상하게 힘이 났다.",

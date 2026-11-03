@@ -340,7 +340,7 @@ namespace BaseballSim.Career
         /// so a player peaks around age 26 whichever length is picked.
         /// </summary>
         int DayWeight => League.FullSeason / League.GamesPerSeason;
-        public bool MustRetire => Me.Age >= RetirementAge || Released && PendingOffers.Count == 0;
+        public bool MustRetire => Me.Age >= RetirementAge || Released && PendingOffers.Count == 0 || DeclaredSeasonPlayed;
 
         /// <summary>
         /// Creates a fresh 18-year-old. Starting ratings vary only a little; the specialties (two of

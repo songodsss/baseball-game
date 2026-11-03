@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using static BaseballSim.Career.MainStory;
 
 namespace BaseballSim.Career
@@ -15,7 +16,8 @@ namespace BaseballSim.Career
             BondRoles = new[] { "나를 뽑은 코치", "동기 · 룸메이트", "동생", "스포츠 데일리 기자" },
             MentorBefore = "최강훈 코치",
             MentorAfter = "최강훈 감독",
-            Scenes = Scenes(),
+            Scenes = Scenes().Concat(StoryArcs.LastPick()).ToList(),
+            Epilogue = StoryArcs.LastPickEpilogue,
             Opening = (c, r, ending) =>
                 ending == StoryEnding.Legend ? new[] { "[스포츠 데일리 · 한소라] '마지막 순번, 명예의 전당에 서다'", $"헌액식 연단에 선 {r.Name}. 준비한 원고는 접어 두고 한 사람씩 이름을 불렀다." }
                 : ending == StoryEnding.OneClub ? new[] { $"[스포츠 데일리 · 한소라] '{r.MainClub}의 심장, 그라운드를 떠나다'", $"{r.Seasons}시즌 동안 {r.MainClub} 유니폼만 입었다. 마지막 경기, 외야석이 카드섹션으로 등번호를 그렸다." }
@@ -260,25 +262,6 @@ namespace BaseballSim.Career
             // ----- 5. Veteran -----
             new StoryScene
             {
-                Slot = "body", Title = "몸이 먼저 안다",
-                Text = c => "아침에 일어나는 데 시간이 걸린다.\n같은 훈련인데 회복이 하루 더 걸린다.\n\n트레이너가 조심스럽게 말했다.\n\"이제는 덜 하는 게 더 하는 거예요.\"",
-                Options = c => new List<StoryOption>
-                {
-                    O("요령을 익힌다", "힘 대신 경험으로 싸우는 법을 배우기 시작했다.",
-                        (e, k) => { e.Exp(Stat.Eye, 60); e.Fatigue(-20); }),
-                    O("나이는 숫자다, 더 한다", "새벽 러닝을 늘렸다. 몸이 비명을 질렀지만 버텼다.",
-                        (e, k) =>
-                        {
-                            e.Exp(Stat.Power, 60);
-                            e.Fatigue(25);
-                            if (e.MaybeInjure(0.15, 3, InjuryKind.Hamstring)) e.Say("...결국 허벅지가 탈이 났다.");
-                        }),
-                    O("{mentor:을} 찾아간다", "\"나도 서른둘에 그랬다. 그때부터가 진짜 야구다.\"",
-                        (e, k) => { e.Morale(6); ChangeBond(e, k, Bond.Mentor, 10); }),
-                },
-            },
-            new StoryScene
-            {
                 Slot = "friend", Title = "도현의 선택",
                 Text = c => c.Story.Has("visited")
                     ? "도현에게서 문자가 왔다.\n'재활 끝. 다음 주 1군 복귀. 너 병원 매일 왔던 거, 그거 갚으러 간다.'\n\n복귀전, 도현이 그라운드에 들어서자 관중이 모두 일어섰다."
@@ -318,7 +301,7 @@ namespace BaseballSim.Career
             new StoryScene
             {
                 Slot = "last", Title = "마지막 대화",
-                Text = c => "서른일곱의 봄, 스프링캠프 마지막 날.\n{mentor:이} 불렀다. 자기도 올해가 마지막 시즌이라고 했다.\n\n" +
+                Text = c => "마지막 시즌의 봄, 스프링캠프 마지막 날.\n{mentor:이} 불렀다. 자기도 올해가 마지막 시즌이라고 했다.\n\n" +
                             "\"마지막 순번으로 너 뽑던 날 말이다. 사람들이 다 웃었다.\"\n\"지금은 아무도 안 웃지.\"",
                 Options = c => new List<StoryOption>
                 {

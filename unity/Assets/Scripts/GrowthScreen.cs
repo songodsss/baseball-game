@@ -1839,6 +1839,19 @@ namespace BaseballGame
             AddRewindButton(card);
             if (_career.Me.Age >= 30 || _career.MustRetire)
                 UiKit.Height(UiKit.Button(card, "은퇴하고 내 팀에 영입", Retire, UiKit.Warning), 100);
+            if (_career.CanDeclareLastSeason)
+            {
+                // The story's last chapter is told in the season named the last one.
+                Button last = null;
+                last = UiKit.Button(card, "다음 시즌을 마지막 시즌으로 (스토리 마지막 장)", () =>
+                {
+                    if (!_career.DeclareLastSeason()) return;
+                    Log("<color=#FFD24D>마지막 시즌 선언</color> 다음 시즌이 끝나면 은퇴해요. 스토리의 마지막 장이 펼쳐져요.");
+                    Save();
+                    Destroy(last.gameObject);
+                }, UiKit.Muted);
+                UiKit.Height(last, 100);
+            }
             if (!_career.MustRetire && !mustPick && _career.PendingSalary != null)
                 UiKit.Height(UiKit.Button(card, "연봉 협상하기", ShowSalaryTalk), 100);
             else if (!_career.MustRetire && !mustPick)
