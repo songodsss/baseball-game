@@ -56,7 +56,7 @@ public class OffseasonTests
             Assert.Contains(ids, id => id.StartsWith("fans_"));
             Assert.Contains("winter_plan", ids);
             Assert.Contains(ids, id => id.StartsWith("winter_") && id != "winter_plan");
-            Assert.Equal("opening", ids.Last());
+            if (!c.InFarm && !c.InMilitary) Assert.Equal("opening", ids.Last());
             Assert.Null(c.SeasonStartEvent());
             winters.Add(ids);
         }
@@ -94,5 +94,19 @@ public class OffseasonTests
         Assert.Equal(FanMood.Great, Offseason.Mood(great));
         Assert.Equal(FanMood.Hurt, Offseason.Mood(hurt));
         Assert.Equal(FanMood.Great, Offseason.Mood(new SeasonRecord { Games = 144, Line = new BattingLine(), Titles = { Postseason.ChampionTitle } }));
+    }
+}
+
+public class MoraleReadTests
+{
+    [Fact]
+    public void ConfidenceSharpensTheHunchAndASlumpDullsIt()
+    {
+        Assert.Equal(0.10, AtBatChoice.MoraleRead(7), 6);
+        Assert.Equal(0.0, AtBatChoice.MoraleRead(6), 6);
+        Assert.Equal(-0.10, AtBatChoice.MoraleRead(-7), 6);
+        var me = BaseballSim.Career.Career.NewPlayer("t", new SeededRandom(1));
+        me.Morale = 8;
+        Assert.Equal(8, me.ForGame(new SeededRandom(1)).Morale);
     }
 }

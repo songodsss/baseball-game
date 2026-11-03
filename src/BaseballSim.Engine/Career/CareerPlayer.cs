@@ -216,6 +216,7 @@ namespace BaseballSim.Career
             if (todayForm.HasValue) form = todayForm.Value;
             int tiredness = Math.Max(0, (Fatigue - 50) / 6);
             p.Condition = form - tiredness + Morale / 2;
+            p.Morale = Morale;
             p.Traits = new HashSet<string>(Traits);
             if (IsPitcher)
             {

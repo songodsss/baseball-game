@@ -88,13 +88,17 @@ namespace BaseballSim
         }
 
         /// <summary>Hunches are right 55% of the time at eye 20, up to 90% at eye 100.</summary>
+        /// <summary>Confidence (morale 7+) sharpens the hunch by 10 points; a slump (-7 or less) dulls it as much.</summary>
+        public static double MoraleRead(int morale) => morale >= ConfidentMorale ? 0.10 : morale <= -ConfidentMorale ? -0.10 : 0;
+        public const int ConfidentMorale = 7;
+
         public static double HunchAccuracy(int eye) => 0.55 + 0.35 * Math.Max(0, Math.Min(80, eye - 20)) / 80.0;
 
         public static AtBatSituation Read(Player batter, Player pitcher, IRandom random)
         {
             double share = FastballShare(pitcher);
             var coming = random.NextDouble() < share ? Pitch.Fastball : Pitch.Breaking;
-            double accuracy = Math.Min(0.95, HunchAccuracy(batter.Batting.Eye) + (batter.Traits.Contains(Reader) ? 0.15 : 0));
+            double accuracy = Math.Min(0.95, HunchAccuracy(batter.Batting.Eye) + (batter.Traits.Contains(Reader) ? 0.15 : 0) + MoraleRead(batter.Morale));
             var other = coming == Pitch.Fastball ? Pitch.Breaking : Pitch.Fastball;
             return new AtBatSituation
             {
@@ -123,7 +127,7 @@ namespace BaseballSim
         {
             double share = SitsFastball(batter);
             var sitting = random.NextDouble() < share ? Pitch.Fastball : Pitch.Breaking;
-            double accuracy = Math.Min(0.95, HunchAccuracy(pitcher.Pitching.Control) + (pitcher.Traits.Contains(Reader) ? 0.15 : 0));
+            double accuracy = Math.Min(0.95, HunchAccuracy(pitcher.Pitching.Control) + (pitcher.Traits.Contains(Reader) ? 0.15 : 0) + MoraleRead(pitcher.Morale));
             var other = sitting == Pitch.Fastball ? Pitch.Breaking : Pitch.Fastball;
             return new AtBatSituation
             {
