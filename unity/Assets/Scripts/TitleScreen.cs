@@ -8,7 +8,7 @@ using CareerState = BaseballSim.Career.Career;
 namespace BaseballGame
 {
     /// <summary>
-    /// Home: a small town of buildings. The training centre leads to my players (save slots); the
+    /// Home: a small town of buildings in a sunny meadow. The training centre leads to my players (save slots); the
     /// others hold what belongs to the whole club. Lots under construction leave room for more.
     /// </summary>
     public class TitleScreen : MonoBehaviour
@@ -16,11 +16,12 @@ namespace BaseballGame
         static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
         public const string GameTitle = "나의 야구 인생";
 
-        // Press Play in any scene and the prototype starts here.
+        // Press Play in any scene and the prototype starts here, on the "touch the screen" page.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
-            if (FindAnyObjectByType<TitleScreen>() == null && FindAnyObjectByType<GrowthScreen>() == null) Show();
+            if (FindAnyObjectByType<TitleScreen>() == null && FindAnyObjectByType<GrowthScreen>() == null && FindAnyObjectByType<StartScreen>() == null)
+                StartScreen.Show();
         }
 
         public static void Show() => new GameObject("TitleScreen").AddComponent<TitleScreen>();
@@ -33,8 +34,13 @@ namespace BaseballGame
         {
             _random = new SeededRandom(System.Environment.TickCount);
             var canvas = UiKit.Canvas(transform, "TitleCanvas");
-            _root = UiKit.SafeRoot(canvas.transform, UiKit.Background);
-            UiKit.Backdrop(_root, ArtLibrary.Background("title") ?? ArtLibrary.Background("growth"), 0.75f);
+            _root = UiKit.SafeRoot(canvas.transform);
+            var scene = UiKit.Empty(_root.parent, "Scenery");
+            UiKit.Stretch(scene);
+            scene.SetAsFirstSibling();
+            Scenery.Sky(scene);
+            Scenery.Cloud(scene, 0.25f, 0.965f, 0.6f, 10);
+            Scenery.Cloud(scene, 0.7f, 0.95f, 0.5f, 7);
             UiKit.Column(_root, 40, 18);
             GameAudio.PlayMusic(GameAudio.MusicHome);
             GameAudio.PlayAmbience(null);
@@ -73,25 +79,24 @@ namespace BaseballGame
 
             TopBar();
 
-            // The town: a scrolling patch of ground with the buildings on it.
-            var ground = UiKit.Panel(_root, "Town", new Color(0.2f, 0.3f, 0.24f, 0.9f));
+            // The town: a sunny meadow that scrolls, with the buildings dotted along a winding path.
+            var ground = UiKit.Panel(_root, "Town", Scenery.Grass);
             UiKit.Height(ground, 0, 1);
-            UiKit.Column(ground, 16, 0);
-            var town = UiKit.ScrollList(ground, 26);
+            UiKit.Column(ground, 10, 0);
+            var town = UiKit.ScrollList(ground, 0);
             UiKit.Height(town.parent, 0, 1);
-            town.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(4, 4, 16, 24);
 
             var daily = _club.Daily;
             int done = daily.Today.Count(m => m.Done);
             string trainee = focus.IsEmpty ? "새 선수를 키워 보세요" : $"{focus.Career.Me.Name} · {focus.Career.Me.Age}세 · {focus.Career.MyTeam.Name}";
 
             // The training centre is where the game is, so it stands alone and biggest.
-            BuildingTile(Row(town, 560, crossRoad: false), new Building
+            var training = new Building
             {
                 Id = "training_center", Name = "트레이닝 센터", Status = trainee,
                 Body = focus.IsEmpty ? new Color(0.3f, 0.5f, 0.85f) : UiKit.TeamColor(focus.Career.MyTeam.Name), Roof = new Color(0.92f, 0.94f, 0.98f),
                 Open = () => ShowPlayers(slots),
-            }, big: true);
+            };
 
             var buildings = new[]
             {
@@ -132,98 +137,176 @@ namespace BaseballGame
                     Body = new Color(0.55f, 0.22f, 0.25f), Roof = new Color(0.85f, 0.75f, 0.5f), Open = () => ArenaScreen.Open(_club, Build),
                 },
             };
-            for (int i = 0; i < buildings.Length; i += 2)
-            {
-                var row = Row(town, 420, last: i + 2 >= buildings.Length);
-                BuildingTile(row, buildings[i]);
-                if (i + 1 < buildings.Length) BuildingTile(row, buildings[i + 1]);
-            }
+            Town(town, training, buildings);
         }
+        // ---------- The town ----------
 
-        static RectTransform Row(RectTransform town, float height, bool crossRoad = true, bool last = false)
+        /// <summary>Where a building stands: x as a fraction of the town's width, y and size in pixels.</summary>
+        struct Spot
         {
-            var row = UiKit.Empty(town, "Row");
-            UiKit.Height(row, height);
-            UiKit.Row(row, 20);
-            Roads(row, crossRoad, last);
-            return row;
+            public float X, Y, W, H;
+            public Spot(float x, float y, float w, float h) { X = x; Y = y; W = w; H = h; }
+            public float Foot => Y + H / 2;
         }
 
-        static readonly Color Sidewalk = new Color(0.74f, 0.74f, 0.72f, 1f);
-        static readonly Color Asphalt = new Color(0.23f, 0.25f, 0.29f, 1f);
-        static readonly Color Paint = new Color(0.95f, 0.95f, 0.9f, 0.9f);
-        const float RoadWidth = 84, Curb = 14, RowGap = 26; // RowGap = the town's row spacing
+        /// <summary>Rough width of the town in pixels, used only to space things out.</summary>
+        const float MapWidth = 960;
+        static readonly Spot TrainingSpot = new Spot(0.5f, 310, 800, 560);
 
         /// <summary>
-        /// City streets behind a row of buildings: an avenue down the middle of the town that runs on
-        /// into the next row, and a street across the row at the buildings' feet. Each has sidewalks,
-        /// lane paint and people walking; the cross streets get a car and crosswalks. Added before the
-        /// tiles so the buildings stand in front.
+        /// The other buildings zig-zag down the meadow, not quite in rows: left, then a little lower on
+        /// the right, then further down on the left again, each a slightly different size. A building
+        /// past the last spot here carries on the same pattern.
         /// </summary>
-        static void Roads(RectTransform row, bool crossRoad, bool last)
+        static readonly Spot[] Spots =
         {
-            float h = 420;
-            var down = Street(row, "RoadDown", vertical: true, new Vector2(0.5f, 0f), new Vector2(0.5f, crossRoad ? 1f : 0.25f),
-                new Vector2(-RoadWidth / 2, last ? 0.29f * h - RoadWidth / 2 : -RowGap), new Vector2(RoadWidth / 2, 0));
-            Townsfolk.Walker(down, vertical: true, lateral: RoadWidth / 2 - Curb / 2, seed: row.GetSiblingIndex() * 7 + 1);
-            if (!crossRoad) return;
+            new Spot(0.29f, 830, 420, 420), new Spot(0.72f, 1010, 400, 400),
+            new Spot(0.3f, 1390, 410, 410), new Spot(0.72f, 1560, 400, 400),
+            new Spot(0.3f, 1950, 430, 430), new Spot(0.74f, 2120, 400, 400),
+            new Spot(0.32f, 2500, 420, 420),
+        };
 
-            var across = Street(row, "RoadAcross", vertical: false, new Vector2(0f, 0.29f), new Vector2(1f, 0.29f),
-                new Vector2(0, -RoadWidth / 2), new Vector2(0, RoadWidth / 2));
-            Crosswalk(across, 0.38f);
-            Crosswalk(across, 0.62f);
-            int seed = row.GetSiblingIndex() * 13;
-            Townsfolk.Walker(across, vertical: false, lateral: RoadWidth / 2 - Curb / 2, seed: seed + 2);
-            Townsfolk.Walker(across, vertical: false, lateral: -(RoadWidth / 2 - Curb / 2), seed: seed + 3);
-            Townsfolk.Walker(across, vertical: false, lateral: RoadWidth / 2 - Curb / 2, seed: seed + 4);
-            Townsfolk.Car(across, lateral: (RoadWidth / 2 - Curb) / 2, seed: seed + 5);
+        static Spot SpotFor(int i)
+        {
+            if (i < Spots.Length) return Spots[i];
+            var last = Spots[Spots.Length - 1];
+            float y = last.Y;
+            for (int k = Spots.Length; k <= i; k++) y += k % 2 == 1 ? 180 : 380;
+            return new Spot(i % 2 == 0 ? 0.31f : 0.72f, y, 410, 410);
         }
 
-        static RectTransform Street(RectTransform row, string name, bool vertical, Vector2 min, Vector2 max, Vector2 offMin, Vector2 offMax)
+        /// <summary>
+        /// Lays out the meadow: soft patches of grass, a pond, a sandy path winding past every door,
+        /// flowers, then trees, bushes and buildings from the back of the picture to the front so the
+        /// nearer ones overlap the farther. The scenery is the same every visit (fixed seed).
+        /// </summary>
+        void Town(RectTransform town, Building training, Building[] buildings)
         {
-            var walk = UiKit.Panel(row, name, Sidewalk, rounded: false);
-            walk.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
-            walk.anchorMin = min;
-            walk.anchorMax = max;
-            walk.offsetMin = offMin;
-            walk.offsetMax = offMax;
-            walk.GetComponent<Image>().raycastTarget = false;
+            var spots = new System.Collections.Generic.List<Spot> { TrainingSpot };
+            for (int i = 0; i < buildings.Length; i++) spots.Add(SpotFor(i));
+            float height = spots.Max(s => s.Foot) + 150;
 
-            var road = UiKit.Panel(walk, "Asphalt", Asphalt, rounded: false);
-            UiKit.Stretch(road);
-            road.offsetMin = vertical ? new Vector2(Curb, 0) : new Vector2(0, Curb);
-            road.offsetMax = vertical ? new Vector2(-Curb, 0) : new Vector2(0, -Curb);
-            road.GetComponent<Image>().raycastTarget = false;
+            var map = UiKit.Empty(town, "Map");
+            UiKit.Height(map, height);
+            var rng = new System.Random(1103);
 
-            // Dashed centre line.
-            int dashes = vertical ? 6 : 16;
-            for (int i = 0; i < dashes; i++)
+            // A painted ground, if there is one, else soft lighter and darker patches on the grass.
+            var groundArt = ArtLibrary.Background("town");
+            if (groundArt != null) PaintedGround(map, groundArt, height);
+            else
+                for (int i = 0; i < (int)(height / 180); i++)
+                {
+                    float w = 300 + rng.Next(280);
+                    Scenery.Dot(map, i % 2 == 0 ? Scenery.GrassLight : Scenery.GrassDark, (float)rng.NextDouble(), (float)rng.NextDouble() * height, w, w * 0.55f);
+                }
+
+            // The path: a curve through every door, from the top of the meadow to the bottom.
+            var doors = new System.Collections.Generic.List<Vector2> { new Vector2(0.5f * MapWidth, -60) };
+            doors.AddRange(spots.Select(s => new Vector2(s.X * MapWidth, s.Foot + 16)));
+            doors.Add(new Vector2(0.5f * MapWidth, height + 60));
+            var path = PathPoints(doors, 18);
+            foreach (var p in path) Scenery.Dot(map, Scenery.PathEdge, p.x / MapWidth, p.y, 82, 70);
+            foreach (var p in path) Scenery.Dot(map, Scenery.Path, p.x / MapWidth, p.y, 64, 52);
+            for (int i = 3; i < path.Count; i += 7) // a few pebbles in the sand
+                Scenery.Dot(map, new Color(1f, 0.95f, 0.85f, 0.7f), path[i].x / MapWidth + ((float)rng.NextDouble() - 0.5f) * 0.03f, path[i].y, 12, 9);
+
+            bool Clear(float x, float y, float r)
             {
-                var dash = UiKit.Panel(road, "Dash", Paint, rounded: false);
-                dash.GetComponent<Image>().raycastTarget = false;
-                float f0 = (i + 0.2f) / dashes, f1 = (i + 0.7f) / dashes;
-                dash.anchorMin = vertical ? new Vector2(0.5f, f0) : new Vector2(f0, 0.5f);
-                dash.anchorMax = vertical ? new Vector2(0.5f, f1) : new Vector2(f1, 0.5f);
-                dash.offsetMin = vertical ? new Vector2(-2, 0) : new Vector2(0, -2);
-                dash.offsetMax = vertical ? new Vector2(2, 0) : new Vector2(0, 2);
+                if (x < r * 0.5f || x > MapWidth - r * 0.5f || y < r || y > height - 20) return false;
+                foreach (var s in spots)
+                {
+                    float sx = s.X * MapWidth;
+                    if (x > sx - s.W / 2 - r && x < sx + s.W / 2 + r && y > s.Y - s.H / 2 - r * 0.3f && y < s.Foot + r) return false;
+                }
+                foreach (var p in path) if ((p - new Vector2(x, y)).sqrMagnitude < (r + 44) * (r + 44)) return false;
+                return true;
             }
-            return road;
+
+            // A pond in the first open space big enough.
+            for (int tries = 0; tries < 300; tries++)
+            {
+                float x = 120 + (float)rng.NextDouble() * (MapWidth - 240), y = 700 + (float)rng.NextDouble() * (height - 900);
+                if (!Clear(x, y, 130)) continue;
+                Scenery.Pond(map, x / MapWidth, y, 230, 120);
+                spots.Add(new Spot(x / MapWidth, y, 260, 150)); // keep the trees off the water
+                break;
+            }
+
+            // Flowers, then trees and bushes sorted with the buildings by where they stand.
+            for (int n = 0, tries = 0; n < height / 70 && tries < 800; tries++)
+            {
+                float x = (float)rng.NextDouble() * MapWidth, y = (float)rng.NextDouble() * height;
+                if (!Clear(x, y, 20)) continue;
+                Scenery.Flowers(map, x / MapWidth, y, 50, rng, 3 + rng.Next(3));
+                n++;
+            }
+
+            var standing = new System.Collections.Generic.List<(float foot, System.Action draw)>();
+            var trees = new System.Collections.Generic.List<Vector2>();
+            for (int n = 0, tries = 0; n < height / 90 && tries < 1500; tries++)
+            {
+                bool tree = rng.Next(3) > 0;
+                float size = tree ? 100 + rng.Next(50) : 60 + rng.Next(40);
+                float x = (float)rng.NextDouble() * MapWidth, y = (float)rng.NextDouble() * height;
+                if (!Clear(x, y, size * 0.5f) || trees.Any(t => (t - new Vector2(x, y)).magnitude < size * 0.8f)) continue;
+                trees.Add(new Vector2(x, y));
+                int seed = rng.Next();
+                if (tree) standing.Add((y, () => Scenery.Tree(map, x / MapWidth, y, size, new System.Random(seed))));
+                else standing.Add((y, () => Scenery.Bush(map, x / MapWidth, y, size, new System.Random(seed))));
+                n++;
+            }
+            standing.Add((TrainingSpot.Foot, () => BuildingTile(Place(map, TrainingSpot, training.Id), training, big: true)));
+            for (int i = 0; i < buildings.Length; i++)
+            {
+                var b = buildings[i];
+                var s = SpotFor(i);
+                standing.Add((s.Foot, () => BuildingTile(Place(map, s, b.Id), b)));
+            }
+            foreach (var item in standing.OrderBy(x => x.foot)) item.draw();
         }
 
-        /// <summary>Zebra stripes across a street at a point along it.</summary>
-        static void Crosswalk(RectTransform road, float at)
+        static RectTransform Place(RectTransform map, Spot s, string id)
         {
-            const int stripes = 5;
-            for (int i = 0; i < stripes; i++)
+            var tile = UiKit.Empty(map, id);
+            tile.anchorMin = tile.anchorMax = new Vector2(s.X, 1);
+            tile.sizeDelta = new Vector2(s.W, s.H);
+            tile.anchoredPosition = new Vector2(0, -s.Y);
+            return tile;
+        }
+
+        /// <summary>A painted ground picture repeated down the whole meadow, full width.</summary>
+        static void PaintedGround(RectTransform map, Sprite art, float height)
+        {
+            float tile = MapWidth * art.rect.height / art.rect.width;
+            for (float y = 0; y < height; y += tile)
             {
-                var stripe = UiKit.Panel(road, "Zebra", Paint, rounded: false);
-                stripe.GetComponent<Image>().raycastTarget = false;
-                float y0 = (i + 0.15f) / stripes, y1 = (i + 0.75f) / stripes;
-                stripe.anchorMin = new Vector2(at, y0);
-                stripe.anchorMax = new Vector2(at, y1);
-                stripe.offsetMin = new Vector2(-18, 0);
-                stripe.offsetMax = new Vector2(18, 0);
+                var image = UiKit.Empty(map, "Ground").gameObject.AddComponent<Image>();
+                image.sprite = art;
+                image.raycastTarget = false;
+                var rt = image.rectTransform;
+                rt.anchorMin = new Vector2(0, 1);
+                rt.anchorMax = new Vector2(1, 1);
+                rt.pivot = new Vector2(0.5f, 1);
+                rt.sizeDelta = new Vector2(0, tile + 2);
+                rt.anchoredPosition = new Vector2(0, -y);
             }
+        }
+
+        /// <summary>Points every <paramref name="step"/> pixels along a smooth curve through the given points (Catmull-Rom).</summary>
+        static System.Collections.Generic.List<Vector2> PathPoints(System.Collections.Generic.List<Vector2> through, float step)
+        {
+            var points = new System.Collections.Generic.List<Vector2>();
+            for (int i = 0; i + 1 < through.Count; i++)
+            {
+                Vector2 p0 = through[Mathf.Max(0, i - 1)], p1 = through[i], p2 = through[i + 1], p3 = through[Mathf.Min(through.Count - 1, i + 2)];
+                int n = Mathf.Max(2, Mathf.CeilToInt((p2 - p1).magnitude / step));
+                for (int k = 0; k < n; k++)
+                {
+                    float t = k / (float)n, t2 = t * t, t3 = t2 * t;
+                    points.Add(0.5f * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3));
+                }
+            }
+            return points;
         }
 
         // ---------- Home pieces ----------
@@ -239,6 +322,9 @@ namespace BaseballGame
             ArtLibrary.Icon(bar, ArtLibrary.Get("App/app_icon"), 84);
             var title = UiKit.Label(bar, GameTitle, 46);
             title.fontStyle = FontStyle.Bold;
+            var outline = title.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.08f, 0.16f, 0.32f, 0.85f);
+            outline.effectDistance = new Vector2(2, -2);
             UiKit.Width(title, 0, 1);
             Chip(bar, $"코인 {_club.Coins:N0}", new Color(1f, 0.82f, 0.3f));
             Chip(bar, $"명예 {_club.LegacyPoints:N0}", Gold);
@@ -247,7 +333,7 @@ namespace BaseballGame
 
         static void Chip(Transform parent, string text, Color color)
         {
-            var chip = UiKit.Panel(parent, "Chip", new Color(0, 0, 0, 0.35f));
+            var chip = UiKit.Panel(parent, "Chip", Scenery.Plate);
             UiKit.Width(chip, 200);
             UiKit.Height(chip, 64);
             var label = UiKit.Label(chip, text, 26, TextAnchor.MiddleCenter, color);
@@ -256,10 +342,8 @@ namespace BaseballGame
         }
 
         /// <summary>One building: its picture (or a drawn stand-in) with a name plate under it.</summary>
-        void BuildingTile(RectTransform row, Building b, bool big = false)
+        void BuildingTile(RectTransform tile, Building b, bool big = false)
         {
-            var tile = UiKit.Empty(row, b.Id);
-            UiKit.Width(tile, 0, 1);
             var button = tile.gameObject.AddComponent<Button>();
             var hit = tile.gameObject.AddComponent<Image>();
             hit.color = Color.clear;
@@ -296,7 +380,7 @@ namespace BaseballGame
             else DrawBuilding(house, b, big);
 
             // The name plate.
-            var plate = UiKit.Panel(tile, "Plate", b.Soon ? new Color(0.2f, 0.22f, 0.26f, 0.9f) : new Color(0.08f, 0.1f, 0.16f, 0.92f));
+            var plate = UiKit.Panel(tile, "Plate", b.Soon ? new Color(0.2f, 0.22f, 0.26f, 0.9f) : new Color(0.1f, 0.17f, 0.32f, 0.9f));
             plate.anchorMin = new Vector2(0.02f, 0f);
             plate.anchorMax = new Vector2(0.98f, 0f);
             plate.pivot = new Vector2(0.5f, 0);
