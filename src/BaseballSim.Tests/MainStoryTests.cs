@@ -55,6 +55,8 @@ public class MainStoryTests
     [InlineData(Position.Pitcher, PitcherRole.Starter, StoryRoute.Prodigy)]
     [InlineData(Position.Pitcher, PitcherRole.Closer, StoryRoute.Walkon)]
     [InlineData(Position.CenterField, PitcherRole.Starter, StoryRoute.Walkon)]
+    [InlineData(Position.CenterField, PitcherRole.Starter, StoryRoute.Legacy)]
+    [InlineData(Position.Pitcher, PitcherRole.Setup, StoryRoute.Legacy)]
     public void ScenesComeOnceEachInOrder(Position position, PitcherRole role, StoryRoute route)
     {
         for (int seed = 1; seed <= 3; seed++)
@@ -267,6 +269,8 @@ public class MainStoryTests
         club.Roster.Add(new RetiredPlayer { Route = StoryRoute.Prodigy, Ending = StoryEnding.Legend });
         Assert.Equal(StoryRoute.Walkon, MainStory.NextRoute(club));
         club.Roster.Add(new RetiredPlayer { Route = StoryRoute.Walkon, Ending = StoryEnding.OneClub });
+        Assert.Equal(StoryRoute.Legacy, MainStory.NextRoute(club));
+        club.Roster.Add(new RetiredPlayer { Route = StoryRoute.Legacy, Ending = StoryEnding.Hometown });
         Assert.Equal(StoryRoute.LastPick, MainStory.NextRoute(club));
         // Players retired before the story existed don't count.
         club.Roster.Add(new RetiredPlayer());

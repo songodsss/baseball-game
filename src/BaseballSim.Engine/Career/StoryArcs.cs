@@ -423,7 +423,7 @@ namespace BaseballSim.Career
                             "\n도봉구가 전화했다.\n\"일주일만 그 녀석이랑 같이 지내 봐라. 너 처음 왔을 때랑 똑같은 눈이다.\"",
                 Options = c => new List<StoryOption>
                 {
-                    O("2군 숙소에서 일주일 지낸다", "2층 침대 아래 칸. 컵라면 두 개에 물을 부었다.\n\"먹고 하자. 신화 한번 써 보자고.\" 반석에게 들었던 말을 그대로 했다.",
+                    O("2군 숙소에서 일주일 지낸다", "2층 침대 아래 칸. 컵라면 두 개에 물을 부었다.\n내가 말했다.\n\"먹고 하자. 신화 한번 써 보자고.\"\n반석에게 들었던 말 그대로였다.",
                         (e, k) => { e.Fatigue(15); e.Morale(8); ChangeBond(e, k, Bond.Mentor, 10); ChangeBond(e, k, Bond.Friend, 5); Flag(k, "next_walkon"); }),
                     O("장비 한 세트를 선물한다 (200만원)", "아이가 새 글러브를 끌어안고 한참 고개를 숙였다. 나도 처음엔 남이 쓰던 글러브였다.",
                         (e, k) => { e.Money(-200); e.Fans(20); ChangeBond(e, k, Bond.Mentor, 5); Flag(k, "gave_gear"); }),
@@ -545,7 +545,7 @@ namespace BaseballSim.Career
                         case StoryEnding.Partner: return new[] { "['야구하는 소이' 특집] '배터리, 다시 한 번'", "은퇴 후 우진과 함께 동네에 야구 아카데미를 열었다. 받는 건 우진, 던지는 건 나." };
                     }
                     break;
-                default:
+                case StoryRoute.Walkon:
                     switch (ending)
                     {
                         case StoryEnding.Broadcaster: return new[] { "[구단 소식지 · 이다온] '컨테이너에서 중계석까지'", "은퇴 후 구단 중계 해설을 맡았다. 첫 방송에서 연습생 시절 컨테이너 사진을 띄웠다." };
@@ -581,7 +581,7 @@ namespace BaseballSim.Career
                         case StoryEnding.Partner: return "고3 여름의 그 소리가, 오늘도 아카데미에 울린다.";
                     }
                     break;
-                default:
+                case StoryRoute.Walkon:
                     switch (ending)
                     {
                         case StoryEnding.Broadcaster: return "연습생 테스트 날이면 중계석을 비우고 구장으로 내려간다. 떨고 있는 아이들 어깨를 두드려 주려고.";

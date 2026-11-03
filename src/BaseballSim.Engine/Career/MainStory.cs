@@ -11,7 +11,7 @@ namespace BaseballSim.Career
     public enum StoryEnding { None, Legend, OneClub, BaseballSchool, Broadcaster, Hometown, Scout, Partner }
 
     /// <summary>The main stories. Each new player gets one the club hasn't seen much of yet.</summary>
-    public enum StoryRoute { LastPick, Prodigy, Walkon }
+    public enum StoryRoute { LastPick, Prodigy, Walkon, Legacy }
 
     /// <summary>How far the main story has gone in this career, and how close the player is to each person in it.</summary>
     public class MainStoryState
@@ -129,7 +129,7 @@ namespace BaseballSim.Career
         };
 
         public static readonly Bond[] AllBonds = { Bond.Mentor, Bond.Friend, Bond.Family, Bond.Voice };
-        public static readonly StoryRoute[] AllRoutes = { StoryRoute.LastPick, StoryRoute.Prodigy, StoryRoute.Walkon };
+        public static readonly StoryRoute[] AllRoutes = { StoryRoute.LastPick, StoryRoute.Prodigy, StoryRoute.Walkon, StoryRoute.Legacy };
 
         class Slot
         {
@@ -223,7 +223,7 @@ namespace BaseballSim.Career
             new Slot { Id = "last_game", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.95 },
         };
 
-        static readonly List<StoryRouteDef> Routes = new List<StoryRouteDef> { LastPickStory.Build(), ProdigyStory.Build(), WalkonStory.Build() };
+        static readonly List<StoryRouteDef> Routes = new List<StoryRouteDef> { LastPickStory.Build(), ProdigyStory.Build(), WalkonStory.Build(), LegacyStory.Build() };
 
         internal static StoryRouteDef RouteOf(Career c) => Routes.First(r => r.Id == c.Story.Route);
 
