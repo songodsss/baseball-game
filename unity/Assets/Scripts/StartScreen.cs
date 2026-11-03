@@ -23,21 +23,19 @@ namespace BaseballGame
             Scenery.Cloud(back, 0.78f, 0.78f, 0.9f, 9);
             Scenery.Cloud(back, 0.45f, 0.66f, 0.7f, 18);
 
-            // Rolling green hills along the bottom, with the stadium sitting on them.
-            Hill(back, -0.15f, 0.62f, 0.34f, Scenery.Grass * 0.92f + new Color(0, 0, 0, 0.08f));
-            Hill(back, 0.45f, 1.2f, 0.3f, Scenery.Grass);
-            Hill(back, -0.2f, 1.4f, 0.2f, Color.Lerp(Scenery.Grass, Color.white, 0.12f));
-            var stadium = ArtLibrary.Get("Buildings/stadium");
-            if (stadium != null)
+            // A painted title picture if there is one (Resources/Art/Backgrounds/start), else rolling
+            // green hills along the bottom with the stadium sitting on them.
+            var painted = ArtLibrary.Background("start");
+            if (painted != null)
             {
-                var pic = UiKit.Empty(back, "Stadium").gameObject.AddComponent<Image>();
-                pic.sprite = stadium;
-                pic.preserveAspect = true;
+                var pic = UiKit.Empty(back, "Painted").gameObject.AddComponent<Image>();
+                pic.sprite = painted;
                 pic.raycastTarget = false;
-                pic.rectTransform.anchorMin = new Vector2(0.12f, 0.12f);
-                pic.rectTransform.anchorMax = new Vector2(0.88f, 0.42f);
-                pic.rectTransform.offsetMin = pic.rectTransform.offsetMax = Vector2.zero;
+                var fit = pic.gameObject.AddComponent<AspectRatioFitter>();
+                fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+                fit.aspectRatio = painted.rect.width / painted.rect.height;
             }
+            else DrawnHills(back);
 
             var root = UiKit.Empty(back, "Root");
             UiKit.Stretch(root);
@@ -112,6 +110,24 @@ namespace BaseballGame
             rt.anchorMax = new Vector2(1, y01);
             rt.sizeDelta = new Vector2(-60, height);
             rt.anchoredPosition = Vector2.zero;
+        }
+
+        static void DrawnHills(RectTransform back)
+        {
+            Hill(back, -0.15f, 0.62f, 0.34f, Scenery.Grass * 0.92f + new Color(0, 0, 0, 0.08f));
+            Hill(back, 0.45f, 1.2f, 0.3f, Scenery.Grass);
+            Hill(back, -0.2f, 1.4f, 0.2f, Color.Lerp(Scenery.Grass, Color.white, 0.12f));
+            var stadium = ArtLibrary.Get("Buildings/stadium");
+            if (stadium != null)
+            {
+                var pic = UiKit.Empty(back, "Stadium").gameObject.AddComponent<Image>();
+                pic.sprite = stadium;
+                pic.preserveAspect = true;
+                pic.raycastTarget = false;
+                pic.rectTransform.anchorMin = new Vector2(0.12f, 0.12f);
+                pic.rectTransform.anchorMax = new Vector2(0.88f, 0.42f);
+                pic.rectTransform.offsetMin = pic.rectTransform.offsetMax = Vector2.zero;
+            }
         }
 
         /// <summary>A big soft hill: a wide circle whose top shows above the bottom edge.</summary>
