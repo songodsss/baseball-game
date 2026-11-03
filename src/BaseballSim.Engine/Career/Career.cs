@@ -645,6 +645,21 @@ namespace BaseballSim.Career
             return days;
         }
 
+        /// <summary>Fatigue a training adds today (before the game), after traits.</summary>
+        public int TrainingFatigue => Tiring(TrainFatigue);
+        /// <summary>Fatigue a rest day takes away (before the game).</summary>
+        public int RestFatigue => RestRecovery;
+        /// <summary>Fatigue a game adds (hitters, and pitchers who pitch).</summary>
+        public int GameFatigueToday => Tiring(GameFatigue + Positions.ExtraGameFatigue(Me.Position));
+        /// <summary>Fatigue that eases by itself at the end of every day.</summary>
+        public int DailyEase => DailyRecovery + Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom));
+
+        /// <summary>
+        /// One more training day (with a game) would leave the player at the tired line or over it,
+        /// where training halves and injuries can happen. Fast skip stops just before that.
+        /// </summary>
+        public bool NextTrainingTires => Me.Fatigue + TrainingFatigue + GameFatigueToday - DailyEase >= TiredThreshold;
+
         int Tiring(int fatigue) => Me.Traits.Contains(Traits.Iron) ? (int)Math.Round(fatigue * 0.7) : fatigue;
 
         /// <summary>Three traits to pick one from, offered when a slot opens; waits until picked.</summary>

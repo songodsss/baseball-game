@@ -101,4 +101,19 @@ public class OffDayTests
         Assert.True(c.Me.Fatigue <= 60 - 35 - BaseballSim.Career.Career.OffDayRecovery + 15);
         Assert.Equal("화", BaseballSim.Career.Career.WeekdayOf(c.Day));
     }
+
+    [Fact]
+    public void FatigueNumbersMatchADayAndWarnBeforeTheTiredLine()
+    {
+        var random = new BaseballSim.SeededRandom(5);
+        var league = new BaseballSim.Career.League(new BaseballSim.RosterGenerator(random), 144);
+        var c = new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("t", random), league, league.Teams[0], random);
+        Assert.True(c.TrainingFatigue > 0 && c.RestFatigue > 0 && c.DailyEase > 0);
+        c.Me.Fatigue = 30;
+        Assert.False(c.NextTrainingTires);
+        c.Me.Fatigue = 80 - c.TrainingFatigue - c.GameFatigueToday + c.DailyEase;
+        Assert.True(c.NextTrainingTires);
+        c.Me.Fatigue -= 1;
+        Assert.False(c.NextTrainingTires);
+    }
 }

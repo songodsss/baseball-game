@@ -47,6 +47,7 @@ namespace BaseballGame
         readonly Dictionary<Stat, int> _shownRatings = new Dictionary<Stat, int>();
         Text _header, _status, _money, _log, _seasonLengthLabel, _todayText;
         RectTransform _fatigueFill;
+        Text _fatigueText;
         readonly Dictionary<Stat, Text> _ratingTexts = new Dictionary<Stat, Text>();
         readonly Dictionary<Stat, RectTransform> _expFills = new Dictionary<Stat, RectTransform>();
         Text _condition;
@@ -258,11 +259,12 @@ namespace BaseballGame
         }
 
         /// <summary>What a training raises: the main stat a lot, a side stat a little.</summary>
-        static string ActionEffect(DailyAction action)
+        string ActionEffect(DailyAction action)
         {
-            if (action == DailyAction.Rest) return "피로 회복";
+            if (_career == null) return "";
+            if (action == DailyAction.Rest) return $"<color=#7CD992>피로 -{_career.RestFatigue}</color>";
             var (main, side) = CareerState.TrainingTargets(action);
-            return $"{Stats.Name(main)}▲▲ {Stats.Name(side)}▲";
+            return $"{Stats.Name(main)}▲▲ {Stats.Name(side)}▲ <color=#FFB38A>피로+{_career.TrainingFatigue}</color>";
         }
 
         void BuildStatusCard(RectTransform root)
@@ -290,7 +292,8 @@ namespace BaseballGame
             var fatigueRow = UiKit.Empty(card, "Fatigue");
             UiKit.Height(fatigueRow, 66);
             UiKit.Row(fatigueRow, 16).childForceExpandWidth = false;
-            UiKit.Width(UiKit.Label(fatigueRow, "피로", 28, TextAnchor.MiddleLeft, UiKit.Muted), 90);
+            _fatigueText = UiKit.Label(fatigueRow, "피로", 28, TextAnchor.MiddleLeft, UiKit.Muted);
+            UiKit.Width(_fatigueText, 150);
             var bar = UiKit.Bar(fatigueRow, UiKit.Warning);
             UiKit.Width(bar.parent, 0, 1);
             _fatigueFill = bar;
@@ -380,6 +383,11 @@ namespace BaseballGame
         /// </summary>
         void FastForward(DailyAction action)
         {
+            if (action != DailyAction.Rest && (_career.Me.Fatigue >= 80 || _career.NextTrainingTires))
+            {
+                Log($"<color=#F28C40>피로 {_career.Me.Fatigue}</color> · 한 번 더 훈련하면 위험 수치(80)를 넘어요. 빠른 진행을 멈췄어요. 회복부터 해 주세요.");
+                return;
+            }
             for (int i = 0; i < FastSkipDays; i++)
             {
                 var result = _career.PlayDay(action);
@@ -388,7 +396,8 @@ namespace BaseballGame
                 bool stop = i == FastSkipDays - 1 || _career.IsSeasonOver || result.Move != null || result.Trade != null ||
                     result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.TraitOffer != null ||
                     result.Event != null || result.GotInjured || _career.GoalOffer != null ||
-                    (action != DailyAction.Rest && _career.Me.Fatigue >= 80) || !_career.TrainingChoices.Contains(action);
+                    (action != DailyAction.Rest && _career.NextTrainingTires) || !_career.TrainingChoices.Contains(action) ||
+                    (action == DailyAction.Rest && _career.Me.Fatigue <= 0 && !_career.Me.IsInjured); // rested enough
                 if (stop) { AfterDay(result); return; }
                 _lastDay = result;
                 _club.Daily.Record(result);
@@ -945,17 +954,32 @@ namespace BaseballGame
             if (text == null) return;
             if (_banner != null) Destroy(_banner);
             var root = GetComponentInChildren<Canvas>().transform;
-            var panel = UiKit.Panel(root, "GameBanner", new Color(0.08f, 0.1f, 0.16f, 0.94f));
+            // Win: blue, loss: orange, anything else (tie, 2군, no game): the plain navy card.
+            var g = r.MyGame;
+            bool win = g != null && r.FarmLine == null && r.FarmPitching == null && !g.IsTie && g.Winner == _career.MyTeam;
+            bool loss = g != null && r.FarmLine == null && r.FarmPitching == null && !g.IsTie && g.Winner != _career.MyTeam;
+            var accent = win ? new Color(0.37f, 0.66f, 1f) : loss ? new Color(0.95f, 0.55f, 0.25f) : new Color(0.73f, 0.77f, 0.85f);
+            var tint = win ? new Color(0.07f, 0.17f, 0.36f, 0.97f) : loss ? new Color(0.3f, 0.13f, 0.07f, 0.97f) : new Color(0.08f, 0.1f, 0.16f, 0.96f);
+            var panel = UiKit.Panel(root, "GameBanner", tint);
             panel.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
             panel.anchorMin = new Vector2(0.06f, 1);
             panel.anchorMax = new Vector2(0.94f, 1);
             panel.pivot = new Vector2(0.5f, 1);
-            panel.sizeDelta = new Vector2(0, 190);
-            panel.anchoredPosition = new Vector2(0, -150);
-            var label = UiKit.Label(panel, text, 34, TextAnchor.MiddleCenter);
+            panel.sizeDelta = new Vector2(0, 250);
+            panel.anchoredPosition = new Vector2(0, -140);
+            var outline = panel.gameObject.AddComponent<Outline>();
+            outline.effectColor = accent;
+            outline.effectDistance = new Vector2(4, -4);
+            var strip = UiKit.Panel(panel, "Accent", accent);
+            strip.anchorMin = new Vector2(0, 0);
+            strip.anchorMax = new Vector2(0, 1);
+            strip.pivot = new Vector2(0, 0.5f);
+            strip.sizeDelta = new Vector2(16, 0);
+            strip.anchoredPosition = Vector2.zero;
+            var label = UiKit.Label(panel, text, 42, TextAnchor.MiddleCenter);
             UiKit.Stretch(label.rectTransform);
-            label.rectTransform.offsetMin = new Vector2(20, 10);
-            label.rectTransform.offsetMax = new Vector2(-20, -10);
+            label.rectTransform.offsetMin = new Vector2(36, 12);
+            label.rectTransform.offsetMax = new Vector2(-20, -12);
             var button = panel.gameObject.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
             button.onClick.AddListener(() => { if (_banner != null) Destroy(_banner); });
@@ -967,7 +991,7 @@ namespace BaseballGame
         System.Collections.IEnumerator FadeBanner(GameObject banner)
         {
             var group = banner.AddComponent<CanvasGroup>();
-            yield return new WaitForSeconds(3.2f);
+            yield return new WaitForSeconds(4.5f);
             for (float t = 0; t < 0.5f && banner != null; t += Time.deltaTime)
             {
                 group.alpha = 1 - t / 0.5f;
@@ -989,7 +1013,7 @@ namespace BaseballGame
                 bool home = g.Home == _career.MyTeam;
                 var other = home ? g.Away : g.Home;
                 int mine = home ? g.HomeScore : g.AwayScore, theirs = home ? g.AwayScore : g.HomeScore;
-                return $"{Verdict(g)}  {mine} : {theirs}  <size=28>vs {other.Name}</size>";
+                return $"{Verdict(g)}  {mine} : {theirs}  <size=32>vs {other.Name}</size>";
             }
             string farm = _career.InMilitary ? CareerState.MilitaryClub : "2군";
             if (r.FarmLine != null)
@@ -2309,6 +2333,8 @@ namespace BaseballGame
             _status.text = $"{season}  ·  인기 {me.Popularity}{injury}{morale}\n" +
                 $"<size=24><color=#BAC4D8>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
+            string fatigueColor = me.Fatigue >= 80 ? "#F28C40" : me.Fatigue >= 60 ? "#FFD24D" : "#FFFFFF";
+            _fatigueText.text = $"피로 <b><color={fatigueColor}>{me.Fatigue}</color></b>";
             _condition.text = ConditionText(_career.ConditionStars) + (_career.ComebackYear
                 ? $"  <color=#7CD992>재기의 해 +{Mathf.RoundToInt((float)(CareerState.ComebackGrowth - 1) * 100)}%</color>" : "");
 
@@ -2332,6 +2358,7 @@ namespace BaseballGame
             for (int i = 0; i < _actionButtons.Count; i++)
             {
                 var b = _actionButtons[i];
+                UiKit.SetButtonLabel(b, $"{Actions[i].Label}\n<size=24><color=#FFE9A8>{ActionEffect(Actions[i].Action)}</color></size>");
                 b.gameObject.SetActive(choices.Contains(Actions[i].Action));
                 b.interactable = !me.IsInjured || Actions[i].Action == DailyAction.Rest;
             }
