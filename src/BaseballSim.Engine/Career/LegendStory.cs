@@ -101,17 +101,17 @@ namespace BaseballSim.Career
         }
 
         static StoryEvent Meet(Career c, Legend l) => Card(c, IdPrefix + l.Id, "레전드의 방문",
-            $"\"{l.Nickname}\" {l.Name}({l.Years}).\n{l.Record}의 전설이 오늘 훈련장을 찾았다.\n\"{l.Line}\"" + Goal(c, l),
+            $"'{l.Nickname}' {l.Name}({l.Years}).\n{l.Record}의 전설이 오늘 훈련장을 찾았다.\n\"{l.Line}\"" + Goal(c, l),
             ($"{Stats.Name(l.Speciality)} 비법을 배운다", l.Lesson, e => { Mark(c, l, LegendStage.Met); e.Exp(l.Speciality, 80); e.Boost(l.Speciality, 30, 10, "레전드 " + l.Name); e.Fatigue(10); }),
             ("옛날 이야기를 듣는다", l.Story, e => { Mark(c, l, LegendStage.Met); e.Morale(6); }));
 
         static StoryEvent Return(Career c, Legend l) => Card(c, IdPrefix + l.Id + "_2", "레전드의 재방문",
-            $"\"{l.Nickname}\" {l.Name}\n\n" + l.ReturnText + Goal(c, l),
+            $"'{l.Nickname}' {l.Name}\n\n" + l.ReturnText + Goal(c, l),
             (l.ReturnLabelA, l.ReturnResultA, e => { Mark(c, l, LegendStage.Returned); e.Exp(l.Speciality, 120); e.Boost(l.Speciality, 40, 15, "레전드 " + l.Name); e.Fatigue(10); }),
             (l.ReturnLabelB, l.ReturnResultB, e => { Mark(c, l, LegendStage.Returned); e.Morale(8); e.Fans(20); }));
 
         static StoryEvent Surpass(Career c, Legend l) => Card(c, IdPrefix + l.Id + "_3", "레전드를 넘어서",
-            $"\"{l.Nickname}\" {l.Name} · {l.Record}\n\n" + l.SurpassText,
+            $"'{l.Nickname}' {l.Name} · {l.Record}\n\n" + l.SurpassText,
             (l.SurpassLabel, l.SurpassResult, e => { Mark(c, l, LegendStage.Surpassed); e.Morale(10); e.Fans(100); }));
 
         static StoryEvent Duo(Career c) => Card(c, DuoId, "두 전설",

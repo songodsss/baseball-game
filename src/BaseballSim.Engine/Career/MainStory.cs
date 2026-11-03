@@ -181,7 +181,7 @@ namespace BaseballSim.Career
 
         static readonly List<StoryRouteDef> Routes = new List<StoryRouteDef> { LastPickStory.Build(), ProdigyStory.Build(), WalkonStory.Build() };
 
-        static StoryRouteDef RouteOf(Career c) => Routes.First(r => r.Id == c.Story.Route);
+        internal static StoryRouteDef RouteOf(Career c) => Routes.First(r => r.Id == c.Story.Route);
 
         public static int SceneCount => Slots.Count;
         public static IEnumerable<string> SceneIds => Slots.Select(s => s.Id);

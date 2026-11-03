@@ -880,31 +880,41 @@ namespace BaseballGame
 
         // ---------- Story events ----------
 
+        /// <summary>
+        /// A story event as a visual-novel scene: the text told line by line with the speaker's portrait
+        /// and name, then the answers; the chosen answer and what follows are told the same way.
+        /// </summary>
         void ShowEvent(StoryEvent ev)
         {
-            var card = OpenOverlay(ev.Title);
-            TeamTrim(card);
-            ArtLibrary.Banner(card, ArtLibrary.LegendPortrait(ev.Id) ?? ArtLibrary.EventArt(ev.Id), 380);
-            UiKit.Height(UiKit.Label(card, ev.TextFor(_career), 36, TextAnchor.MiddleCenter), 0, 1);
-            for (int i = 0; i < ev.Choices.Count; i++)
-            {
-                int choice = i;
-                UiKit.Height(UiKit.Button(card, ev.Choices[i].Label, () => ResolveEvent(ev, choice)), 120);
-            }
+            CloseOverlay();
+            _overlay = UiKit.Empty(GetComponentInChildren<Canvas>().transform, "Overlay");
+            UiKit.Stretch(_overlay);
+            UiAnim.FadeIn(_overlay, 0.25f);
+            var art = ArtLibrary.EventArt(ev.Id) ?? ArtLibrary.Background("growth");
+            var scene = DialogueScene.Create(_overlay, _career, art, ev.Title);
+            string text = ev.TextFor(_career);
+            scene.Play(Dialogue.Lines(text, _career), () =>
+                scene.ShowChoices(ev.Choices.Select(c => c.Label).ToList(), choice => ResolveEvent(ev, choice, scene, text)));
         }
 
-        void ResolveEvent(StoryEvent ev, int choice)
+        void ResolveEvent(StoryEvent ev, int choice, DialogueScene scene, string text)
         {
+            string label = ev.Choices[choice].Label;
             var outcome = _career.ResolveEvent(choice);
             string changes = outcome.Changes.Count == 0 ? "" : string.Join("  ", outcome.Changes);
-            Log($"<b>{ev.Title}</b> {ev.Choices[choice].Label}" + (changes.Length > 0 ? $"\n{changes}" : ""));
-
-            var card = OpenOverlay(ev.Title);
-            string text = outcome.Text + (changes.Length > 0 ? $"\n\n<color=#5FA8FF>{changes}</color>" : "");
-            UiKit.Height(UiKit.Label(card, text, 36, TextAnchor.MiddleCenter), 0, 1);
-            UiKit.Height(UiKit.Button(card, "확인", () => { CloseOverlay(); TrySeasonStart(); }), 120);
+            Log($"<b>{ev.Title}</b> {label}" + (changes.Length > 0 ? $"\n{changes}" : ""));
             Save();
             Refresh();
+
+            var lines = new List<DialogueLine>();
+            var mine = Dialogue.MyChoice(label, _career);
+            if (mine != null) lines.Add(mine);
+            lines.AddRange(Dialogue.Lines(outcome.Text, _career, text + "\n\n" + label));
+            scene.Play(lines, () => scene.ShowEnd(changes.Length > 0 ? $"<color=#5FA8FF>{changes}</color>" : null, "확인", () =>
+            {
+                CloseOverlay();
+                TrySeasonStart();
+            }));
         }
 
         // ---------- Roster moves ----------
