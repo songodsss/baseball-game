@@ -209,10 +209,10 @@ namespace BaseballSim.Career
             },
             new Legend
             {
-                Id = "noh", Name = "노진우", Nickname = "8회의 남자", Years = "1998~2017", Record = "통산 640홀드", Speciality = Stat.Control, ForPitchers = true,
-                Story = "통산 최다 홀드(640개). 20년 동안 8회만 던졌다. 세이브는 단 하나도 없다. 마석규의 650세이브 중 절반은 자기 몫이라고 농담하지만, 정작 은퇴식 날엔 마석규가 그 말을 대신 했다. 조용하고 꼼꼼해서, 지금도 상대 타자 노트를 손으로 쓴다.",
+                Id = "noh", Name = "노진우", Nickname = "8회의 남자", Years = "1998~2017", Record = "통산 640홀드", Speciality = Stat.Breaking, ForPitchers = true,
+                Story = "통산 최다 홀드(640개). 옆으로 던지는 싱커 하나로 20년 동안 8회만 던졌다. 땅볼 병살이 주특기. 세이브는 단 하나도 없다. 마석규의 650세이브 중 절반은 자기 몫이라고 농담하지만, 정작 은퇴식 날엔 마석규가 그 말을 대신 했다. 조용하고 꼼꼼해서, 지금도 상대 타자 노트를 손으로 쓴다.",
                 Line = "박수는 9회가 받지. 근데 경기는 8회에 끝나는 거야.",
-                Lesson = "몸 풀 시간 없이 바로 올라가는 법을 배웠다. 불펜 문이 열리자마자 공이 손에 붙는다.",
+                Lesson = "팔을 옆으로 내려 공을 가라앉히는 싱커 그립을 배웠다. 타구가 땅으로 깔리기 시작했다.",
                 Goal = c => CountGoal(c, NohHolds, "홀드"),
                 Progress = c => Scaled(c, null, p => p.Holds) / (NohHolds + 1),
                 Halfway = c => Scaled(c, null, p => p.Holds) >= NohHolds / 2,
