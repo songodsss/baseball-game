@@ -107,7 +107,9 @@ namespace BaseballGame
                     var row = UiKit.Empty(_content, "Heart");
                     UiKit.Height(row, 70);
                     UiKit.Row(row, 16);
-                    string tag = lover == null ? "" : lover.Key == her.Key ? (Romance.Married(career) ? " <color=#FF8FB0>♥ 아내</color>" : " <color=#FF8FB0>♥ 연인</color>") : "";
+                    string tag = lover != null && lover.Key == her.Key ? (Romance.Married(career) ? " <color=#FF8FB0>♥ 아내</color>" : " <color=#FF8FB0>♥ 연인</color>")
+                        : Romance.Some(career)?.Key == her.Key ? " <color=#FF8FB0>썸</color>"
+                        : Romance.Drifted(career, her.Key) ? " <size=24>(새 출발)</size>" : "";
                     UiKit.Width(UiKit.Label(row, $"<b>{her.Name}</b>{tag} <size=24>{her.Role}</size>", 30), 430);
                     var fill = UiKit.Bar(row, new Color(1f, 0.56f, 0.69f));
                     UiKit.Height(fill.parent, 26);
@@ -115,7 +117,7 @@ namespace BaseballGame
                     UiKit.SetBar(fill, heart / 100f);
                     UiKit.Width(UiKit.Label(row, heart.ToString(), 30, TextAnchor.MiddleRight), 70);
                 }
-                if (lover == null) Line($"마음 {Romance.ConfessAt} 이상이면 고백할 수 있어요. 고르면 연애·프러포즈·결혼 엔딩으로 이어져요.");
+                if (lover == null) Line(Romance.Established(career) ? $"마음 {Romance.ConfessAt} 이상, 다른 사람보다 {Romance.ClearLead} 앞서면 썸이 시작돼요. 갈림길에서 어디로 가는지가 마음을 정해요." : "주전으로 자리 잡으면(3장) 마음을 정할 일들이 생겨요.");
             }
 
             Section("지나온 장면");
