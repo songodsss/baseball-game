@@ -385,6 +385,7 @@ namespace BaseballGame
             _lastDay = result;
             _club.Daily.Record(result);
             DescribeDay(result);
+            ShowGameBanner(result);
             if (_career.IsSeasonOver)
             {
                 ShowSeasonEnd();
@@ -912,6 +913,83 @@ namespace BaseballGame
             string text = string.Join("\n\n", milestones.Select(m => CareerState.MilestoneCeremony(m, _career.Me.Name)));
             UiKit.Height(UiKit.Label(card, text, 34, TextAnchor.MiddleCenter), 0, 1);
             UiKit.Height(UiKit.Button(card, "확인", CloseOverlay), 110);
+        }
+
+        // ---------- Game result banner ----------
+
+        GameObject _banner;
+
+        /// <summary>
+        /// After each game, a card drops in at the top with the score, win or loss and my line. It doesn't
+        /// block anything: it fades by itself (or on a tap), so the next day can be played right away.
+        /// </summary>
+        void ShowGameBanner(DayResult r)
+        {
+            string text = GameBannerText(r);
+            if (text == null) return;
+            if (_banner != null) Destroy(_banner);
+            var root = GetComponentInChildren<Canvas>().transform;
+            var panel = UiKit.Panel(root, "GameBanner", new Color(0.08f, 0.1f, 0.16f, 0.94f));
+            panel.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            panel.anchorMin = new Vector2(0.06f, 1);
+            panel.anchorMax = new Vector2(0.94f, 1);
+            panel.pivot = new Vector2(0.5f, 1);
+            panel.sizeDelta = new Vector2(0, 190);
+            panel.anchoredPosition = new Vector2(0, -150);
+            var label = UiKit.Label(panel, text, 34, TextAnchor.MiddleCenter);
+            UiKit.Stretch(label.rectTransform);
+            label.rectTransform.offsetMin = new Vector2(20, 10);
+            label.rectTransform.offsetMax = new Vector2(-20, -10);
+            var button = panel.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.onClick.AddListener(() => { if (_banner != null) Destroy(_banner); });
+            _banner = panel.gameObject;
+            UiAnim.PopIn(panel);
+            StartCoroutine(FadeBanner(panel.gameObject));
+        }
+
+        System.Collections.IEnumerator FadeBanner(GameObject banner)
+        {
+            var group = banner.AddComponent<CanvasGroup>();
+            yield return new WaitForSeconds(3.2f);
+            for (float t = 0; t < 0.5f && banner != null; t += Time.deltaTime)
+            {
+                group.alpha = 1 - t / 0.5f;
+                yield return null;
+            }
+            if (banner != null) Destroy(banner);
+        }
+
+        string GameBannerText(DayResult r)
+        {
+            if (r.SatOut) return null;
+            string Verdict(GameResult g)
+            {
+                if (g.IsTie) return "<color=#BAC4D8>무승부</color>";
+                return g.Winner == _career.MyTeam ? "<color=#5FA8FF><b>승리</b></color>" : "<color=#F28C40><b>패배</b></color>";
+            }
+            string Score(GameResult g)
+            {
+                bool home = g.Home == _career.MyTeam;
+                var other = home ? g.Away : g.Home;
+                int mine = home ? g.HomeScore : g.AwayScore, theirs = home ? g.AwayScore : g.HomeScore;
+                return $"{Verdict(g)}  {mine} : {theirs}  <size=28>vs {other.Name}</size>";
+            }
+            string farm = _career.InMilitary ? CareerState.MilitaryClub : "2군";
+            if (r.FarmLine != null)
+            {
+                var f = r.FarmLine;
+                return $"<color=#BAC4D8>{farm} 경기</color>\n<b>{f.AtBats}타수 {f.Hits}안타</b>  {f.HomeRuns}홈런 {f.Walks}볼넷";
+            }
+            if (r.FarmPitching != null) return $"<color=#BAC4D8>{farm} 등판</color>\n{PitchingText(r.FarmPitching)}";
+            if (r.MyGame == null) return null;
+            var g = r.MyGame;
+            if (_career.Me.IsPitcher)
+                return Score(g) + "\n" + (r.MyPitching != null ? $"<b>{(_career.Me.Role == PitcherRole.Starter ? "선발" : "구원")}</b> {PitchingText(r.MyPitching)}" : "<color=#BAC4D8>등판 없음</color>");
+            var l = r.MyLine;
+            if (l == null) return Score(g);
+            return Score(g) + $"\n<b>{l.AtBats}타수 {l.Hits}안타</b>" + (l.HomeRuns > 0 ? $"  <color=#FFD24D>{l.HomeRuns}홈런</color>" : "") +
+                (l.RunsBattedIn > 0 ? $"  {l.RunsBattedIn}타점" : "") + (l.Walks > 0 ? $"  {l.Walks}볼넷" : "");
         }
 
         static string PitchingText(PitcherLine p) =>
