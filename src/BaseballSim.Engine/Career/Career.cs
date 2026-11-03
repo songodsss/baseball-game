@@ -438,6 +438,8 @@ namespace BaseballSim.Career
             if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
             {
                 var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
+                // A romance scene whose turn has come takes the random event's place, so the count of events stays the same.
+                if (random != null) random = Romance.Moment(this, result) ?? random;
                 PendingEvent = MainStory.Next(this, result) ?? StoryEvents.Scheduled(this, result) ?? random;
             }
             result.Event = PendingEvent;

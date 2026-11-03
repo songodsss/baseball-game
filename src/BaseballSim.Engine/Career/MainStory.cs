@@ -601,6 +601,7 @@ namespace BaseballSim.Career
             if (route.Epilogue != null) lines.AddRange(route.Epilogue(c));
             if (StoryPromises.WasKept(c, "last")) lines.Add("마지막 시즌, 약속한 숫자까지 채우고 떠났다. 기록지는 지금도 액자에 걸려 있다.");
             lines.AddRange(LegendStory.EndingLines(c));
+            lines.AddRange(Romance.EndingLines(c));
             lines.Add(StoryArcs.Closing(c, retired, ending) ?? route.Closing(c, retired, ending));
             return lines.Select(l => Fill(l, c)).ToList();
         }

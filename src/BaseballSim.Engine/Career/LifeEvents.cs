@@ -498,7 +498,7 @@ namespace BaseballSim.Career
                 Title = "결혼 이야기",
                 Text = "오래 만난 연인이 조심스럽게 말을 꺼냈다.\n\"우리 이제 결혼할까?\"",
                 // Comes sooner after the blind-date romance; without it, from 29.
-                Weight = (c, d) => c.Me.Age <= 34 && !c.HasMark("married") && !c.SeenThisSeason("proposal")
+                Weight = (c, d) => c.Me.Age <= 34 && !c.HasMark("married") && !c.SeenThisSeason("proposal") && Romance.Lover(c) == null
                     && (c.HasMark("dating") ? c.Me.Age >= 25 && c.Seen("dating_news") : c.Me.Age >= 29) ? (c.HasMark("dating") ? 1.5 : 0.5) : 0,
                 Choices =
                 {

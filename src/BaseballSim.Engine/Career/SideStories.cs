@@ -227,7 +227,7 @@ namespace BaseballSim.Career
                 Id = "blind_date",
                 Title = "소개팅",
                 Text = "동료가 휴대폰 사진을 내밀었다.\n\"내 와이프 친구야. 야구 하나도 몰라. 그래서 좋을 걸?\"",
-                Weight = (c, d) => c.Me.Age >= 21 && c.Me.Age <= 28 && !c.HasMark("married") && !c.Seen("blind_date") ? 0.7 : 0,
+                Weight = (c, d) => c.Me.Age >= 21 && c.Me.Age <= 28 && !c.HasMark("married") && !c.Seen("blind_date") && !Romance.Started(c) ? 0.7 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "나가 본다", Result = "\"야구 선수면... 공 던지는 거죠?\" 첫마디에 웃음이 터졌다. 세 시간이 금방 갔다.", Apply = e => { e.Morale(5); e.Mark("dating"); } },
@@ -240,7 +240,7 @@ namespace BaseballSim.Career
                 Id = "date_anniversary",
                 Title = "원정 중 기념일",
                 Text = "오늘이 만난 지 100일인데 원정 경기다.\n휴대폰에 '경기 잘해! 다치지 말고' 메시지가 와 있다.",
-                Weight = (c, d) => c.HasMark("dating") && Next(c, "blind_date", "date_anniversary", Gap(c) * 2) && d.MyGame != null && d.MyGame.Away == c.MyTeam ? 3 : 0,
+                Weight = (c, d) => c.HasMark("dating") && (Next(c, "blind_date", "date_anniversary", Gap(c) * 2) || !c.Seen("date_anniversary") && Romance.Lover(c) != null && c.GamesSince("lover:" + Romance.Lover(c).Key) >= Gap(c) * 2) && d.MyGame != null && d.MyGame.Away == c.MyTeam ? 3 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "경기 끝나고 KTX로 깜짝 방문", Result = "새벽에 문을 열어 준 얼굴이 놀라서 울다 웃었다. 피곤해도 하나도 안 피곤하다.", Apply = e => { e.Fatigue(20); e.Morale(8); } },
@@ -256,8 +256,8 @@ namespace BaseballSim.Career
                 Weight = (c, d) => c.HasMark("dating") && Next(c, "date_anniversary", "dating_news", SeasonGames(c) / 2) ? 3 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "\"네, 예쁘게 만나고 있습니다\"", Result = "댓글창이 축하로 가득 찼다. 연인이 '멋있었어' 문자를 보냈다.", Apply = e => { e.Morale(6); e.Fans(50); } },
-                    new EventChoice { Label = "\"사생활은 지켜 주세요\"", Result = "기사는 금방 잠잠해졌다. 연인이 고맙다고 했다.", Apply = e => e.Morale(3) },
+                    new EventChoice { Label = "\"네, 예쁘게 만나고 있습니다\"", Result = "댓글창이 축하로 가득 찼다. {lover}가 '멋있었어' 문자를 보냈다.", Apply = e => { e.Morale(6); e.Fans(50); } },
+                    new EventChoice { Label = "\"사생활은 지켜 주세요\"", Result = "기사는 금방 잠잠해졌다. {lover}가 고맙다고 했다.", Apply = e => e.Morale(3) },
                 },
             });
 

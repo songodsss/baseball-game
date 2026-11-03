@@ -96,6 +96,28 @@ namespace BaseballGame
             Line($"유대 {MainStory.BondEndingAt} 이상인 사람이 있으면 은퇴 후 그 사람을 따라가는 엔딩이 열려요. (명예의 전당·원클럽맨이 먼저)");
             if (career.IsFinalSeason) Line("<color=#FFD24D>올해가 마지막 시즌이에요.</color>");
 
+            var met = Romance.Met(career);
+            if (met.Count > 0)
+            {
+                Section("인연");
+                var lover = Romance.Lover(career);
+                foreach (var her in met)
+                {
+                    int heart = Romance.Heart(career, her.Key);
+                    var row = UiKit.Empty(_content, "Heart");
+                    UiKit.Height(row, 70);
+                    UiKit.Row(row, 16);
+                    string tag = lover == null ? "" : lover.Key == her.Key ? (Romance.Married(career) ? " <color=#FF8FB0>♥ 아내</color>" : " <color=#FF8FB0>♥ 연인</color>") : "";
+                    UiKit.Width(UiKit.Label(row, $"<b>{her.Name}</b>{tag} <size=24>{her.Role}</size>", 30), 430);
+                    var fill = UiKit.Bar(row, new Color(1f, 0.56f, 0.69f));
+                    UiKit.Height(fill.parent, 26);
+                    UiKit.Width(fill.parent, 0, 1);
+                    UiKit.SetBar(fill, heart / 100f);
+                    UiKit.Width(UiKit.Label(row, heart.ToString(), 30, TextAnchor.MiddleRight), 70);
+                }
+                if (lover == null) Line($"마음 {Romance.ConfessAt} 이상이면 고백할 수 있어요. 고르면 연애·프러포즈·결혼 엔딩으로 이어져요.");
+            }
+
             Section("지나온 장면");
             if (story.Log.Count == 0) Line("아직 없어요. 첫 경기를 치르면 이야기가 시작돼요.");
             foreach (var entry in Enumerable.Reverse(story.Log)) Line(entry);

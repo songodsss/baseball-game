@@ -443,6 +443,8 @@ namespace BaseballGame
             { "도봉구", "do_bonggu" }, { "김반석", "kim_banseok" }, { "할머니", "grandma" }, { "이다온", "lee_daon" },
             // People of the story threads
             { "백승호", "baek_seungho" }, { "아저씨", "equipment_man" },
+            // Heroines (each story has two)
+            { "강유진", "kang_yujin" }, { "서하린", "seo_harin" }, { "정가을", "jung_gaeul" }, { "윤세아", "yoon_sea" }, { "민채은", "min_chaeeun" }, { "한예린", "han_yerin" },
             // 아버지의 등번호
             { "권태수", "kwon_taesu" }, { "차민혁", "cha_minhyuk" }, { "아버지", "father" }, { "오지영", "oh_jiyoung" }, { "주치의", "team_doctor" },
             // Serial side stories
