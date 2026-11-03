@@ -436,7 +436,7 @@ namespace BaseballGame
         static readonly Dictionary<string, string> People = new Dictionary<string, string>
         {
             // 마지막 순번
-            { "최강훈", "choi_ganghun" }, { "윤도현", "yoon_dohyun" }, { "하윤", "hayun" }, { "한소라", "han_sora" },
+            { "최강훈", "choi_ganghun" }, { "윤도현", "yoon_dohyun" }, { "하준", "hajun" }, { "한소라", "han_sora" },
             // 천재의 무게
             { "백무진", "baek_mujin" }, { "정우진", "jung_woojin" }, { "어머니", "mother" }, { "소이", "soi" },
             // 연습생 신화

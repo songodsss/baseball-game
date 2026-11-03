@@ -11,7 +11,7 @@ namespace BaseballSim.Career
             Id = StoryRoute.LastPick,
             Name = "마지막 순번",
             Blurb = "드래프트 마지막 순번으로 겨우 프로에 온 신인이 리그의 전설을 꿈꾼다.",
-            BondNames = new[] { "최강훈", "윤도현", "하윤", "한소라" },
+            BondNames = new[] { "최강훈", "윤도현", "하준", "한소라" },
             BondRoles = new[] { "나를 뽑은 코치", "동기 · 룸메이트", "동생", "스포츠 데일리 기자" },
             MentorBefore = "최강훈 코치",
             MentorAfter = "최강훈 감독",
@@ -33,9 +33,9 @@ namespace BaseballSim.Career
                             : v <= 30 ? "도현에게서는 꽃다발만 도착했다. 카드에는 '축하한다, 친구'."
                             : "도현이 손을 흔들었다. \"수고했다, 룸메이트.\"";
                     case Bond.Family:
-                        return v >= 70 ? "프로 선수가 된 하윤이 유니폼 차림으로 꽃을 들고 올라왔다. 크레파스 그림 속 그 아이였다."
-                            : v <= 30 ? "하윤은 경기 일정 때문에 영상 메시지를 보냈다. \"그래도 내 첫 번째 영웅이야.\""
-                            : "하윤이 객석에서 휴대폰으로 사진을 찍고 있었다.";
+                        return v >= 70 ? "프로 선수가 된 하준이 유니폼 차림으로 꽃을 들고 올라왔다. 크레파스 그림 속 그 아이였다."
+                            : v <= 30 ? "하준은 경기 일정 때문에 영상 메시지를 보냈다. \"그래도 내 첫 번째 영웅이야.\""
+                            : "하준이 객석에서 휴대폰으로 사진을 찍고 있었다.";
                     default:
                         return v >= 70 ? "한소라는 첫 인터뷰 때의 수첩을 꺼내 보였다. 첫 장에 그날의 한마디가 적혀 있었다."
                             : "한소라의 기사는 짧았지만 정확했다.";
@@ -101,10 +101,10 @@ namespace BaseballSim.Career
             {
                 Slot = "letter", Title = "동생의 그림",
                 Text = c => "집에서 소포가 왔다. 크레파스로 그린 그림 한 장.\n{team} 유니폼을 입은 사람과, 그 옆에 작은 글러브를 낀 아이.\n\n" +
-                            "'나도 리틀야구 들어갔어! 나중에 같이 뛰자! — 하윤'\n\n아홉 살 동생 하윤의 글씨다.",
+                            "'나도 리틀야구 들어갔어! 나중에 같이 뛰자! — 하준'\n\n아홉 살 동생 하준의 글씨다.",
                 Options = c => new List<StoryOption>
                 {
-                    O("영상 통화를 건다", "화면 너머로 하윤이 새 글러브를 자랑했다. 통화를 끊고도 한참 웃음이 났다.",
+                    O("영상 통화를 건다", "화면 너머로 하준이 새 글러브를 자랑했다. 통화를 끊고도 한참 웃음이 났다.",
                         (e, k) => { e.Morale(5); ChangeBond(e, k, Bond.Family, 10); }),
                     O("그림을 사물함에 붙인다", "경기 전마다 그림을 보는 게 습관이 됐다.",
                         (e, k) => { e.Morale(3); e.Exp(Stat.Eye, 20); ChangeBond(e, k, Bond.Family, 5); }),
@@ -223,7 +223,7 @@ namespace BaseballSim.Career
             {
                 Slot = "summit", Title = "정상",
                 Text = c => (HasSummit(c)
-                                ? "시상식. 무대 위에서 내려다본 객석에 아는 얼굴들이 보였다.\n최강훈, 지팡이를 짚은 도현, 그리고 부쩍 자란 하윤.\n\n"
+                                ? "시상식. 무대 위에서 내려다본 객석에 아는 얼굴들이 보였다.\n최강훈, 지팡이를 짚은 도현, 그리고 부쩍 자란 하준.\n\n"
                                 : "스물여덟. 아직 트로피는 없다.\n그래도 이제 리그에서 내 이름을 모르는 사람은 없다.\n\n") +
                             "한소라가 이번엔 표지 인터뷰를 요청했다.\n\"마지막 순번에서 여기까지. 무슨 말을 하고 싶으세요?\"",
                 Options = c => new List<StoryOption>
@@ -243,8 +243,8 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "family", Title = "하윤의 지명",
-                Text = c => "올해 드래프트. 온 가족이 TV 앞에 모였다.\n그리고 3라운드에서, 그 이름이 불렸다.\n\n\"하윤.\"\n\n" +
+                Slot = "family", Title = "하준의 지명",
+                Text = c => "올해 드래프트. 온 가족이 TV 앞에 모였다.\n그리고 3라운드에서, 그 이름이 불렸다.\n\n\"하준.\"\n\n" +
                             "열여덟 살 동생이 화면 속에서 울고 있었다.\n곧 전화가 울렸다. \"나 이제 진짜 같은 리그야! 봐주는 거 없다?\"",
                 Options = c => new List<StoryOption>
                 {
@@ -252,7 +252,7 @@ namespace BaseballSim.Career
                         (e, k) => { e.Morale(5); ChangeBond(e, k, Bond.Family, 10); }),
                     O("글러브를 선물한다 (200만원)", "어릴 적 크레파스 그림 속 그 글러브처럼.",
                         (e, k) => { e.Money(-200); ChangeBond(e, k, Bond.Family, 15); }),
-                    O("프로는 다르다고 충고한다", "하윤이 잠깐 조용해졌다. \"...알아. 그러니까 지켜봐.\"",
+                    O("프로는 다르다고 충고한다", "하준이 잠깐 조용해졌다. \"...알아. 그러니까 지켜봐.\"",
                         (e, k) => { e.Morale(2); ChangeBond(e, k, Bond.Family, -5); }),
                 },
             },
@@ -302,12 +302,12 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "family_game", Title = "하윤과의 맞대결",
-                Text = c => (c.Me.IsPitcher ? "9회, 타석에 하윤이 들어섰다.\n" : "오늘 상대 마운드에 하윤이 서 있었다.\n") +
-                            "어릴 적 마당에서 공을 던져 주던 기억이 스쳤다.\n\n하윤이 모자를 고쳐 쓰며 고개를 끄덕였다. 진짜 승부를 하자는 뜻이다.",
+                Slot = "family_game", Title = "하준과의 맞대결",
+                Text = c => (c.Me.IsPitcher ? "9회, 타석에 하준이 들어섰다.\n" : "오늘 상대 마운드에 하준이 서 있었다.\n") +
+                            "어릴 적 마당에서 공을 던져 주던 기억이 스쳤다.\n\n하준이 모자를 고쳐 쓰며 고개를 끄덕였다. 진짜 승부를 하자는 뜻이다.",
                 Options = c => new List<StoryOption>
                 {
-                    O("전력으로 상대한다", "결과보다 하윤의 웃는 얼굴이 더 오래 기억에 남았다.",
+                    O("전력으로 상대한다", "결과보다 하준의 웃는 얼굴이 더 오래 기억에 남았다.",
                         (e, k) => { e.Morale(5); e.Fans(30); ChangeBond(e, k, Bond.Family, 10); }),
                     O("경기 후 같이 밥을 먹는다", "부모님께 보낼 사진을 찍었다. 둘 다 유니폼 차림으로.",
                         (e, k) => { e.Fatigue(-10); ChangeBond(e, k, Bond.Family, 10); }),
