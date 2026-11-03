@@ -63,6 +63,24 @@ public class GachaTests
     }
 
     [Fact]
+    public void ThePitySsrIsAPickOfMyChoice()
+    {
+        var club = new Club { Coins = 1_000_000 };
+        club.SetPityCount(GachaBox.Gear, Gacha.Pity - 1);
+        var r = Gacha.Draw(club, GachaBox.Gear, 1, new SeededRandom(1));
+        Assert.True(r[0].Pick);
+        Assert.Equal(1, club.SsrPicks[(int)GachaBox.Gear]);
+        Assert.Equal(0, club.PityCount(GachaBox.Gear));
+        Assert.Null(club.UsePick(GachaBox.Cards, Stat.Power)); // picks stay in their own box
+        var got = club.UsePick(GachaBox.Gear, Stat.Power);
+        Assert.Equal(Rarity.SSR, got.Rarity);
+        Assert.Equal(5, club.TeamGearBonus(Stat.Power));
+        Assert.Equal(0, club.SsrPicks[(int)GachaBox.Gear]);
+        club.SsrPicks[0] = 2;
+        Assert.Equal(2, SaveGame.FromBytes(SaveGame.ToBytes(club, null), new SeededRandom(1)).Item1.SsrPicks[0]);
+    }
+
+    [Fact]
     public void RatesRoughlyMatchThePublishedOdds()
     {
         var club = new Club { Coins = int.MaxValue / 2 };

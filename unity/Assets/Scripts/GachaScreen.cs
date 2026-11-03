@@ -76,7 +76,7 @@ namespace BaseballGame
                 ? "장착한 선수가 그 능력치를 훈련할 때 경험치가 더 쌓여요 (+5~15%, 겹치면 레벨업)."
                 : "은퇴 선수들로 만든 내 팀 전원의 능력치가 올라가요 (+1~5). 내 팀 리그·결투장에 그대로 들어가요.";
             UiKit.Height(UiKit.Label(_card,
-                $"코인 <color=#FFD24D>{_club.Coins:N0}</color>  ·  뽑기권 {_club.DrawTickets}장  ·  SSR 확정까지 {_club.DrawsToPity(_box)}회\n" +
+                $"코인 <color=#FFD24D>{_club.Coins:N0}</color>  ·  뽑기권 {_club.DrawTickets}장  ·  SSR 골라 받기까지 {_club.DrawsToPity(_box)}회\n" +
                 $"<size=24><color=#BAC4D8>{what}</color></size>", 30, TextAnchor.MiddleCenter), 110);
 
             var draws = UiKit.Empty(_card, "Draws");
@@ -93,6 +93,7 @@ namespace BaseballGame
             var body = UiKit.ScrollList(_card, 10);
             UiKit.Height(body.parent, 0, 1);
 
+            if (_club.SsrPicks[(int)_box] > 0) PickBox(body);
             if (_showOdds) OddsBox(body);
             if (_last != null) ResultBox(body, _last);
             if (_box == GachaBox.Cards) CardsList(body);
@@ -104,6 +105,31 @@ namespace BaseballGame
             UiKit.Button(buttons, _showOdds ? "확률 닫기" : "확률 보기", () => { _showOdds = !_showOdds; Fill(); }, UiKit.Muted);
             UiKit.Button(buttons, "뽑기권 사기", () => PremiumScreen.Open(_club, () => { if (this != null) Fill(); }), TicketPurple);
             UiKit.Button(buttons, "닫기", Close, UiKit.Muted);
+        }
+
+        /// <summary>Pick tickets from the pity counter: one button per stat, its SSR and what it would do.</summary>
+        void PickBox(RectTransform body)
+        {
+            UiKit.Height(UiKit.Label(body, $"<color=#FFD24D><b>SSR 선택권 {_club.SsrPicks[(int)_box]}장</b></color>  받고 싶은 SSR을 고르세요", 30, TextAnchor.MiddleLeft), 56);
+            foreach (Stat stat in Enum.GetValues(typeof(Stat)))
+            {
+                string id = Gacha.IdOf(_box, stat, Rarity.SSR);
+                int level = _club.LevelOf(_box, id);
+                string name = _box == GachaBox.Cards ? Gacha.Card(id).Name : Gacha.GearPiece(id).Name;
+                string have = level == 0 ? "없음" : $"Lv.{level}" + (_box == GachaBox.Gear && level < Gacha.GearMaxLevel(Rarity.SSR) ? $" ({_club.CopiesOf(id)}/{Gacha.GearCopiesFor(level + 1)}장)" : "");
+                var pick = stat;
+                var b = UiKit.Button(body, $"{name}  ·  지금 {have}", () =>
+                {
+                    var got = _club.UsePick(_box, pick);
+                    if (got == null) return;
+                    _last = new List<DrawResult> { got };
+                    if (_career != null) _club.RefreshCards(_career);
+                    GameAudio.Sfx(GameAudio.Achievement);
+                    Save();
+                    Fill();
+                }, new Color(0.55f, 0.42f, 0.12f));
+                UiKit.Height(b, 80);
+            }
         }
 
         void Switch(GachaBox box)
@@ -136,7 +162,7 @@ namespace BaseballGame
             var lines = new List<string> { "<b>확률 공개</b>  (두 뽑기 모두 같아요)" };
             foreach (var (rarity, percent, items) in Gacha.OddsTable(_box))
                 lines.Add($"{Colored(rarity, rarity.ToString())}  {percent:0.0}%  ·  {items}종, 각 {percent / items:0.000}%");
-            lines.Add($"<size=24><color=#BAC4D8>SSR 없이 {Gacha.Pity - 1}번 뽑으면 {Gacha.Pity}번째는 SSR 확정 (뽑기마다 따로 셈)" +
+            lines.Add($"<size=24><color=#BAC4D8>SSR 없이 {Gacha.Pity - 1}번 뽑으면 {Gacha.Pity}번째는 원하는 SSR을 골라 받는 선택권 (뽑기마다 따로 셈)" +
                       "\n10회 뽑기는 SR 이상 1장 이상 보장 · 같은 것이 나오면 레벨업, 최고 레벨 뒤엔 코인으로 돌려받아요" +
                       $"\n카드 최대 Lv.{Gacha.MaxLevel} · 장비는 같은 장비를 모아 강화: 레벨마다 +1, 강화할수록 필요 장수 증가(누적 1·2·4·7·11·16장), 최대 N+4 R+6 SR+8 SSR+10" +
                       "\n카드·장비는 능력치를 바로 올리지 않아요. 훈련 효율과 내 팀 전력에만 쓰여요.</color></size>");
@@ -147,6 +173,7 @@ namespace BaseballGame
         {
             var lines = results.OrderByDescending(r => r.Rarity).Select(r =>
             {
+                if (r.Pick) return $"{Colored(Rarity.SSR, "[SSR] 선택권")}  <color=#FFD24D>원하는 SSR을 골라요!</color>";
                 string tag = r.Refund > 0 ? $"<color=#FFD24D>코인 +{r.Refund}</color>" : r.New ? "<color=#5FA8FF>NEW</color>"
                     : r.LevelUp || r.Box == GachaBox.Cards ? $"<color=#7CD992>강화! Lv.{r.Level}</color>" : $"Lv.{r.Level} (강화 재료 +1)";
                 return $"{Colored(r.Rarity, $"[{r.Rarity}] {r.Name}")}  {tag}" + (r.FromPity ? "  <size=22>(확정)</size>" : "");

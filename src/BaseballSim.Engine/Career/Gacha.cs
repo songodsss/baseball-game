@@ -48,11 +48,13 @@ namespace BaseballSim.Career
         public int Refund;
         /// <summary>The SSR came from the pity counter.</summary>
         public bool FromPity;
+        /// <summary>A pick ticket for an SSR of the player's choice (Id is null until it is used).</summary>
+        public bool Pick;
     }
 
     /// <summary>
     /// Draw boxes. Published odds (shown in the game, as Korean law asks), a pity counter that guarantees
-    /// an SSR within <see cref="Pity"/> draws, and at least one SR or better in every ten-draw.
+    /// an SSR of the player's choice within <see cref="Pity"/> draws, and at least one SR or better in every ten-draw.
     /// Draws are paid in club coins, which every player earns by playing, or in draw tickets that can
     /// also be bought; money only makes it faster.
     /// </summary>
@@ -70,6 +72,9 @@ namespace BaseballSim.Career
         static readonly int[] RefundCoins = { 10, 30, 100, 300 };
 
         public static string RarityName(Rarity r) => r.ToString();
+
+        public static string IdOf(GachaBox box, Stat stat, Rarity rarity) =>
+            box == GachaBox.Cards ? Cards.First(c => c.Stat == stat && c.Rarity == rarity).Id : Gear.First(g => g.Stat == stat && g.Rarity == rarity).Id;
 
         static readonly Stat[] AllStats = (Stat[])Enum.GetValues(typeof(Stat));
 
@@ -191,6 +196,13 @@ namespace BaseballSim.Career
                 bool lastOfTen = count == 10 && k == count - 1 && results.All(x => x.Rarity < Rarity.SR);
                 var rarity = pity ? Rarity.SSR : Roll(random, lastOfTen ? Rarity.SR : Rarity.N);
                 club.SetPityCount(box, rarity == Rarity.SSR ? 0 : sincePity);
+                if (pity)
+                {
+                    // The guaranteed SSR is the player's pick, so draws always add up to something wanted.
+                    club.SsrPicks[(int)box]++;
+                    results.Add(new DrawResult { Box = box, Rarity = Rarity.SSR, Name = "SSR 선택권", FromPity = true, Pick = true });
+                    continue;
+                }
                 var stat = AllStats[Math.Min(AllStats.Length - 1, (int)(random.NextDouble() * AllStats.Length))];
                 string id = box == GachaBox.Cards ? Cards.First(c => c.Stat == stat && c.Rarity == rarity).Id
                                                   : Gear.First(g => g.Stat == stat && g.Rarity == rarity).Id;

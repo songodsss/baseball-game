@@ -108,6 +108,17 @@ namespace BaseballSim.Career
         /// <summary>Draws since the last SSR, per box.</summary>
         public int[] Pity = new int[2];
 
+        /// <summary>SSR pick tickets from the pity counter, per box, not used yet.</summary>
+        public int[] SsrPicks = new int[2];
+
+        /// <summary>Uses a pick ticket on the SSR of one stat; null if there is no ticket.</summary>
+        public DrawResult UsePick(GachaBox box, Stat stat)
+        {
+            if (SsrPicks[(int)box] <= 0) return null;
+            SsrPicks[(int)box]--;
+            return AddCopy(box, Gacha.IdOf(box, stat, Rarity.SSR), Rarity.SSR, fromPity: true);
+        }
+
         public int PityCount(GachaBox box) => Pity[(int)box];
         public void SetPityCount(GachaBox box, int count) => Pity[(int)box] = count;
         public int DrawsToPity(GachaBox box) => Gacha.Pity - PityCount(box);
