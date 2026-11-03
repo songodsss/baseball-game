@@ -86,6 +86,9 @@ namespace BaseballGame
                 UiKit.Width(UiKit.Label(row, value.ToString(), 30, TextAnchor.MiddleRight), 70);
             }
 
+            Line($"유대 {MainStory.BondEndingAt} 이상인 사람이 있으면 은퇴 후 그 사람을 따라가는 엔딩이 열려요. (명예의 전당·원클럽맨이 먼저)");
+            if (career.IsFinalSeason) Line("<color=#FFD24D>올해가 마지막 시즌이에요.</color>");
+
             Section("지나온 장면");
             if (story.Log.Count == 0) Line("아직 없어요. 첫 경기를 치르면 이야기가 시작돼요.");
             foreach (var entry in Enumerable.Reverse(story.Log)) Line(entry);

@@ -463,7 +463,7 @@ namespace BaseballSim.Career
             {
                 Slot = "last_letter", Title = "컵라면 한 박스", Only = true,
                 Text = c => "숙소로 택배가 왔다. 컵라면 한 박스. 보낸 사람은 김반석.\n\n" +
-                            (c.Story.Has("visited") || c.Story.Has("friend_back")
+                            (FriendCameBack(c) || c.Story.Has("friend_back")
                                 ? "'다른 유니폼 입고 1군에서 뛰어 보니까 알겠더라. 네가 그 컨테이너에서 나 붙잡아 준 게 내 야구 인생 전부였다.'"
                                 : "'가게 TV 앞에 손님들이랑 매일 모여서 본다. 연습생 둘이서 시작한 신화, 끝은 네가 써라.'") +
                             "\n\n'마지막 경기 날은 가게 문 닫는다. — 반석'",
@@ -516,6 +516,82 @@ namespace BaseballSim.Career
             if (c.Story.Has("paid_debt")) lines.Add("할머니 국밥집 외상 장부에는 이제 이름이 하나도 없다.");
             if (c.Story.Has("next_walkon")) lines.Add("그해 컨테이너에서 함께 지낸 연습생은 3년 뒤 1군 무대를 밟았다. 첫 인터뷰에서 컵라면 이야기를 했다.");
             return lines;
+        }
+
+        // =====================================================================
+        // Endings that follow the person the player ended up closest to.
+        // =====================================================================
+
+        /// <summary>The headline and first line for an ending that follows a person; null for the others.</summary>
+        internal static string[] Opening(Career c, RetiredPlayer r, StoryEnding ending)
+        {
+            switch (c.Story.Route)
+            {
+                case StoryRoute.LastPick:
+                    switch (ending)
+                    {
+                        case StoryEnding.Broadcaster: return new[] { "[스포츠 데일리 · 한소라] '마지막 순번, 마이크를 잡다'", "은퇴 이듬해 봄, 중계석에 낯익은 얼굴이 앉았다. 첫 중계의 첫마디는 이랬다. \"오늘도 마지막 순번으로 들어온 선수가 한 명 있죠.\"" };
+                        case StoryEnding.Hometown: return new[] { "[스포츠 데일리 · 한소라] '마지막 순번, 고향으로'", "은퇴 후 고향으로 돌아갔다. 어릴 적 하준에게 공을 던져 주던 그 마당에 작은 연습장이 생겼다." };
+                        case StoryEnding.Scout: return new[] { "[스포츠 데일리 · 한소라] '마지막 순번을 찾는 사람'", $"은퇴 후 {r.MainClub} 스카우트가 됐다. 첫 드래프트 날, 모두가 자리를 뜨던 마지막 순번에서 손을 들었다." };
+                        case StoryEnding.Partner: return new[] { "[스포츠 데일리 · 한소라] '룸메이트, 다시 한 팀'", "은퇴 후 도현과 함께 유소년 야구단을 차렸다. 이름은 '마지막 순번 야구단'." };
+                    }
+                    break;
+                case StoryRoute.Prodigy:
+                    switch (ending)
+                    {
+                        case StoryEnding.Broadcaster: return new[] { "['야구하는 소이' 특집] '1순위, 해설석에 앉다'", "은퇴 후 첫 해설. 소이 채널 라이브에서 시작한 해설이 곧 방송국 중계로 이어졌다." };
+                        case StoryEnding.Hometown: return new[] { "['야구하는 소이' 특집] '1순위, 분식집으로 돌아가다'", "은퇴 후 어머니의 분식집을 다시 열었다. 벽에는 신인 시절 1순위 유니폼이 걸렸다." };
+                        case StoryEnding.Scout: return new[] { "['야구하는 소이' 특집] '천재를 지키는 사람'", $"은퇴 후 {r.MainClub} 육성 총괄을 맡았다. 첫 지시는 신인 투구 수와 훈련량 상한제였다." };
+                        case StoryEnding.Partner: return new[] { "['야구하는 소이' 특집] '배터리, 다시 한 번'", "은퇴 후 우진과 함께 동네에 야구 아카데미를 열었다. 받는 건 우진, 던지는 건 나." };
+                    }
+                    break;
+                default:
+                    switch (ending)
+                    {
+                        case StoryEnding.Broadcaster: return new[] { "[구단 소식지 · 이다온] '컨테이너에서 중계석까지'", "은퇴 후 구단 중계 해설을 맡았다. 첫 방송에서 연습생 시절 컨테이너 사진을 띄웠다." };
+                        case StoryEnding.Hometown: return new[] { "[구단 소식지 · 이다온] '국밥집의 두 번째 주인'", "은퇴 후 할머니 국밥집을 물려받았다. 메뉴판 맨 위에는 '연습생 특 · 외상 가능'." };
+                        case StoryEnding.Scout: return new[] { "[구단 소식지 · 이다온] '200명 중 한 명을 찾는 사람'", "은퇴 후 연습생 테스트 심사위원 자리에 앉았다. 도봉구가 앉던 바로 그 자리였다." };
+                        case StoryEnding.Partner: return new[] { "[구단 소식지 · 이다온] '연습생 둘이 쓴 신화'", "은퇴 후 반석과 함께 야구용품점을 넓혔다. 2층은 연습생 지망생을 위한 무료 연습장이다." };
+                    }
+                    break;
+            }
+            return null;
+        }
+
+        /// <summary>The last line for an ending that follows a person; null for the others.</summary>
+        internal static string Closing(Career c, RetiredPlayer r, StoryEnding ending)
+        {
+            switch (c.Story.Route)
+            {
+                case StoryRoute.LastPick:
+                    switch (ending)
+                    {
+                        case StoryEnding.Broadcaster: return "그라운드는 떠났지만 야구는 떠나지 않았다. 이제는 누군가의 첫 기록을 가장 먼저 불러 준다.";
+                        case StoryEnding.Hometown: return "매일 저녁 동네 아이들과 캐치볼을 한다. 크레파스 그림 속 그 마당에서.";
+                        case StoryEnding.Scout: return "\"너 뽑자고 우긴 사람이 나다.\" 오래전 들었던 그 말을, 이번엔 내가 했다.";
+                        case StoryEnding.Partner: return "빨래 당번은 아직도 정하지 못했다.";
+                    }
+                    break;
+                case StoryRoute.Prodigy:
+                    switch (ending)
+                    {
+                        case StoryEnding.Broadcaster: return "악플을 견뎌 본 사람의 해설은, 언제나 선수 편에서 시작한다.";
+                        case StoryEnding.Hometown: return "떡볶이 레시피는 결국 은퇴하고 나서 배웠다.";
+                        case StoryEnding.Scout: return "백무진에게 배운 건 던지는 법이 아니라 멈추는 법이었다.";
+                        case StoryEnding.Partner: return "고3 여름의 그 소리가, 오늘도 아카데미에 울린다.";
+                    }
+                    break;
+                default:
+                    switch (ending)
+                    {
+                        case StoryEnding.Broadcaster: return "연습생 테스트 날이면 중계석을 비우고 구장으로 내려간다. 떨고 있는 아이들 어깨를 두드려 주려고.";
+                        case StoryEnding.Hometown: return "돈 없는 연습생은 오늘도 외상으로 먹고 간다. 장부에는 이름만 적는다.";
+                        case StoryEnding.Scout: return "\"연봉은 최저, 숙소는 컨테이너. 그래도 하겠나?\" 이번엔 내가 물었다.";
+                        case StoryEnding.Partner: return "컵라면은 여전히 1층 계산대 옆에 쌓여 있다.";
+                    }
+                    break;
+            }
+            return null;
         }
     }
 }

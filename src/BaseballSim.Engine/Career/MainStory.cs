@@ -7,7 +7,8 @@ namespace BaseballSim.Career
     /// <summary>The four people who come back through a whole story; who they are depends on the story.</summary>
     public enum Bond { Mentor, Friend, Family, Voice }
 
-    public enum StoryEnding { None, Legend, OneClub, BaseballSchool }
+    /// <summary>Saved as a number: new endings go at the end.</summary>
+    public enum StoryEnding { None, Legend, OneClub, BaseballSchool, Broadcaster, Hometown, Scout, Partner }
 
     /// <summary>The main stories. Each new player gets one the club hasn't seen much of yet.</summary>
     public enum StoryRoute { LastPick, Prodigy, Walkon }
@@ -80,6 +81,8 @@ namespace BaseballSim.Career
         public Func<Career, DayResult, bool> When;
         /// <summary>This story's own telling of the slot: the shared versions are left out (a story's own climax).</summary>
         public bool Only;
+        /// <summary>Told only when this holds (a bond gone cold or very close); when it does, it comes before the other versions.</summary>
+        public Func<Career, bool> Needs;
     }
 
     internal class StoryOption
@@ -378,8 +381,10 @@ namespace BaseballSim.Career
         static List<StoryScene> Options(Career c, string slotId)
         {
             var own = RouteOf(c).Scenes.Where(s => s.Slot == slotId).ToList();
-            if (own.Any(s => s.Only)) return own;
-            return own.Concat(SharedScenes.All.Where(s => s.Slot == slotId)).ToList();
+            var all = own.Any(s => s.Only) ? own : own.Concat(SharedScenes.All.Concat(BondScenes.All).Where(s => s.Slot == slotId)).ToList();
+            // A version for how close the player is to someone right now comes first; others wait for their moment.
+            var fitting = all.Where(s => s.Needs != null && s.Needs(c)).ToList();
+            return fitting.Count > 0 ? fitting : all.Where(s => s.Needs == null).ToList();
         }
 
         /// <summary>A stable number from who the player is, for saves made before the seed existed.</summary>
@@ -429,6 +434,9 @@ namespace BaseballSim.Career
             int Count(PitcherLine l) => l == null ? 0 : me.Role == PitcherRole.Closer ? l.Saves : me.Role == PitcherRole.Setup ? l.Holds : l.Wins;
             return Count(c.SeasonPitching) + me.History.Sum(h => Count(h.Pitching)) > 0;
         }
+
+        /// <summary>The friend's setback mid-career turns around: stayed by their side, or simply close enough.</summary>
+        internal static bool FriendCameBack(Career c) => c.Story.Has("visited") || c.Story.BondOf(Bond.Friend) >= 75;
 
         internal static bool HasSummit(Career c) => c.Me.GoldMedals > 0 || c.Me.History.Any(h => h.Titles.Count > 0);
 
@@ -546,8 +554,21 @@ namespace BaseballSim.Career
         {
             if (retired.HallOfFame) return StoryEnding.Legend;
             if (c.Me.Clubs.Count == 0 && retired.Seasons >= 10) return StoryEnding.OneClub;
+            // Otherwise the person the player ended up closest to decides where life goes next.
+            var closest = AllBonds.OrderByDescending(b => c.Story.BondOf(b)).ThenBy(b => (int)b).First();
+            if (c.Story.BondOf(closest) >= BondEndingAt)
+                switch (closest)
+                {
+                    case Bond.Voice: return StoryEnding.Broadcaster;
+                    case Bond.Family: return StoryEnding.Hometown;
+                    case Bond.Mentor: return StoryEnding.Scout;
+                    default: return StoryEnding.Partner;
+                }
             return StoryEnding.BaseballSchool;
         }
+
+        /// <summary>How close someone must end up for the ending to follow them.</summary>
+        public const int BondEndingAt = 80;
 
         public static string EndingTitle(StoryEnding ending)
         {
@@ -556,6 +577,10 @@ namespace BaseballSim.Career
                 case StoryEnding.Legend: return "엔딩 · 전설";
                 case StoryEnding.OneClub: return "엔딩 · 원클럽맨";
                 case StoryEnding.BaseballSchool: return "엔딩 · 작은 야구 교실";
+                case StoryEnding.Broadcaster: return "엔딩 · 마이크 앞에서";
+                case StoryEnding.Hometown: return "엔딩 · 고향";
+                case StoryEnding.Scout: return "엔딩 · 다음 이야기를 찾아서";
+                case StoryEnding.Partner: return "엔딩 · 다시 한 팀";
                 default: return "";
             }
         }
@@ -565,7 +590,7 @@ namespace BaseballSim.Career
         {
             var ending = retired.Ending != StoryEnding.None ? retired.Ending : EndingFor(c, retired);
             var route = RouteOf(c);
-            var lines = new List<string>(route.Opening(c, retired, ending));
+            var lines = new List<string>(StoryArcs.Opening(c, retired, ending) ?? route.Opening(c, retired, ending));
             foreach (var b in AllBonds) lines.Add(route.BondLine(c, b, c.Story.BondOf(b)));
             if (c.Rival != null)
                 lines.Add(c.Story.Has("rival_respect")
@@ -573,7 +598,7 @@ namespace BaseballSim.Career
                     : $"{c.Rival.Name} 선수의 이름이 적힌 화환도 있었다. 끝까지 지기 싫은 상대였다.");
             if (route.Epilogue != null) lines.AddRange(route.Epilogue(c));
             lines.AddRange(LegendStory.EndingLines(c));
-            lines.Add(route.Closing(c, retired, ending));
+            lines.Add(StoryArcs.Closing(c, retired, ending) ?? route.Closing(c, retired, ending));
             return lines.Select(l => Fill(l, c)).ToList();
         }
     }

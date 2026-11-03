@@ -427,4 +427,56 @@ public class MainStoryTests
         Assert.Contains(saved, l => l.Contains("외상 장부"));
         Assert.DoesNotContain(plain, l => l.Contains("도봉구 테스트"));
     }
+
+    [Fact]
+    public void TheClosestPersonDecidesTheEndingWhenItIsNotLegendOrOneClub()
+    {
+        var career = NewCareer(24, route: StoryRoute.Prodigy);
+        var plain = new RetiredPlayer { Name = "테스트", Seasons = 6, MainClub = career.MyTeam.Name };
+        Assert.Equal(StoryEnding.BaseballSchool, MainStory.EndingFor(career, plain));
+        career.Story.Bonds[Bond.Voice] = 90;
+        Assert.Equal(StoryEnding.Broadcaster, MainStory.EndingFor(career, plain));
+        career.Story.Bonds[Bond.Family] = 95;
+        Assert.Equal(StoryEnding.Hometown, MainStory.EndingFor(career, plain));
+        plain.Ending = StoryEnding.Hometown;
+        var lines = MainStory.EndingLines(career, plain);
+        Assert.Contains("분식집", lines[0]);
+        Assert.Equal("엔딩 · 고향", MainStory.EndingTitle(StoryEnding.Hometown));
+        foreach (var route in MainStory.AllRoutes)
+            foreach (var ending in new[] { StoryEnding.Broadcaster, StoryEnding.Hometown, StoryEnding.Scout, StoryEnding.Partner })
+            {
+                var c = NewCareer(25, route: route);
+                var r = new RetiredPlayer { Name = "테스트", Seasons = 6, MainClub = c.MyTeam.Name, Ending = ending };
+                Assert.DoesNotContain("작은 야구 교실", string.Join("\n", MainStory.EndingLines(c, r)));
+            }
+    }
+
+    [Fact]
+    public void AColdOrCloseBondBringsItsOwnVersionOfAScene()
+    {
+        var career = NewCareer(26);
+        Assert.DoesNotContain("받지 않은 전화", Enumerable.Range(0, MainStory.VariantCount(career, "kin_visit")).Select(v => MainStory.Preview(career, "kin_visit", v).Title));
+        career.Story.Bonds[Bond.Family] = 20;
+        Assert.Equal(1, MainStory.VariantCount(career, "kin_visit"));
+        var ev = MainStory.Preview(career, "kin_visit");
+        Assert.Contains("받지 않은 전화", ev.Title);
+        Assert.Contains("하준", ev.Text);
+        foreach (var route in MainStory.AllRoutes)
+        {
+            var c = NewCareer(27, route: route);
+            foreach (var b in MainStory.AllBonds)
+                foreach (int v in new[] { 10, 95 })
+                {
+                    c.Story.Bonds[b] = v;
+                    foreach (var slot in new[] { "kin_visit", "pressure", "role_change", "milestone" })
+                        for (int i = 0; i < MainStory.VariantCount(c, slot); i++)
+                        {
+                            var e = MainStory.Preview(c, slot, i);
+                            Assert.DoesNotContain("{", e.Text + e.Title);
+                            Assert.NotEmpty(Dialogue.Lines(e.Text, c));
+                        }
+                    c.Story.Bonds[b] = 50;
+                }
+        }
+    }
 }

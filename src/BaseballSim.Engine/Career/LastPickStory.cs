@@ -263,11 +263,11 @@ namespace BaseballSim.Career
             new StoryScene
             {
                 Slot = "friend", Title = "도현의 선택",
-                Text = c => c.Story.Has("visited")
+                Text = c => FriendCameBack(c)
                     ? "도현에게서 문자가 왔다.\n'재활 끝. 다음 주 1군 복귀. 너 병원 매일 왔던 거, 그거 갚으러 간다.'\n\n복귀전, 도현이 그라운드에 들어서자 관중이 모두 일어섰다."
                     : "도현의 은퇴식. 끝내 무릎은 예전으로 돌아오지 않았다.\n\n마이크를 잡은 도현이 관중석이 아니라 나를 봤다.\n" +
                       "\"제 몫까지 뛰어 준 친구가 있어서, 후회 없습니다.\"\n\n도현은 구단 트레이너로 남는다고 한다.",
-                Options = c => c.Story.Has("visited")
+                Options = c => FriendCameBack(c)
                     ? new List<StoryOption>
                     {
                         O("달려가 끌어안는다", "둘 다 유니폼이 흙투성이가 됐다. 상관없었다.",

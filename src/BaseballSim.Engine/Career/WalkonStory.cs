@@ -266,10 +266,10 @@ namespace BaseballSim.Career
             new StoryScene
             {
                 Slot = "friend", Title = "반석의 소식",
-                Text = c => c.Story.Has("visited")
+                Text = c => FriendCameBack(c)
                     ? "반석에게서 사진 한 장이 왔다. 다른 구단 1군 엔트리 명단.\n\n'4년 걸렸다. 너 덕분이다. 다음 주에 맞대결이다, 봐주지 마.'"
                     : "반석이 고향에서 야구용품점을 열었다고 했다. 가게 한쪽 벽에 내 유니폼이 걸려 있다고.\n\n'너 경기 날엔 문 닫고 다 같이 본다. 신화 끝까지 써라.'",
-                Options = c => c.Story.Has("visited")
+                Options = c => FriendCameBack(c)
                     ? new List<StoryOption>
                     {
                         O("맞대결에서 전력을 다한다", "경기 후 둘은 2층 침대 시절 얘기로 밤을 새웠다.",
