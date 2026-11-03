@@ -53,8 +53,9 @@ namespace BaseballGame
         Text _condition;
         readonly List<Button> _actionButtons = new List<Button>();
         readonly Dictionary<Stat, GameObject> _ratingRows = new Dictionary<Stat, GameObject>();
-        Button _seasonLengthButton, _watchButton, _adButton, _ticketButton, _missionButton, _fastButton;
-        bool _fast;
+        Button _seasonLengthButton, _watchButton, _adButton, _ticketButton, _missionButton, _fastButton, _fastDaysButton;
+        bool _fast; // loaded in Start: PlayerPrefs can't be read from a field initializer
+        const string FastOnKey = "fast_on", FastDaysKey = "fast_days";
         /// <summary>Fast skip is free in a 144-game season (it's long enough); shorter seasons need the paid unlock.</summary>
         bool CanFastSkip => Premium.Owns(Premium.FastSkip) || _career != null && _career.League.GamesPerSeason >= League.FullSeason;
         /// <summary>
@@ -67,14 +68,42 @@ namespace BaseballGame
         int _paidFastDays = Premium.FastSkipDays;
         const int MinFastDays = 2;
 
-        /// <summary>Off → on; with the paid unlock: off → 2 → 3 … → 7 → off.</summary>
-        void CycleFast()
+        /// <summary>One tap turns fast skip on or off; the day count is kept (and remembered between sessions).</summary>
+        void ToggleFast()
         {
-            if (!Premium.Owns(Premium.FastSkip)) { _fast = !_fast; return; }
-            if (!_fast) { _fast = true; _paidFastDays = MinFastDays; }
-            else if (_paidFastDays < Premium.FastSkipDays) _paidFastDays++;
-            else _fast = false;
+            _fast = !_fast;
+            PlayerPrefs.SetInt(FastOnKey, _fast ? 1 : 0);
         }
+
+        /// <summary>With the paid unlock: pick how many days a skip goes, in one tap from a row of choices.</summary>
+        void PickFastDays()
+        {
+            var card = OpenOverlay("빠른 진행 일수");
+            UiKit.Height(UiKit.Label(card, "한 번 누를 때 며칠씩 넘길까요? 고른 값은 기억돼요.", 30, TextAnchor.MiddleCenter, UiKit.Muted), 80);
+            for (int start = MinFastDays; start <= Premium.FastSkipDays; start += 4)
+            {
+                var row = UiKit.Empty(card, "Days");
+                UiKit.Height(row, 130);
+                UiKit.Row(row, 16);
+                for (int d = start; d < start + 4 && d <= Premium.FastSkipDays; d++)
+                {
+                    int days = d;
+                    var b = UiKit.Button(row, $"{days}일", () =>
+                    {
+                        _paidFastDays = days;
+                        _fast = true;
+                        PlayerPrefs.SetInt(FastDaysKey, days);
+                        PlayerPrefs.SetInt(FastOnKey, 1);
+                        CloseOverlay();
+                        Refresh();
+                    }, days == _paidFastDays ? UiKit.Warning : UiKit.Card);
+                    b.GetComponentInChildren<Text>().fontSize = 36;
+                }
+            }
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
+        }
+
         GameObject _canvas;
         DayResult _lastDay;
         int _goalSkippedSeason;
@@ -85,6 +114,8 @@ namespace BaseballGame
         void Start()
         {
             _random = new SeededRandom(System.Environment.TickCount);
+            _fast = PlayerPrefs.GetInt(FastOnKey, 0) == 1;
+            _paidFastDays = Mathf.Clamp(PlayerPrefs.GetInt(FastDaysKey, Premium.FastSkipDays), MinFastDays, Premium.FastSkipDays);
             _club = SaveStore.LoadClub(_random);
             SaveStore.TryLoadCareer(SaveStore.CurrentSlot, _club, _random, out _career);
             BuildUi();
@@ -214,9 +245,12 @@ namespace BaseballGame
             _todayText = UiKit.Label(todayRow, "", 30, TextAnchor.MiddleCenter, UiKit.Muted);
             Tappable(_todayText, () => ScheduleScreen.Open(_career));
             UiKit.Width(_todayText, 0, 1);
-            _fastButton = UiKit.Button(todayRow, "", () => { CycleFast(); Refresh(); }, UiKit.Card);
+            _fastButton = UiKit.Button(todayRow, "", () => { ToggleFast(); Refresh(); }, UiKit.Card);
             _fastButton.GetComponentInChildren<Text>().fontSize = 26;
-            UiKit.Width(_fastButton, 260);
+            UiKit.Width(_fastButton, 230);
+            _fastDaysButton = UiKit.Button(todayRow, "", PickFastDays, UiKit.Card);
+            _fastDaysButton.GetComponentInChildren<Text>().fontSize = 26;
+            UiKit.Width(_fastDaysButton, 120);
 
             var actions = UiKit.Empty(root, "Actions");
             UiKit.Height(actions, 260);
@@ -386,14 +420,20 @@ namespace BaseballGame
         void FastForward(DailyAction action, int days = 0, bool resume = false)
         {
             if (days <= 0) days = FastSkipDays;
-            if (!resume && action != DailyAction.Rest && (_career.Me.Fatigue >= 80 || _career.NextTrainingTires))
+            // Tired is only warned about, never a stop: the player decides when to rest.
+            bool warned = false;
+            void WarnIfTired()
             {
-                Log($"<color=#F28C40>피로 {_career.Me.Fatigue}</color> · 한 번 더 훈련하면 위험 수치(80)를 넘어요. 빠른 진행을 멈췄어요. 회복부터 해 주세요.");
-                return;
+                if (warned || action == DailyAction.Rest || _career.Me.Fatigue < 80) return;
+                warned = true;
+                Log($"<color=#F28C40>⚠ 피로 {_career.Me.Fatigue}</color> · 위험 수치(80)를 넘었어요. 훈련 효과가 절반이 되고 부상 위험이 있어요.");
+                UiAnim.FloatUp(_fatigueText.rectTransform, "피로 위험!", new Color(0.95f, 0.55f, 0.25f), 34);
             }
+            WarnIfTired();
             for (int i = 0; i < days; i++)
             {
                 var result = _career.PlayDay(action);
+                WarnIfTired();
                 // Big at bats are still mine to answer; the skip carries on afterwards.
                 if (result.AtBat != null)
                 {
@@ -416,7 +456,7 @@ namespace BaseballGame
             last || _career.IsSeasonOver || result.Move != null || result.Trade != null ||
             result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.TraitOffer != null ||
             result.Event != null || result.GotInjured || _career.GoalOffer != null ||
-            (action != DailyAction.Rest && _career.NextTrainingTires) || !_career.TrainingChoices.Contains(action) ||
+            !_career.TrainingChoices.Contains(action) ||
             (action == DailyAction.Rest && _career.Me.Fatigue <= 0 && !_career.Me.IsInjured); // rested enough
 
         /// <summary>A big at bat in the middle of a fast skip is answered: the skip goes on unless the day needs a look.</summary>
@@ -2631,8 +2671,9 @@ namespace BaseballGame
             UiKit.SetButtonLabel(_missionButton, unclaimed > 0 ? $"미션 <color=#FFD24D>●{unclaimed}</color>" : "미션");
             bool canFast = CanFastSkip;
             _fastButton.gameObject.SetActive(canFast);
-            if (!canFast) _fast = false;
-            UiKit.SetButtonLabel(_fastButton, _fast ? $"빠른 진행 {FastSkipDays}일: 켜짐" : "빠른 진행: 꺼짐");
+            _fastDaysButton.gameObject.SetActive(canFast && Premium.Owns(Premium.FastSkip));
+            UiKit.SetButtonLabel(_fastDaysButton, $"{FastSkipDays}일 ▾");
+            UiKit.SetButtonLabel(_fastButton, !canFast ? "빠른 진행: 꺼짐" : _fast ? $"빠른 진행 {FastSkipDays}일: 켜짐" : "빠른 진행: 꺼짐");
             _fastButton.GetComponent<Image>().color = _fast ? UiKit.Warning : UiKit.Card;
             _watchButton.interactable = _lastDay?.MyGame != null;
         }

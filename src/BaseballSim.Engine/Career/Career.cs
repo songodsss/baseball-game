@@ -664,7 +664,7 @@ namespace BaseballSim.Career
 
         /// <summary>
         /// One more training day (with a game) would leave the player at the tired line or over it,
-        /// where training halves and injuries can happen. Fast skip stops just before that.
+        /// where training halves and injuries can happen.
         /// </summary>
         public bool NextTrainingTires => Me.Fatigue + TrainingFatigue + GameFatigueToday - DailyEase >= TiredThreshold;
 
