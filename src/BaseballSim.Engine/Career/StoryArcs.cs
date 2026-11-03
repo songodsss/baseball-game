@@ -212,7 +212,7 @@ namespace BaseballSim.Career
                 {
                     O("감독실 문을 두드린다", "백무진은 처음으로 오래 말했다.\n\"내가 그 애를 망쳤다. 재능이 아까워서 더, 더 시켰다. 그래서 너한테는 천재라는 말 안 쓴다. 다시는.\"",
                         (e, k) => { e.Morale(5); ChangeBond(e, k, Bond.Mentor, 15); Flag(k, "mujin_open"); }),
-                    O("백승호를 찾아간다", "동네 배팅센터. 카운터에 앉은 남자가 나를 알아보고 웃었다.\n\"아버지 팀 1순위구나. 아버지... 잘 부탁해요. 나한테는 못 했던 걸 너한테는 하고 있을 거예요.\"",
+                    O("백승호를 찾아간다", "동네 배팅센터. 카운터에 앉아 있던 백승호가 나를 알아보고 웃었다.\n\"아버지 팀 1순위구나. 아버지... 잘 부탁해요. 나한테는 못 했던 걸 너한테는 하고 있을 거예요.\"",
                         (e, k) => { e.Exp(Stat.Eye, 40); Flag(k, "seungho_met"); }),
                     O("소이에게 영상을 지워 달라고 한다", "소이가 바로 답장했다.\n\"벌써 지웠어요. 저 그런 채널 아니에요.\"",
                         (e, k) => { e.Morale(3); ChangeBond(e, k, Bond.Voice, 15); Flag(k, "soi_kept"); }),
@@ -242,7 +242,7 @@ namespace BaseballSim.Career
                             }),
                     };
                     if (c.Story.Has("seungho_met"))
-                        list.Add(O("백승호에게 전화한다", "\"쉬어. 나는 그때 아무도 말려 주지 않았어. 너한텐 말려 주는 사람이 있잖아.\"\n전화를 끊고 감독실에 가서 고개를 숙였다.",
+                        list.Add(O("백승호에게 전화한다", "백승호가 낮게 말했다.\n\"쉬어. 나는 그때 아무도 말려 주지 않았어. 너한텐 말려 주는 사람이 있잖아.\"\n전화를 끊고 감독실에 가서 고개를 숙였다.",
                             (e, k) => { e.Fatigue(-40); e.Morale(4); ChangeBond(e, k, Bond.Mentor, 10); Flag(k, "rested"); Flag(k, "seungho_call"); }));
                     return list;
                 },

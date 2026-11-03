@@ -441,6 +441,8 @@ namespace BaseballGame
             { "백무진", "baek_mujin" }, { "정우진", "jung_woojin" }, { "어머니", "mother" }, { "소이", "soi" },
             // 연습생 신화
             { "도봉구", "do_bonggu" }, { "김반석", "kim_banseok" }, { "할머니", "grandma" }, { "이다온", "lee_daon" },
+            // People of the story threads
+            { "백승호", "baek_seungho" }, { "아저씨", "equipment_man" },
             // Everyday people
             { "coach", "coach" }, { "감독", "manager" }, { "감독님", "teacher" }, { "트레이너", "trainer" }, { "기자", "reporter" },
             { "라파엘", "rafael" }, { "형", "aide" }, { "할아버지", "grandpa_fan" }, { "사장", "president" }, { "사장님", "president" },
