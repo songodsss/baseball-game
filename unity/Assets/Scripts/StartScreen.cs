@@ -42,7 +42,9 @@ namespace BaseballGame
             UiKit.Stretch(root);
             root.gameObject.AddComponent<SafeArea>();
 
-            var icon = ArtLibrary.Get("App/app_icon");
+            // Over the painted key art the title goes in its empty sky and the icon stays out of the way.
+            bool keyArt = painted != null;
+            var icon = keyArt ? null : ArtLibrary.Get("App/app_icon");
             if (icon != null)
             {
                 var img = UiKit.Empty(root, "Icon").gameObject.AddComponent<Image>();
@@ -62,15 +64,15 @@ namespace BaseballGame
             var glow = title.gameObject.AddComponent<Shadow>();
             glow.effectColor = new Color(0.35f, 0.12f, 0f, 0.9f);
             glow.effectDistance = new Vector2(0, -9);
-            Place(title.rectTransform, 0.775f, 150);
+            Place(title.rectTransform, keyArt ? 0.88f : 0.775f, 150);
 
             var sub = UiKit.Label(root, "프로 야구 선수 육성", 36, TextAnchor.MiddleCenter);
             Outlined(sub, 2);
-            Place(sub.rectTransform, 0.72f, 60);
+            Place(sub.rectTransform, keyArt ? 0.825f : 0.72f, 60);
 
             // The hint sits on a navy pill so it reads over any picture.
             var pill = UiKit.Panel(root, "Hint", Scenery.Plate);
-            pill.anchorMin = pill.anchorMax = new Vector2(0.5f, 0.07f);
+            pill.anchorMin = pill.anchorMax = new Vector2(0.5f, keyArt ? 0.05f : 0.07f);
             pill.sizeDelta = new Vector2(560, 100);
             var hint = UiKit.Label(pill, "화면을 터치하세요", 42, TextAnchor.MiddleCenter);
             hint.fontStyle = FontStyle.Bold;
