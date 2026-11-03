@@ -353,6 +353,8 @@ namespace BaseballSim.Career
                     Apply = e =>
                     {
                         option.Apply(e, c);
+                        var promise = StoryPromises.OnScene(c, slotId);
+                        if (promise != null) e.Say($"[약속] {promise.Text}");
                         if (!c.Story.Seen.Contains(slotId)) c.Story.Seen.Add(slotId);
                         c.Story.Log.Add($"{title} — {label}");
                         c.Story.LastSeason = c.Season;
@@ -597,6 +599,7 @@ namespace BaseballSim.Career
                     ? $"{c.Rival.Name} 선수가 보낸 화환도 있었다. '덕분에 나도 여기까지 왔다.'"
                     : $"{c.Rival.Name} 선수의 이름이 적힌 화환도 있었다. 끝까지 지기 싫은 상대였다.");
             if (route.Epilogue != null) lines.AddRange(route.Epilogue(c));
+            if (StoryPromises.WasKept(c, "last")) lines.Add("마지막 시즌, 약속한 숫자까지 채우고 떠났다. 기록지는 지금도 액자에 걸려 있다.");
             lines.AddRange(LegendStory.EndingLines(c));
             lines.Add(StoryArcs.Closing(c, retired, ending) ?? route.Closing(c, retired, ending));
             return lines.Select(l => Fill(l, c)).ToList();

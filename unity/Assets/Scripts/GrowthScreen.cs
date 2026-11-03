@@ -1778,6 +1778,16 @@ namespace BaseballGame
                     : $"<color=#F28C40>실패</color> {summary.Goal.Text}  (기록 {summary.Goal.Progress(line, pitching)})");
             }
 
+            if (summary.Promises.Count > 0)
+            {
+                Section("스토리 약속");
+                foreach (var r in summary.Promises)
+                {
+                    Line((r.Kept ? "<color=#FFD24D>지킴</color> " : "<color=#F28C40>못 지킴</color> ") + r.Promise.Text);
+                    Line($"<color=#BAC4D8>{r.Line}</color>", 70);
+                }
+            }
+
             if (summary.Enlisted)
             {
                 Section("병역");
@@ -2567,6 +2577,7 @@ namespace BaseballGame
             var next = Traits.NextMilestone(me);
             string traits = me.Traits.Count == 0 ? "특성 없음" : "특성 " + string.Join(" · ", me.Traits.Select(id => Traits.Find(id)?.Name));
             if (_career.Goal != null) traits = $"목표 {_career.Goal.Text} ({_career.Goal.Progress(_career)})  ·  " + traits;
+            foreach (var promise in StoryPromises.Active(_career)) traits = $"약속 {promise.Text} ({promise.Progress(_career)})  ·  " + traits;
             var p = _career.SeasonPitching;
             string season = !me.IsPitcher ? $"타율 {avg}  {l.HomeRuns}홈런" + (l.StolenBases > 0 ? $"  {l.StolenBases}도루" : "")
                 : me.Role == PitcherRole.Closer ? $"{p.Saves}세이브 평균자책 {p.EraText}"

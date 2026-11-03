@@ -71,6 +71,13 @@ namespace BaseballGame
             Line(MainStory.RouteBlurb(story.Route));
             Section($"{MainStory.ChapterName(career)}  ({story.Seen.Count}/{MainStory.SceneCount} 장면)");
 
+            var promises = StoryPromises.Active(career);
+            if (promises.Count > 0)
+            {
+                Section("이번 시즌 약속");
+                foreach (var promise in promises) Line($"{promise.Text}  ({promise.Progress(career)})");
+            }
+
             Section("사람들");
             foreach (var bond in MainStory.AllBonds)
             {

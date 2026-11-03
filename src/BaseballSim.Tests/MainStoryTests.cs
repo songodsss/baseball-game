@@ -479,4 +479,36 @@ public class MainStoryTests
                 }
         }
     }
+
+    [Fact]
+    public void AScenePromiseIsSettledAtSeasonEndAndRemembered()
+    {
+        var career = NewCareer(28);
+        for (var ev = career.SeasonStartEvent(); ev != null; ev = career.SeasonStartEvent()) career.ResolveEvent(0);
+        StoryPromises.OnScene(career, "wall");
+        var active = StoryPromises.Active(career);
+        Assert.Single(active);
+        Assert.Contains("최강훈", active[0].Text);
+        Assert.Contains("안타", active[0].Text);
+        Assert.True(active[0].Target >= 1);
+        while (!career.IsSeasonOver)
+        {
+            var day = career.PlayDay(career.Me.Fatigue > 60 ? DailyAction.Rest : DailyAction.TrainContact);
+            if (day.Event != null) career.ResolveEvent(0);
+        }
+        var summary = career.EndSeason();
+        var result = Assert.Single(summary.Promises, r => r.Promise.Id == "wall");
+        Assert.Equal(result.Kept, StoryPromises.WasKept(career, "wall"));
+        Assert.NotEqual(result.Kept, StoryPromises.WasBroken(career, "wall"));
+        Assert.Empty(StoryPromises.Active(career));
+    }
+
+    [Fact]
+    public void TakingTheTeamToTheAutumnKeepsTheCoach()
+    {
+        var career = NewCareer(29);
+        Assert.Contains("2군에 있어야 할 최강훈", MainStory.Preview(career, "last_game").Text);
+        career.Story.Flags.Add("kept:arc_crisis");
+        Assert.Contains("최강훈 감독이 직접", MainStory.Preview(career, "last_game").Text);
+    }
 }

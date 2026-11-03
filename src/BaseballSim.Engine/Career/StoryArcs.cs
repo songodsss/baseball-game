@@ -18,7 +18,7 @@ namespace BaseballSim.Career
         // =====================================================================
 
         /// <summary>최강훈 kept his job through the crisis: someone stood up for him, or he was close enough to trust.</summary>
-        internal static bool CoachStayed(Career c) => c.Story.Has("stood_up") || c.Story.Has("prove_it") && Close(c, Bond.Mentor);
+        internal static bool CoachStayed(Career c) => c.Story.Has("stood_up") || StoryPromises.WasKept(c, "arc_crisis") || c.Story.Has("prove_it") && Close(c, Bond.Mentor);
 
         public static List<StoryScene> LastPick() => new List<StoryScene>
         {
@@ -364,7 +364,7 @@ namespace BaseballSim.Career
         // =====================================================================
 
         /// <summary>The walk-on tryout survived the new owners: someone spoke up, paid for it, or 도봉구 was trusted enough.</summary>
-        internal static bool TryoutSaved(Career c) => c.Story.Has("spoke_up") || c.Story.Has("fund") || Close(c, Bond.Mentor);
+        internal static bool TryoutSaved(Career c) => c.Story.Has("spoke_up") || c.Story.Has("fund") || StoryPromises.WasKept(c, "arc_crisis") || Close(c, Bond.Mentor);
 
         public static List<StoryScene> Walkon() => new List<StoryScene>
         {

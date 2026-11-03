@@ -99,6 +99,8 @@ namespace BaseballSim.Career
         public bool CanEnlist;
         public SeasonGoal Goal;
         public bool GoalMet;
+        /// <summary>Story promises of the season: kept or not, with a line from whoever it was made to.</summary>
+        public List<PromiseResult> Promises = new List<PromiseResult>();
         /// <summary>The rival's season, club and titles; null without a rival.</summary>
         public BattingLine RivalLine;
         public Team RivalTeam;
@@ -869,6 +871,7 @@ namespace BaseballSim.Career
             summary.FanMood = Offseason.Mood(summary.Record);
             summary.FanComments = Offseason.FanComments(this, summary.Record);
             summary.GoalMet = SettleGoal(summary);
+            summary.Promises = StoryPromises.Settle(this, summary);
             SettleFans(summary);
 
             // Salary moves halfway toward what this season's OPS is worth, so one fluke year
