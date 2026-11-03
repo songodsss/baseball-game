@@ -147,6 +147,26 @@ public class GachaTests
     }
 
     [Fact]
+    public void OnlyOneCardPerStat()
+    {
+        var career = NewCareer(3);
+        var club = new Club();
+        var ssr = Gacha.Cards.First(c => c.Stat == Stat.Power && c.Rarity == Rarity.SSR);
+        var sr = Gacha.Cards.First(c => c.Stat == Stat.Power && c.Rarity == Rarity.SR);
+        var eye = Gacha.Cards.First(c => c.Stat == Stat.Eye && c.Rarity == Rarity.N);
+        foreach (var c in new[] { ssr, sr, eye }) club.AddCopy(GachaBox.Cards, c.Id, c.Rarity);
+        club.EquipCard(career, 0, ssr.Id);
+        club.EquipCard(career, 2, eye.Id);
+        club.EquipCard(career, 1, sr.Id); // takes the SSR out
+        Assert.Equal(new[] { null, sr.Id, eye.Id }, career.Cards);
+        Assert.Equal(1.7, career.CardMultiplier(Stat.Power), 6);
+
+        career.Cards[0] = ssr.Id; // an old save with two of a stat: only the best counts
+        club.RefreshCards(career);
+        Assert.Equal(2.0, career.CardMultiplier(Stat.Power), 6);
+    }
+
+    [Fact]
     public void TeamGearLiftsMyTeamAndPicksTheBestPiece()
     {
         var club = new Club();

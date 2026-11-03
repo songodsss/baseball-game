@@ -180,6 +180,7 @@ namespace BaseballSim.Career
         public int TeamGearBonus(Stat stat) => TeamGearWorn().TryGetValue(stat, out var w) ? w.Bonus : 0;
 
         /// <summary>Puts an owned card in one of the player's card slots (null empties it).</summary>
+        /// <remarks>One card per stat: putting in a card takes out any other card of the same stat.
         public bool EquipCard(Career career, int slot, string cardId)
         {
             if (slot < 0 || slot >= Gacha.CardSlots) return false;
@@ -187,7 +188,9 @@ namespace BaseballSim.Career
             if (cardId != null)
             {
                 if (LevelOf(GachaBox.Cards, cardId) == 0) return false;
-                for (int k = 0; k < career.Cards.Count; k++) if (career.Cards[k] == cardId) career.Cards[k] = null;
+                var stat = Gacha.Card(cardId).Stat;
+                for (int k = 0; k < career.Cards.Count; k++)
+                    if (career.Cards[k] != null && Gacha.Card(career.Cards[k])?.Stat == stat) career.Cards[k] = null;
             }
             career.Cards[slot] = cardId;
             RefreshCards(career);
@@ -203,8 +206,9 @@ namespace BaseballSim.Career
                 var card = id == null ? null : Gacha.Card(id);
                 int level = card == null ? 0 : LevelOf(GachaBox.Cards, id);
                 if (level == 0) continue;
+                // One card per stat counts; the best one if an old save has two.
                 career.CardBoost.TryGetValue(card.Stat, out var have);
-                career.CardBoost[card.Stat] = have + Gacha.CardBonus(card.Rarity, level);
+                career.CardBoost[card.Stat] = Math.Max(have, Gacha.CardBonus(card.Rarity, level));
             }
         }
 

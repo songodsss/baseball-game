@@ -73,7 +73,7 @@ namespace BaseballGame
             UiKit.Button(tabs, "내 팀 장비", () => Switch(GachaBox.Gear), _box == GachaBox.Gear ? UiKit.Accent : UiKit.Card);
 
             string what = _box == GachaBox.Cards
-                ? "장착한 선수가 그 능력치를 훈련할 때 경험치가 더 쌓여요 (N +20% ~ SSR +100%, 겹치면 레벨마다 +15%p, 같은 능력치 카드는 효과가 더해져요)."
+                ? "장착한 선수가 그 능력치를 훈련할 때 경험치가 더 쌓여요 (N +20% ~ SSR +100%, 겹치면 레벨마다 +15%p, 같은 능력치 카드는 1장만)."
                 : "은퇴 선수들로 만든 내 팀 전원의 능력치가 올라가요 (+1~5). 내 팀 리그·결투장에 그대로 들어가요.";
             UiKit.Height(UiKit.Label(_card,
                 $"코인 <color=#FFD24D>{_club.Coins:N0}</color>  ·  뽑기권 {_club.DrawTickets}장  ·  SSR 골라 받기까지 {_club.DrawsToPity(_box)}회\n" +
@@ -248,7 +248,8 @@ namespace BaseballGame
             if (_pickSlot >= 0 && !worn)
             {
                 int slot = _pickSlot;
-                UiKit.Width(UiKit.Button(row, "넣기", () => { _club.EquipCard(_career, slot, c.Id); _pickSlot = -1; Save(); Fill(); }, UiKit.Accent), 130);
+                bool swaps = _career.Cards.Where((id, k) => k != slot && id != null).Any(id => Gacha.Card(id)?.Stat == c.Stat);
+                UiKit.Width(UiKit.Button(row, swaps ? "바꿔 넣기" : "넣기", () => { _club.EquipCard(_career, slot, c.Id); _pickSlot = -1; Save(); Fill(); }, UiKit.Accent), 130);
             }
             else if (worn) UiKit.Width(UiKit.Label(row, "장착 중", 26, TextAnchor.MiddleCenter, UiKit.Accent), 130);
         }
