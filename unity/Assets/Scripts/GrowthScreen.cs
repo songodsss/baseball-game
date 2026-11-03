@@ -1714,6 +1714,14 @@ namespace BaseballGame
             Line($"인기 {summary.Popularity}  ·  광고 수입 {summary.Sponsor:N0}만원");
             Line($"<color=#FFD24D>시즌 완주 구단 코인 +{seasonCoins}</color>" + (summary.Record.Games >= League.FullSeason ? "  <size=24><color=#BAC4D8>(144경기 4배)</color></size>" : ""));
 
+            if (summary.FanComments.Count > 0)
+            {
+                string moodColor = summary.FanMood == FanMood.Great || summary.FanMood == FanMood.Good ? "#5FA8FF" : summary.FanMood == FanMood.Bad ? "#F28C40" : "#BAC4D8";
+                string mood = summary.FanMood == FanMood.Great ? "열광" : summary.FanMood == FanMood.Good ? "만족" : summary.FanMood == FanMood.Bad ? "싸늘" : summary.FanMood == FanMood.Hurt ? "걱정" : "반반";
+                Section($"팬 반응 · <color={moodColor}>{mood}</color>");
+                foreach (var comment in summary.FanComments) Line($"<color={moodColor}>\"{comment}\"</color>", 48);
+            }
+
             var post = summary.Postseason;
             Section("가을야구");
             foreach (var series in post.Series)

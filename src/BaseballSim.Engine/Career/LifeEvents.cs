@@ -642,7 +642,7 @@ namespace BaseballSim.Career
         /// <summary>An event whose day has come (opening day, the derby after the all-star game, the last home game); null otherwise.</summary>
         /// <summary>Opening day, told before the first pitch (after any prologue scene).</summary>
         public static StoryEvent AtSeasonStart(Career c) =>
-            c.InMilitary || c.InFarm || c.SeenThisSeason("opening") ? null : Opening(c);
+            Offseason.Next(c) ?? (c.InMilitary || c.InFarm || c.SeenThisSeason("opening") ? null : Opening(c));
 
         public static StoryEvent Scheduled(Career c, DayResult day)
         {

@@ -104,6 +104,9 @@ namespace BaseballSim.Career
         public Team RivalTeam;
         public List<string> RivalTitles = new List<string>();
         public int GoalMoney;
+        /// <summary>What the fans are saying about the season, and their overall mood.</summary>
+        public List<string> FanComments = new List<string>();
+        public FanMood FanMood;
         public List<Achievement> NewAchievements = new List<Achievement>();
     }
 
@@ -863,6 +866,8 @@ namespace BaseballSim.Career
             Me.Money += summary.Postseason.Bonus;
             if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
             Me.History.Add(summary.Record);
+            summary.FanMood = Offseason.Mood(summary.Record);
+            summary.FanComments = Offseason.FanComments(this, summary.Record);
             summary.GoalMet = SettleGoal(summary);
             SettleFans(summary);
 
