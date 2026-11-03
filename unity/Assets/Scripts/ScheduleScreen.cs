@@ -70,9 +70,14 @@ namespace BaseballGame
                 keyDays.TryGetValue(day, out var special);
                 string label = special == null ? "" : $"<color=#FFD24D>{special}</color>";
                 Color? back = day == _career.Day ? Today : special != null ? Special : index % 2 == 1 ? new Color(1, 1, 1, 0.04f) : (Color?)null;
+                string weekday = BaseballSim.Career.Career.WeekdayOf(day);
                 UiKit.TableRow(content, new float[] { 150, 0, 260 },
-                    new[] { day == _career.Day ? "<b>오늘</b>" : $"{day + 1}일차", opponent, label }, 28, Color.white, back);
+                    new[] { day == _career.Day ? $"<b>오늘({weekday})</b>" : $"{day + 1}일차({weekday})", opponent, label }, 28, Color.white, back);
                 index++;
+                // Monday: no game anywhere in the league.
+                if (BaseballSim.Career.Career.IsSunday(day) && day + 1 < _career.League.GamesPerSeason)
+                    UiKit.TableRow(content, new float[] { 150, 0, 260 },
+                        new[] { "<color=#7CD992>(월)</color>", "<color=#7CD992>경기 없는 날 · 휴식</color>", $"<color=#7CD992>피로 -{BaseballSim.Career.Career.OffDayRecovery}</color>" }, 24, Color.white, new Color(0.3f, 0.7f, 0.45f, 0.08f));
             }
             UiKit.Height(UiKit.Label(content, $"정규시즌이 끝나면 상위 {Postseason.Teams}팀이 가을야구에 나가요.", 26, TextAnchor.MiddleCenter, UiKit.Muted), 90);
 

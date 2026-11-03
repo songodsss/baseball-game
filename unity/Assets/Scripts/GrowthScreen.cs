@@ -1078,7 +1078,7 @@ namespace BaseballGame
         void DescribeDay(DayResult r)
         {
             string label = Actions.First(a => a.Action == r.Action).Label;
-            var lines = new List<string> { $"<b>{r.Day + 1}일차</b> {label}" };
+            var lines = new List<string> { $"<b>{r.Day + 1}일차({CareerState.WeekdayOf(r.Day)})</b> {label}" };
             if (r.GotInjured) lines.Add($"<color=#F28C40>무리하다 부상! {Injuries.Name(r.Injury)}로 {_career.Me.InjuryDaysLeft}일 쉬어야 합니다. 복귀 후에도 한동안 {StatNames[_career.Me.RoleStat(Injuries.StatOf(r.Injury))]}이(가) 조금 떨어져요." +
                 (_career.LastInjuryLoss.Points > 0 ? $" 후유증으로 {StatNames[_career.LastInjuryLoss.Stat]} {_career.LastInjuryLoss.Points} 영구 하락." : "") + "</color>");
             foreach (var a in r.NewAchievements) lines.Add($"<color=#5FA8FF>업적 달성: {a.Name}</color>");
@@ -1146,6 +1146,7 @@ namespace BaseballGame
                 var g = r.AllStar.Game;
                 lines.Add($"<color=#FFD24D>올스타전</color> {g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}  MVP {r.AllStar.Mvp}");
             }
+            if (r.OffDayNext) lines.Add($"<color=#7CD992>내일은 월요일, 경기 없는 날. 푹 쉬어서 피로 -{CareerState.OffDayRecovery}</color>");
             if (r.Payday != null)
             {
                 var pay = r.Payday;
@@ -2288,7 +2289,7 @@ namespace BaseballGame
                 _headerBand.color = UiKit.Shade(TeamColor(_emblemTeam), 0.55f) + new Color(0.05f, 0.05f, 0.08f, 0);
             }
             _header.text = $"<b>{me.Name}</b> <size=26><color=#5FA8FF>프로필 ›</color></size>  {number}{position} · {me.Age}세 · {_career.MyTeam.Name}\n" +
-                $"<size=32><color=#BAC4D8>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일 · 팀 {rank}위" + (_career.InMilitary ? " · <color=#BAC4D8>군 복무 중</color>" : _career.InFarm ? " · <color=#F28C40>2군</color>" : role) +
+                $"<size=32><color=#BAC4D8>{_career.Year} 시즌 {_career.Day + 1}/{_career.League.GamesPerSeason}일({CareerState.WeekdayOf(_career.Day)}) · 팀 {rank}위" + (_career.InMilitary ? " · <color=#BAC4D8>군 복무 중</color>" : _career.InFarm ? " · <color=#F28C40>2군</color>" : role) +
                 (_career.ContractSeasonsLeft > 0 ? $" · 계약 {_career.ContractSeasonsLeft}년" : "") + "</color></size>";
 
             var l = _career.SeasonLine;

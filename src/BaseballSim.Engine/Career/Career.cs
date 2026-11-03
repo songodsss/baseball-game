@@ -24,6 +24,8 @@ namespace BaseballSim.Career
         public int Season;
         public int Day;
         public DailyAction Action;
+        /// <summary>Today was Sunday: tomorrow is Monday, the league's day off (fatigue already eased).</summary>
+        public bool OffDayNext;
         /// <summary>Condition stars when training today (0 on a rest day); 4–5 stars train better.</summary>
         public int ConditionStars;
         /// <summary>Rating points gained today, from training and from the game.</summary>
@@ -134,6 +136,15 @@ namespace BaseballSim.Career
         const int GameFatigue = 6;
         const int RestRecovery = 35;
         const int DailyRecovery = 5;
+        /// <summary>Fatigue the Monday off takes away.</summary>
+        public const int OffDayRecovery = 20;
+
+        static readonly string[] Weekdays = { "화", "수", "목", "금", "토", "일" };
+
+        /// <summary>The weekday of a season day: games run Tuesday to Sunday, Monday is the day off.</summary>
+        public static string WeekdayOf(int day) => Weekdays[((day % 6) + 6) % 6];
+
+        public static bool IsSunday(int day) => day % 6 == 5;
         const int TiredThreshold = 80;
         const double InjuryChanceWhenTired = 0.08;
         /// <summary>Story events per day of a full season; about 8-9 a season whatever its length.</summary>
@@ -401,6 +412,12 @@ namespace BaseballSim.Career
             Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery - Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom)));
             if (Me.InjuryDaysLeft > 0) { Me.InjuryDaysLeft--; InjuryDays++; }
             else if (Me.LingerDays > 0) Me.LingerDays--;
+            // Sunday's game is the last of the week: Monday has no game and the body gets a real rest.
+            if (IsSunday(Day) && Day + 1 < League.GamesPerSeason)
+            {
+                result.OffDayNext = true;
+                Me.Fatigue = Math.Max(0, Me.Fatigue - OffDayRecovery);
+            }
             Me.Morale -= Math.Sign(Me.Morale);
             Day++;
             result.Milestones = CheckMilestones(result);

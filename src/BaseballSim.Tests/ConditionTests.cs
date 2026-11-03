@@ -83,3 +83,22 @@ public class ConditionTests
             Assert.True(avg.Top.Any(r => r.Mine) || avg.Me != null);
     }
 }
+
+public class OffDayTests
+{
+    [Fact]
+    public void MondayIsADayOffAfterEverySixGames()
+    {
+        var random = new BaseballSim.SeededRandom(3);
+        var league = new BaseballSim.Career.League(new BaseballSim.RosterGenerator(random), 144);
+        var c = new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("t", random), league, league.Teams[0], random);
+        Assert.Equal("화", BaseballSim.Career.Career.WeekdayOf(0));
+        Assert.Equal("일", BaseballSim.Career.Career.WeekdayOf(5));
+        for (int d = 0; d < 5; d++) Assert.False(c.PlayDay(BaseballSim.Career.DailyAction.TrainPower).OffDayNext);
+        c.Me.Fatigue = 60;
+        var sunday = c.PlayDay(BaseballSim.Career.DailyAction.Rest);
+        Assert.True(sunday.OffDayNext);
+        Assert.True(c.Me.Fatigue <= 60 - 35 - BaseballSim.Career.Career.OffDayRecovery + 15);
+        Assert.Equal("화", BaseballSim.Career.Career.WeekdayOf(c.Day));
+    }
+}
