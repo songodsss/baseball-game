@@ -228,17 +228,46 @@ namespace BaseballGame
                 break;
             }
 
-            // Planter trees, hedges, lamps, benches and flags from Art/Decor, scattered over the plaza and
-            // sorted with the buildings by where they stand, so nearer things overlap farther ones.
-            var pool = DecorPool();
+            // Street things from Art/Decor. First they line the walkway like a boulevard: every so often
+            // a tree, lamp, planter or bench a step to one side, alternating sides. Then a few more
+            // fill the open plaza. All are sorted with the buildings by where they stand, so nearer
+            // things overlap farther ones.
             var placed = new System.Collections.Generic.List<Vector2>();
-            for (int n = 0, tries = 0; pool.Count > 0 && n < height / 85 && tries < 2000; tries++)
+            bool Free(float x, float y, float size) =>
+                x > size * 0.4f && x < MapWidth - size * 0.4f && y > size * 0.5f && y < height - 20 &&
+                !spots.Any(s => x > s.X * MapWidth - s.W / 2 - size * 0.35f && x < s.X * MapWidth + s.W / 2 + size * 0.35f &&
+                                y > s.Y - s.H / 2 - size * 0.1f && y < s.Foot + size * 0.35f) &&
+                !path.Any(p => (p - new Vector2(x, y)).sqrMagnitude < 60 * 60) &&
+                !placed.Any(t => (t - new Vector2(x, y)).magnitude < size * 0.6f);
+            void Put(Sprite art, float x, float y, float size)
+            {
+                placed.Add(new Vector2(x, y));
+                standing.Add((y, () => Decor(map, art, x / MapWidth, y, size)));
+            }
+
+            var row = BoulevardRow();
+            if (row.Count > 0)
+            {
+                int k = 0, side = 1;
+                for (int i = 8; i + 1 < path.Count; i += 8, side = -side)
+                {
+                    var along = (path[i + 1] - path[i]).normalized;
+                    var across = new Vector2(-along.y, along.x) * side;
+                    var (art, size) = row[k % row.Count];
+                    var at = path[i] + across * (95 + size * 0.15f);
+                    if (!Free(at.x, at.y, size)) continue;
+                    Put(art, at.x, at.y, size);
+                    k++;
+                }
+            }
+
+            var pool = DecorPool();
+            for (int n = 0, tries = 0; pool.Count > 0 && n < height / 110 && tries < 2500; tries++)
             {
                 var (art, size) = pool[rng.Next(pool.Count)];
                 float x = (float)rng.NextDouble() * MapWidth, y = (float)rng.NextDouble() * height;
-                if (!Clear(x, y, size * 0.45f) || placed.Any(t => (t - new Vector2(x, y)).magnitude < size * 0.75f)) continue;
-                placed.Add(new Vector2(x, y));
-                standing.Add((y, () => Decor(map, art, x / MapWidth, y, size)));
+                if (!Free(x, y, size)) continue;
+                Put(art, x, y, size);
                 n++;
             }
             standing.Add((TrainingSpot.Foot, () => BuildingTile(Place(map, TrainingSpot, training.Id), training, big: true)));
@@ -249,6 +278,19 @@ namespace BaseballGame
                 standing.Add((s.Foot, () => BuildingTile(Place(map, s, b.Id), b)));
             }
             foreach (var item in standing.OrderBy(x => x.foot)) item.draw();
+        }
+
+        /// <summary>What lines the walkway, in order, repeating: mostly trees, with lamps and planters between.</summary>
+        static System.Collections.Generic.List<(Sprite art, float size)> BoulevardRow()
+        {
+            var list = new System.Collections.Generic.List<(Sprite, float)>();
+            foreach (var (name, size) in new[] { ("tree_planter", 180f), ("lamp", 140f), ("tree_blossom", 180f), ("flower_planter", 95f),
+                                                  ("tree_planter", 180f), ("bench", 110f), ("tree_blossom", 180f), ("lamp", 140f), ("hedge", 110f) })
+            {
+                var art = ArtLibrary.Get("Decor/" + name);
+                if (art != null) list.Add((art, size));
+            }
+            return list;
         }
 
         /// <summary>
@@ -296,25 +338,29 @@ namespace BaseballGame
             return tile;
         }
 
-        /// <summary>A painted ground picture repeated down the whole meadow, full width.</summary>
+        /// <summary>
+        /// A painted ground picture tiled over the whole town, two across. Every other copy is mirrored
+        /// (across and down) so the joins match and no seam shows.
+        /// </summary>
         static void PaintedGround(RectTransform map, Sprite art, float height)
         {
-            float tile = MapWidth * art.rect.height / art.rect.width;
-            // Every other copy is flipped upside down so the joins mirror each other and no seam shows.
-            int n = 0;
-            for (float y = 0; y < height; y += tile, n++)
-            {
-                var image = UiKit.Empty(map, "Ground").gameObject.AddComponent<Image>();
-                image.sprite = art;
-                image.raycastTarget = false;
-                var rt = image.rectTransform;
-                rt.anchorMin = new Vector2(0, 1);
-                rt.anchorMax = new Vector2(1, 1);
-                rt.pivot = new Vector2(0.5f, 0.5f);
-                rt.sizeDelta = new Vector2(0, tile + 2);
-                rt.anchoredPosition = new Vector2(0, -y - tile / 2);
-                if (n % 2 == 1) rt.localScale = new Vector3(1, -1, 1);
-            }
+            const int across = 2;
+            float tile = MapWidth / across * art.rect.height / art.rect.width;
+            int row = 0;
+            for (float y = 0; y < height; y += tile, row++)
+                for (int col = 0; col < across; col++)
+                {
+                    var image = UiKit.Empty(map, "Ground").gameObject.AddComponent<Image>();
+                    image.sprite = art;
+                    image.raycastTarget = false;
+                    var rt = image.rectTransform;
+                    rt.anchorMin = new Vector2((float)col / across, 1);
+                    rt.anchorMax = new Vector2((float)(col + 1) / across, 1);
+                    rt.pivot = new Vector2(0.5f, 0.5f);
+                    rt.sizeDelta = new Vector2(2, tile + 2);
+                    rt.anchoredPosition = new Vector2(0, -y - tile / 2);
+                    rt.localScale = new Vector3(col % 2 == 1 ? -1 : 1, row % 2 == 1 ? -1 : 1, 1);
+                }
         }
 
         /// <summary>Points every <paramref name="step"/> pixels along a smooth curve through the given points (Catmull-Rom).</summary>
