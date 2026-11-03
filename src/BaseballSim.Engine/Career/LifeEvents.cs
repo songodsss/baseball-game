@@ -656,6 +656,8 @@ namespace BaseballSim.Career
             }
             var bond = BondMoment(c);
             if (bond != null) return bond;
+            var serial = SerialMoment(c, day);
+            if (serial != null) return serial;
             if (c.Day >= games - 3 && !c.InFarm && !c.SeenThisSeason("last_home")) return LastHome;
             return null;
         }

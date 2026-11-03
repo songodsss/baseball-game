@@ -445,6 +445,8 @@ namespace BaseballGame
             { "백승호", "baek_seungho" }, { "아저씨", "equipment_man" },
             // 아버지의 등번호
             { "권태수", "kwon_taesu" }, { "차민혁", "cha_minhyuk" }, { "아버지", "father" }, { "오지영", "oh_jiyoung" }, { "주치의", "team_doctor" },
+            // Serial side stories
+            { "응원단장", "cheer_leader" }, { "기사님", "bus_driver" }, { "반장", "groundskeeper" }, { "지우", "kid" },
             // Everyday people
             { "coach", "coach" }, { "감독", "manager" }, { "감독님", "teacher" }, { "트레이너", "trainer" }, { "기자", "reporter" },
             { "라파엘", "rafael" }, { "형", "aide" }, { "할아버지", "grandpa_fan" }, { "사장", "president" }, { "사장님", "president" },

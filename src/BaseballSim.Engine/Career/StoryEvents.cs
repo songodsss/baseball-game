@@ -470,6 +470,7 @@ namespace BaseballSim.Career
 
             AddLifeEvents(list);
             AddSideStories(list);
+            AddSerialStories(list);
             return list;
         }
     }
