@@ -232,7 +232,7 @@ namespace BaseballSim.Career
             w.Write(club.DrawTickets);
             w.Write(club.Draws);
             WriteList(w, club.CardLevels.ToList(), kv => { w.Write(kv.Key); w.Write(kv.Value); });
-            WriteList(w, club.GearLevels.ToList(), kv => { w.Write(kv.Key); w.Write(kv.Value); });
+            WriteList(w, club.GearCopies.ToList(), kv => { w.Write(kv.Key); w.Write(kv.Value); });
             WriteList(w, club.Pity.ToList(), w.Write);
         }
 
@@ -396,7 +396,7 @@ namespace BaseballSim.Career
                 club.DrawTickets = r.ReadInt32();
                 club.Draws = r.ReadInt32();
                 foreach (var (id, level) in ReadList(r, () => (r.ReadString(), r.ReadInt32()))) club.CardLevels[id] = level;
-                foreach (var (id, level) in ReadList(r, () => (r.ReadString(), r.ReadInt32()))) club.GearLevels[id] = level;
+                foreach (var (id, copies) in ReadList(r, () => (r.ReadString(), r.ReadInt32()))) club.GearCopies[id] = copies;
                 var pity = ReadList(r, r.ReadInt32);
                 for (int k = 0; k < pity.Count && k < club.Pity.Length; k++) club.Pity[k] = pity[k];
             }

@@ -110,24 +110,22 @@ public class GachaTests
     }
 
     [Fact]
-    public void GearGoesUpOnePerLevelToTen()
+    public void GearLevelsNeedMoreCopiesEachTimeAndGoToTen()
     {
         Assert.Equal(4, Gacha.GearBonus(Rarity.N, 99));
         Assert.Equal(10, Gacha.GearBonus(Rarity.SSR, 99));
+        Assert.Equal(new[] { 1, 2, 4, 7, 11, 16 }, Enumerable.Range(1, 6).Select(Gacha.GearCopiesFor));
         var club = new Club();
         var ssr = Gacha.Gear.First(g => g.Rarity == Rarity.SSR);
-        club.AddCopy(GachaBox.Gear, ssr.Id, Rarity.SSR);
-        Assert.False(club.EnhanceGear(ssr.Id)); // no coins
-        club.Coins = 100000;
-        for (int level = 1; level < Gacha.GearMaxLevel(Rarity.SSR); level++)
+        var bonuses = new List<int>();
+        for (int k = 0; k < 16; k++)
         {
-            int before = club.TeamGearBonus(ssr.Stat);
-            Assert.True(club.EnhanceGear(ssr.Id));
-            Assert.Equal(before + 1, club.TeamGearBonus(ssr.Stat));
+            club.AddCopy(GachaBox.Gear, ssr.Id, Rarity.SSR);
+            bonuses.Add(club.TeamGearBonus(ssr.Stat));
         }
-        Assert.Equal(10, club.TeamGearBonus(ssr.Stat));
-        Assert.False(club.EnhanceGear(ssr.Id)); // top level
+        Assert.Equal(new[] { 5, 6, 6, 7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10 }, bonuses);
         Assert.True(club.AddCopy(GachaBox.Gear, ssr.Id, Rarity.SSR).Refund > 0);
+        Assert.Equal(16, club.CopiesOf(ssr.Id));
     }
 
     [Fact]
@@ -159,7 +157,7 @@ public class GachaTests
         var (c2, career2) = SaveGame.FromBytes(bytes, new SeededRandom(1));
         Assert.Equal(bytes, SaveGame.ToBytes(c2, career2));
         Assert.Equal(club.CardLevels, c2.CardLevels);
-        Assert.Equal(club.GearLevels, c2.GearLevels);
+        Assert.Equal(club.GearCopies, c2.GearCopies);
         Assert.Equal(club.Pity, c2.Pity);
         Assert.Equal(3, c2.DrawTickets);
         Assert.Equal(career.Cards, career2.Cards);

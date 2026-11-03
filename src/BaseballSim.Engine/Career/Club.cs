@@ -103,8 +103,8 @@ namespace BaseballSim.Career
         public int Draws;
         /// <summary>Training cards owned and their level (1 to Gacha.MaxLevel).</summary>
         public Dictionary<string, int> CardLevels = new Dictionary<string, int>();
-        /// <summary>Team gear owned and its level.</summary>
-        public Dictionary<string, int> GearLevels = new Dictionary<string, int>();
+        /// <summary>Copies of each team gear piece drawn; its level comes from the count (Gacha.GearLevelFrom).</summary>
+        public Dictionary<string, int> GearCopies = new Dictionary<string, int>();
         /// <summary>Draws since the last SSR, per box.</summary>
         public int[] Pity = new int[2];
 
@@ -112,14 +112,18 @@ namespace BaseballSim.Career
         public void SetPityCount(GachaBox box, int count) => Pity[(int)box] = count;
         public int DrawsToPity(GachaBox box) => Gacha.Pity - PityCount(box);
 
-        Dictionary<string, int> Levels(GachaBox box) => box == GachaBox.Cards ? CardLevels : GearLevels;
+        public int CopiesOf(string gearId) => GearCopies.TryGetValue(gearId, out var c) ? c : 0;
 
-        public int LevelOf(GachaBox box, string id) => Levels(box).TryGetValue(id, out var l) ? l : 0;
+        public int LevelOf(GachaBox box, string id)
+        {
+            if (box == GachaBox.Cards) return CardLevels.TryGetValue(id, out var l) ? l : 0;
+            var g = Gacha.GearPiece(id);
+            return g == null ? 0 : Gacha.GearLevelFrom(g.Rarity, CopiesOf(id));
+        }
 
         /// <summary>Adds one copy: a new item, a level up, or coins back once it is at the top level.</summary>
         public DrawResult AddCopy(GachaBox box, string id, Rarity rarity, bool fromPity = false)
         {
-            var levels = Levels(box);
             int level = LevelOf(box, id);
             var result = new DrawResult
             {
@@ -131,7 +135,14 @@ namespace BaseballSim.Career
                 result.Refund = Gacha.Refund(rarity);
                 Coins += result.Refund;
             }
-            else levels[id] = ++level;
+            else if (box == GachaBox.Cards) CardLevels[id] = ++level;
+            else
+            {
+                GearCopies[id] = CopiesOf(id) + 1;
+                int after = LevelOf(box, id);
+                result.LevelUp = after > level;
+                level = after;
+            }
             result.Level = Math.Max(1, level);
             return result;
         }
@@ -143,26 +154,15 @@ namespace BaseballSim.Career
         public Dictionary<Stat, (TeamGear Gear, int Level, int Bonus)> TeamGearWorn()
         {
             var worn = new Dictionary<Stat, (TeamGear, int, int)>();
-            foreach (var kv in GearLevels)
+            foreach (var kv in GearCopies)
             {
                 var g = Gacha.GearPiece(kv.Key);
-                if (g == null) continue;
-                int bonus = Gacha.GearBonus(g.Rarity, kv.Value);
-                if (!worn.TryGetValue(g.Stat, out var best) || bonus > best.Item3) worn[g.Stat] = (g, kv.Value, bonus);
+                int level = g == null ? 0 : Gacha.GearLevelFrom(g.Rarity, kv.Value);
+                if (level == 0) continue;
+                int bonus = Gacha.GearBonus(g.Rarity, level);
+                if (!worn.TryGetValue(g.Stat, out var best) || bonus > best.Item3) worn[g.Stat] = (g, level, bonus);
             }
             return worn;
-        }
-
-        /// <summary>Enhances an owned gear piece one level with coins (a copy from a draw does the same for free).</summary>
-        public bool EnhanceGear(string id)
-        {
-            var g = Gacha.GearPiece(id);
-            int level = g == null ? 0 : LevelOf(GachaBox.Gear, id);
-            int cost = g == null ? 0 : Gacha.EnhanceCoins(g.Rarity, level);
-            if (cost == 0 || Coins < cost) return false;
-            Coins -= cost;
-            GearLevels[id] = level + 1;
-            return true;
         }
 
         /// <summary>Rating points my retired players get in one stat from team gear.</summary>

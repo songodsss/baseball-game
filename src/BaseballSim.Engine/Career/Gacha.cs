@@ -42,6 +42,8 @@ namespace BaseballSim.Career
         public bool New;
         /// <summary>Level after this copy.</summary>
         public int Level;
+        /// <summary>This copy raised the level (cards: every copy does; gear: once enough copies are in).</summary>
+        public bool LevelUp;
         /// <summary>Coins given back for a copy of something already at the top level.</summary>
         public int Refund;
         /// <summary>The SSR came from the pity counter.</summary>
@@ -125,9 +127,19 @@ namespace BaseballSim.Career
 
         public static int MaxLevelOf(GachaBox box, Rarity r) => box == GachaBox.Cards ? MaxLevel : GearMaxLevel(r);
 
-        /// <summary>Coins to enhance a gear piece from this level to the next; 0 at the top level.</summary>
-        public static int EnhanceCoins(Rarity r, int level) => level <= 0 || level >= GearMaxLevel(r) ? 0 : EnhanceBase[(int)r] * level;
-        static readonly int[] EnhanceBase = { 60, 120, 250, 500 };
+        /// <summary>
+        /// Copies of one gear piece needed for a level: each level asks one more copy than the last
+        /// (Lv.2 one more, Lv.3 two more, Lv.4 three more...), so 1, 2, 4, 7, 11, 16 in all.
+        /// </summary>
+        public static int GearCopiesFor(int level) => level <= 0 ? 0 : 1 + level * (level - 1) / 2;
+
+        /// <summary>Level a gear piece has with this many copies.</summary>
+        public static int GearLevelFrom(Rarity r, int copies)
+        {
+            int level = 0;
+            while (level < GearMaxLevel(r) && copies >= GearCopiesFor(level + 1)) level++;
+            return level;
+        }
 
         public static int Refund(Rarity r) => RefundCoins[(int)r];
 
