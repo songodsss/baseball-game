@@ -371,6 +371,8 @@ namespace BaseballSim.Career
 
             if (Rival == null && Day == 0) CreateRival();
             ApplyAction(action, result);
+            foreach (var b in Boosts) b.DaysLeft--;
+            Boosts.RemoveAll(b => b.DaysLeft <= 0);
 
             (Team Away, Team Home)? myGame = null;
             foreach (var (away, home) in League.Matchups(Day))
@@ -461,8 +463,8 @@ namespace BaseballSim.Career
             var (main, side) = TrainingTargets(action);
             result.ConditionStars = ConditionStars;
             double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
-            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * VeteranGrowth(main) * CardMultiplier(main))));
-            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult * VeteranGrowth(side) * CardMultiplier(side))));
+            AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * VeteranGrowth(main) * TrainingMultiplier(main))));
+            AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult * VeteranGrowth(side) * TrainingMultiplier(side))));
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
         }
 
@@ -552,7 +554,47 @@ namespace BaseballSim.Career
         public Dictionary<Stat, int> CardBoost = new Dictionary<Stat, int>();
 
         /// <summary>Training exp multiplier from worn cards for a stat (1 = no card).</summary>
-        public double CardMultiplier(Stat stat) => 1 + (CardBoost.TryGetValue(stat, out var p) ? p : 0) / 100.0;
+        public double CardMultiplier(Stat stat) => 1 + CardPercent(stat) / 100.0;
+
+        public int CardPercent(Stat stat) => CardBoost.TryGetValue(stat, out var p) ? p : 0;
+
+        /// <summary>Training tool tier owned per stat (bought in the shop with salary).</summary>
+        public Dictionary<Stat, int> ToolTiers = new Dictionary<Stat, int>();
+        /// <summary>Training boosts from story events, counting down a day at a time.</summary>
+        public List<TrainingBoost> Boosts = new List<TrainingBoost>();
+
+        public int ToolTier(Stat stat) => ToolTiers.TryGetValue(stat, out var t) ? t : 0;
+        public int ToolPercent(Stat stat) => TrainingTools.Bonus(ToolTier(stat));
+        public int BoostPercent(Stat stat) => Boosts.Where(b => b.Stat == stat && b.DaysLeft > 0).Sum(b => b.Percent);
+
+        /// <summary>All extra training exp for a stat, in percent: card + tool + event boosts.</summary>
+        public int TrainingPercent(Stat stat) => CardPercent(stat) + ToolPercent(stat) + BoostPercent(stat);
+
+        /// <summary>Training exp multiplier for a stat (1 = nothing extra).</summary>
+        public double TrainingMultiplier(Stat stat) => 1 + TrainingPercent(stat) / 100.0;
+
+        /// <summary>Buys the next training tool tier for a stat with the player's money.</summary>
+        public bool BuyTool(Stat stat)
+        {
+            int next = ToolTier(stat) + 1;
+            if (next > TrainingTools.Tiers || !Me.MyStats.Contains(stat) || Me.Money < TrainingTools.Price(next)) return false;
+            Me.Money -= TrainingTools.Price(next);
+            ToolTiers[stat] = next;
+            return true;
+        }
+
+        /// <summary>
+        /// Adds a boost for some days of a full 144-game season (fewer in a shorter one). The same source
+        /// again refreshes it rather than stacking.
+        /// </summary>
+        public TrainingBoost AddBoost(Stat stat, int percent, int days, string source)
+        {
+            int scaled = Math.Max(1, (int)Math.Round(days * League.GamesPerSeason / 144.0));
+            Boosts.RemoveAll(b => b.Source == source && b.Stat == stat);
+            var boost = new TrainingBoost { Stat = stat, Percent = percent, DaysLeft = scaled, Source = source ?? "" };
+            Boosts.Add(boost);
+            return boost;
+        }
 
         /// <summary>Puts the player out for some days (fewer with the quick-recovery trait); the injury lingers as long again.</summary>
         public int Injure(InjuryKind kind, int days)

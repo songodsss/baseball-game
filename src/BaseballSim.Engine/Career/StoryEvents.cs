@@ -103,6 +103,14 @@ namespace BaseballSim.Career
             Outcome.Changes.Add($"{Stats.Name(stat)} +{points}");
         }
 
+        /// <summary>One stat trains faster for a while (days of a full season).</summary>
+        public void Boost(Stat stat, int percent, int days, string source)
+        {
+            stat = Me.RoleStat(stat);
+            var b = _career.AddBoost(stat, percent, days, source);
+            Outcome.Changes.Add($"{Stats.Name(stat)} 훈련 효율 +{percent}% ({b.DaysLeft}일)");
+        }
+
         public void Fatigue(int delta)
         {
             int before = Me.Fatigue;

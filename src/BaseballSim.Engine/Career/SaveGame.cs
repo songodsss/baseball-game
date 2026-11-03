@@ -30,7 +30,7 @@ namespace BaseballSim.Career
         /// 31: signature skills (career).
         /// 32: the arena.
         /// 33: legend stages and visits, the story's version seed; legends whose record fell on the club.
-        public const int Version = 35;
+        public const int Version = 36;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -618,6 +618,10 @@ namespace BaseballSim.Career
 
             // Added in version 34.
             WriteList(w, career.Cards, id => w.Write(id ?? ""));
+
+            // Added in version 36.
+            WriteList(w, career.ToolTiers.ToList(), kv => { w.Write((int)kv.Key); w.Write(kv.Value); });
+            WriteList(w, career.Boosts, b => { w.Write((int)b.Stat); w.Write(b.Percent); w.Write(b.DaysLeft); w.Write(b.Source ?? ""); });
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -828,6 +832,11 @@ namespace BaseballSim.Career
             {
                 career.Cards = ReadList(r, () => { var id = r.ReadString(); return id.Length == 0 ? null : id; });
                 club?.RefreshCards(career);
+            }
+            if (version >= 36)
+            {
+                foreach (var (stat, tier) in ReadList(r, () => ((Stat)r.ReadInt32(), r.ReadInt32()))) career.ToolTiers[stat] = tier;
+                career.Boosts = ReadList(r, () => new TrainingBoost { Stat = (Stat)r.ReadInt32(), Percent = r.ReadInt32(), DaysLeft = r.ReadInt32(), Source = r.ReadString() });
             }
             return career;
         }

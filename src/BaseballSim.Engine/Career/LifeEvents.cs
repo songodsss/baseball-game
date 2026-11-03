@@ -58,8 +58,22 @@ namespace BaseballSim.Career
                     new EventChoice
                     {
                         Label = "고맙다고 밥을 산다", Result = "노트는 생각보다 훨씬 꼼꼼했다. 후배가 환하게 웃었다.",
-                        Apply = e => { e.Unmark("junior_owes"); e.Exp(Stat.Eye, 70); e.Money(-50); e.Morale(4); e.Close("junior", 1); },
+                        Apply = e => { e.Unmark("junior_owes"); e.Exp(Stat.Eye, 50); e.Boost(Stat.Eye, 20, 7, "후배의 분석 노트"); e.Money(-50); e.Morale(4); e.Close("junior", 1); },
                     },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "camp_coach",
+                Title = "특별 인스트럭터",
+                Text = "구단이 시즌 초반 2주 동안 외부 인스트럭터를 불렀다.\n\"한 가지만 제대로 잡아 줄게. 뭘 고치고 싶어?\"",
+                Weight = (c, d) => InWindow(c, 0.03, 0.15) && Active(c) && !c.SeenThisSeason("camp_coach") ? 2 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "기술 (컨택·제구)", Result = "동작이 한결 간결해졌다. 2주만 더 붙잡자.", Apply = e => e.Boost(Stat.Contact, 25, 14, "특별 인스트럭터") },
+                    new EventChoice { Label = "힘 (파워·구속)", Result = "하체를 쓰는 법을 처음부터 다시 배웠다.", Apply = e => e.Boost(Stat.Power, 25, 14, "특별 인스트럭터") },
+                    new EventChoice { Label = "눈 (선구안·변화구)", Result = "공이 한결 오래 보이기 시작했다.", Apply = e => e.Boost(Stat.Eye, 25, 14, "특별 인스트럭터") },
                 },
             });
 
@@ -338,7 +352,7 @@ namespace BaseballSim.Career
                 Choices =
                 {
                     new EventChoice { Label = "\"믿음에 보답하겠습니다\"", Result = "문을 나서는데 가슴이 뜨거웠다.", Apply = e => { e.Morale(8); e.Fans(30); } },
-                    new EventChoice { Label = "\"하나만 가르쳐 주십시오\"", Result = "감독이 직접 옛날 노트를 꺼내 보여 줬다.", Apply = e => { e.Exp(Stat.Eye, 60); e.Morale(3); } },
+                    new EventChoice { Label = "\"하나만 가르쳐 주십시오\"", Result = "감독이 직접 옛날 노트를 꺼내 보여 줬다.", Apply = e => { e.Exp(Stat.Eye, 60); e.Boost(Stat.Eye, 25, 10, "감독의 노트"); e.Morale(3); } },
                 },
             });
 
@@ -378,8 +392,8 @@ namespace BaseballSim.Career
                 Weight = (c, d) => InWindow(c, 0.45, 0.6) && !c.SeenThisSeason("rainy_season") ? 3 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "웨이트장에서 산다", Result = "비 오는 동안 몸이 한 뼘 커졌다.", Apply = e => { e.Exp(Stat.Power, 50); e.Fatigue(10); } },
-                    new EventChoice { Label = "영상실에서 공부한다", Result = "리그 투수들의 공 배합을 외웠다.", Apply = e => e.Exp(Stat.Eye, 45) },
+                    new EventChoice { Label = "웨이트장에서 산다", Result = "비 오는 동안 몸이 한 뼘 커졌다.", Apply = e => { e.Exp(Stat.Power, 30); e.Boost(Stat.Power, 30, 7, "장마 웨이트"); e.Fatigue(10); } },
+                    new EventChoice { Label = "영상실에서 공부한다", Result = "리그 투수들의 공 배합을 외웠다.", Apply = e => { e.Exp(Stat.Eye, 25); e.Boost(Stat.Eye, 30, 7, "장마 영상 공부"); } },
                     new EventChoice { Label = "푹 쉬며 몸을 만든다", Result = "쌓인 피로가 빗물에 씻겨 나갔다.", Apply = e => { e.Fatigue(-25); e.Morale(2); } },
                 },
             });

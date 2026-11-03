@@ -1434,7 +1434,51 @@ namespace BaseballGame
             var buttons = UiKit.Empty(card, "Buttons");
             UiKit.Height(buttons, 110);
             UiKit.Row(buttons, 16);
+            UiKit.Button(buttons, "훈련용품", ShowTools, new Color(0.2f, 0.5f, 0.4f));
             UiKit.Button(buttons, "전체 가격표", ShowPriceList, UiKit.Card);
+            UiKit.Button(buttons, "닫기", CloseOverlay, UiKit.Muted);
+        }
+
+        /// <summary>Training tools: salary-bought, one per stat in three tiers, each making that training give more exp.</summary>
+        void ShowTools()
+        {
+            var card = OpenOverlay($"훈련용품  (보유 {_career.Me.Money:N0}만원)");
+            UiKit.Height(UiKit.Label(card, "그 능력치를 훈련할 때 경험치가 더 들어와요. 연봉으로만 살 수 있어요.\n<size=24>훈련 카드·이벤트 효과와 더해져요.</size>", 26, TextAnchor.MiddleCenter, UiKit.Muted), 90);
+            foreach (var stat in _career.Me.MyStats)
+            {
+                int tier = _career.ToolTier(stat);
+                var row = UiKit.Empty(card, stat.ToString());
+                UiKit.Height(row, 100);
+                UiKit.Row(row, 20);
+                string have = tier == 0 ? "없음" : $"{TrainingTools.Name(stat, tier)} (+{TrainingTools.Bonus(tier)}%)";
+                UiKit.Width(UiKit.Label(row, $"{StatNames[stat]}\n<size=24>{have}</size>", 30, TextAnchor.MiddleLeft, UiKit.Muted), 0, 1);
+                if (tier >= TrainingTools.Tiers)
+                {
+                    UiKit.Width(UiKit.Label(row, "최고 단계", 30, TextAnchor.MiddleCenter), 440);
+                    continue;
+                }
+                int price = TrainingTools.Price(tier + 1);
+                var s2 = stat;
+                var buy = UiKit.Button(row, $"{TrainingTools.Name(stat, tier + 1)}\n훈련 +{TrainingTools.Bonus(tier + 1)}% · {price:N0}만원", () =>
+                {
+                    if (_career.BuyTool(s2))
+                    {
+                        GameAudio.Sfx(GameAudio.Coin);
+                        Log($"{TrainingTools.Name(s2, _career.ToolTier(s2))} 구입! {StatNames[s2]} 훈련 효율 +{_career.ToolPercent(s2)}%");
+                        Save();
+                    }
+                    else GameAudio.Sfx(GameAudio.Error);
+                    ShowTools();
+                    Refresh();
+                }, _career.Me.Money >= price ? UiKit.Accent : new Color(0.3f, 0.3f, 0.35f));
+                buy.GetComponentInChildren<Text>().fontSize = 26;
+                UiKit.Width(buy, 440);
+            }
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            var buttons = UiKit.Empty(card, "Buttons");
+            UiKit.Height(buttons, 110);
+            UiKit.Row(buttons, 16);
+            UiKit.Button(buttons, "상점으로", ShowShop, UiKit.Card);
             UiKit.Button(buttons, "닫기", CloseOverlay, UiKit.Muted);
         }
 
@@ -1465,6 +1509,18 @@ namespace BaseballGame
                 foreach (var t in tiers) Line("   " + t);
             }
             Line($"<color=#BAC4D8>장비 전부 명품까지: {Won(gear.Sum(e => e.Price))}</color>");
+
+            Section("훈련용품 (능력치마다 3단계, 훈련 효율)");
+            foreach (var stat in _career.Me.MyStats)
+            {
+                int have = _career.ToolTier(stat);
+                Line($"<b>{StatNames[stat]}</b>");
+                for (int t = 1; t <= TrainingTools.Tiers; t++)
+                {
+                    string text = $"   {TrainingTools.Name(stat, t)} {Won(TrainingTools.Price(t))} (+{TrainingTools.Bonus(t)}%)";
+                    Line(t <= have ? $"<color=#5FA8FF>{text} (보유)</color>" : text);
+                }
+            }
 
             Section("개인 시설 (장비를 다 모으면 열려요)");
             foreach (var f in Facilities.All)
@@ -2167,7 +2223,8 @@ namespace BaseballGame
                 string gear = bonus > 0 ? $"<color=#5FA8FF>+{bonus}</color>" : "";
                 bool maxed = me.Ratings[stat] >= CareerPlayer.MaxRating;
                 string special = me.Specialties.Contains(stat) ? " <size=24><color=#FFD24D>★주특기</color></size>" : "";
-                if (_career.CardBoost.TryGetValue(stat, out int cardBoost) && cardBoost > 0) special += $" <size=22><color=#C58CFF>카드+{cardBoost}%</color></size>";
+                int trainingBoost = _career.TrainingPercent(stat);
+                if (trainingBoost > 0) special += $" <size=22><color=#C58CFF>훈련+{trainingBoost}%</color></size>";
                 // A rating that went up since the last refresh swells for a moment.
                 if (_shownRatings.TryGetValue(stat, out int shown) && me.Ratings[stat] > shown) UiAnim.Pulse(_ratingTexts[stat]);
                 _shownRatings[stat] = me.Ratings[stat];
