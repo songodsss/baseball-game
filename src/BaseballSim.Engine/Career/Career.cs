@@ -400,6 +400,7 @@ namespace BaseballSim.Career
         /// <summary>Answers the paused big at bat. Returns the day's result: paused again at the next big at bat, or finished.</summary>
         public DayResult ChooseApproach(Approach approach)
         {
+            if (InPostseason && PostseasonNow.Current?.AtBat != null) return AnswerPostseason(approach);
             if (!IsMidGame) throw new InvalidOperationException("No at bat waiting.");
             _game.Decisions.Add(approach);
             var result = _game.Result;
@@ -700,9 +701,10 @@ namespace BaseballSim.Career
 
         MyGameState _game;
         public bool IsMidGame => _game != null;
-        public AtBatSituation PendingAtBat => _game?.Result.AtBat;
+        public AtBatSituation PendingAtBat => _game?.Result.AtBat ?? (InPostseason ? PostseasonNow.Current?.AtBat : null);
         /// <summary>The club my team is playing in the paused game, or null.</summary>
-        public Team MidGameOpponent => _game == null ? null : _game.Home == MyTeam ? _game.Away : _game.Home;
+        public Team MidGameOpponent => _game != null ? (_game.Home == MyTeam ? _game.Away : _game.Home)
+            : InPostseason && PostseasonNow.Current?.AtBat != null ? PostseasonNow.CurrentOpponent : null;
 
         /// <summary>Returns false if the game paused at a big at bat.</summary>
         bool StartMyGame(Team away, Team home, DayResult result)
@@ -836,7 +838,7 @@ namespace BaseballSim.Career
             {
                 Rank = ranked.FindIndex(s => s.Team == MyTeam) + 1,
                 OldSalary = Me.Salary,
-                Postseason = BaseballSim.Career.Postseason.Play(this, _sim, _random),
+                Postseason = FinishPostseason(),
                 Awards = BaseballSim.Career.Awards.For(League, Me.Id,
                     Me.History.Count == 0 ? new[] { Me.Id, RivalState.PlayerId } : new string[0], FieldingOf),
             };
@@ -858,6 +860,7 @@ namespace BaseballSim.Career
                 FarmDays = FarmDays,
                 Postseason = BaseballSim.Career.Postseason.Describe(summary.Postseason, MyTeam),
             };
+            Me.Money += summary.Postseason.Bonus;
             if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
             Me.History.Add(summary.Record);
             summary.GoalMet = SettleGoal(summary);
@@ -898,6 +901,7 @@ namespace BaseballSim.Career
             SeasonPitching = new PitcherLine();
             DaysSinceStart = StartEvery - 1;
             ResetSeasonMoves();
+            Me.Fatigue = 0; // a winter off: every season starts fresh
             if (Rival != null)
             {
                 summary.RivalLine = RivalLine;

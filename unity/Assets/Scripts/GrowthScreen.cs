@@ -93,6 +93,7 @@ namespace BaseballGame
             GameAudio.PlayAmbience(null);
 
             if (_career == null) ShowNewPlayer();
+            else if (_career.IsSeasonOver) BeginAutumn(); // closed the app in the postseason
             else if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
             else if (_career.Day == 0 && _career.PendingOffers.Count > 0) ShowOffers(); // closed the app mid-negotiation
             else if (_career.Day == 0 && _career.PendingSalary != null) ShowSalaryTalk();
@@ -371,6 +372,7 @@ namespace BaseballGame
             TakeSnapshot();
             // Before the season's first day: kept so a rewind ticket can replay the season.
             if (_career.Day == 0) SaveStore.SaveSeasonStart(_career, _club);
+            _fastLeft = 0;
             if (_fast && CanFastSkip) { FastForward(action); return; }
             var result = _career.PlayDay(action);
             if (result.AtBat != null) ShowAtBat(result);
@@ -381,28 +383,52 @@ namespace BaseballGame
         /// Fast skip (a paid convenience): the same action several days running, big moments played
         /// the usual way. It stops at the first day that needs a choice or a look, and when tired.
         /// </summary>
-        void FastForward(DailyAction action)
+        void FastForward(DailyAction action, int days = 0, bool resume = false)
         {
-            if (action != DailyAction.Rest && (_career.Me.Fatigue >= 80 || _career.NextTrainingTires))
+            if (days <= 0) days = FastSkipDays;
+            if (!resume && action != DailyAction.Rest && (_career.Me.Fatigue >= 80 || _career.NextTrainingTires))
             {
                 Log($"<color=#F28C40>피로 {_career.Me.Fatigue}</color> · 한 번 더 훈련하면 위험 수치(80)를 넘어요. 빠른 진행을 멈췄어요. 회복부터 해 주세요.");
                 return;
             }
-            for (int i = 0; i < FastSkipDays; i++)
+            for (int i = 0; i < days; i++)
             {
                 var result = _career.PlayDay(action);
-                if (result.AtBat != null) _club.Daily.Count(MissionKind.BigMoment);
-                while (result.AtBat != null) result = _career.ChooseApproach(Approach.Normal);
-                bool stop = i == FastSkipDays - 1 || _career.IsSeasonOver || result.Move != null || result.Trade != null ||
-                    result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.TraitOffer != null ||
-                    result.Event != null || result.GotInjured || _career.GoalOffer != null ||
-                    (action != DailyAction.Rest && _career.NextTrainingTires) || !_career.TrainingChoices.Contains(action) ||
-                    (action == DailyAction.Rest && _career.Me.Fatigue <= 0 && !_career.Me.IsInjured); // rested enough
-                if (stop) { AfterDay(result); return; }
+                // Big at bats are still mine to answer; the skip carries on afterwards.
+                if (result.AtBat != null)
+                {
+                    _fastAction = action;
+                    _fastLeft = days - i - 1;
+                    ShowAtBat(result);
+                    return;
+                }
+                if (FastStops(result, action, i == days - 1)) { AfterDay(result); return; }
                 _lastDay = result;
                 _club.Daily.Record(result);
                 DescribeDay(result);
             }
+        }
+
+        DailyAction _fastAction;
+        int _fastLeft;
+
+        bool FastStops(DayResult result, DailyAction action, bool last) =>
+            last || _career.IsSeasonOver || result.Move != null || result.Trade != null ||
+            result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.TraitOffer != null ||
+            result.Event != null || result.GotInjured || _career.GoalOffer != null ||
+            (action != DailyAction.Rest && _career.NextTrainingTires) || !_career.TrainingChoices.Contains(action) ||
+            (action == DailyAction.Rest && _career.Me.Fatigue <= 0 && !_career.Me.IsInjured); // rested enough
+
+        /// <summary>A big at bat in the middle of a fast skip is answered: the skip goes on unless the day needs a look.</summary>
+        void ResumeFastForward(DayResult result)
+        {
+            int left = _fastLeft;
+            _fastLeft = 0;
+            if (FastStops(result, _fastAction, left <= 0)) { AfterDay(result); return; }
+            _lastDay = result;
+            _club.Daily.Record(result);
+            DescribeDay(result);
+            FastForward(_fastAction, left, resume: true);
         }
 
         void AfterDay(DayResult result)
@@ -413,7 +439,7 @@ namespace BaseballGame
             ShowGameBanner(result);
             if (_career.IsSeasonOver)
             {
-                ShowSeasonEnd();
+                BeginAutumn();
                 Tip("season_end", "시즌이 끝나면 성적(OPS)에 따라 연봉이 재계약돼요. 8시즌을 뛰면 FA가 되어 다른 구단으로 옮길 수 있어요. 30세부터는 은퇴해서 내 팀에 영입할 수 있어요.");
             }
             else if (result.Move != null)
@@ -751,6 +777,8 @@ namespace BaseballGame
             {
                 CloseOverlay();
                 if (result.AtBat != null) ShowAtBat(result);
+                else if (_career.InPostseason) AfterPostseasonGame(result);
+                else if (_fastLeft > 0) ResumeFastForward(result);
                 else AfterDay(result);
             }
             if (fresh.Count == 0) { Continue(); return; }
@@ -1666,6 +1694,12 @@ namespace BaseballGame
             bool pitcher = _career.Me.IsPitcher;
             var summary = _career.EndSeason();
             int seasonCoins = _club.PaySeason(summary.Record.Games);
+            Save();
+            ShowCeremony(summary, () => ShowSeasonSummary(summary, line, pitching, pitcher, seasonCoins));
+        }
+
+        void ShowSeasonSummary(SeasonSummary summary, BattingLine line, PitcherLine pitching, bool pitcher, int seasonCoins)
+        {
             var card = OpenOverlay($"{CareerState.YearOf(summary.Record.Season)} 시즌 종료");
             var body = UiKit.ScrollList(card, 6);
             UiKit.Height(body.parent, 0, 1);
@@ -1918,6 +1952,177 @@ namespace BaseballGame
             var card = OpenOverlay("입대");
             UiKit.Height(UiKit.Label(card, $"다음 시즌은 {CareerState.MilitaryClub}에서 보내요.\n연봉은 없지만 훈련과 성장은 계속돼요.\n제대하면 원래 팀으로 돌아와요.", 36, TextAnchor.MiddleCenter), 0, 1);
             UiKit.Height(UiKit.Button(card, "다음 시즌", CloseOverlay), 110);
+        }
+
+        // ---------- Postseason ----------
+
+        /// <summary>
+        /// The regular season is over. If my club made the top four (and I can play), the autumn is
+        /// played a game at a time from its own screen; otherwise straight to the season's end.
+        /// </summary>
+        void BeginAutumn()
+        {
+            var run = _career.StartPostseason();
+            if (!run.Result.MyTeamIn || _career.Me.IsInjured) { ShowSeasonEnd(); return; }
+            ShowPostseason();
+            Tip("postseason", "정규시즌 4위 안에 들면 가을야구! 준결승(2선승)과 챔피언 결정전(3선승)을 한 경기씩 직접 치르고, 찬스 타석에선 노림수를 골라요.");
+        }
+
+        void ShowPostseason()
+        {
+            var run = _career.PostseasonNow;
+            if (run.Current?.AtBat != null) { ShowAtBat(run.Current); return; } // reopened mid-game
+            var me = _career.MyTeam;
+            var card = OpenOverlay("가을야구");
+            TeamTrim(card);
+            var body = UiKit.ScrollList(card, 10);
+            UiKit.Height(body.parent, 0, 1);
+
+            // The bracket so far.
+            foreach (var series in run.Result.Series)
+            {
+                bool mine = series.High == me || series.Low == me;
+                bool live = series == run.NextSeries;
+                var row = UiKit.Panel(body, "Series", mine ? new Color(1f, 0.82f, 0.3f, 0.16f) : UiKit.Background);
+                UiKit.Height(row, 120);
+                string Name(Team t) => t == me ? $"<b><color=#FFD24D>{t.Name}</color></b>" : t.Name;
+                string state = live ? "  <size=24><color=#5FA8FF>진행 중</color></size>" : series.Games.Count == 0 ? "  <size=24><color=#BAC4D8>대기</color></size>" : "";
+                var label = UiKit.Label(row, $"<size=26><color=#BAC4D8>{series.Name}</color></size>{state}\n{Name(series.High)}  <b>{series.HighWins} : {series.LowWins}</b>  {Name(series.Low)}", 34, TextAnchor.MiddleCenter);
+                UiKit.Stretch(label.rectTransform);
+            }
+
+            var post = run.Result;
+            if (post.MyLine.PlateAppearances > 0 || post.MyPitching.Games > 0)
+                UiKit.Height(UiKit.Label(body, MyPostLine(post), 30, TextAnchor.MiddleCenter, UiKit.Muted), 60);
+
+            if (run.NextSeries != null)
+            {
+                var s = run.NextSeries;
+                int wins = s.High == me ? s.HighWins : s.LowWins, losses = s.High == me ? s.LowWins : s.HighWins;
+                int need = s.Name == "챔피언 결정전" ? 3 : 2;
+                string stakes = wins == need - 1 && losses == need - 1 ? "<color=#F28C40>이기면 진출, 지면 탈락!</color>"
+                    : wins == need - 1 ? (s.Name == "챔피언 결정전" ? "<color=#FFD24D>1승만 더하면 우승!</color>" : "<color=#FFD24D>1승만 더하면 진출!</color>")
+                    : losses == need - 1 ? "<color=#F28C40>지면 탈락!</color>" : $"{need}승 먼저 하는 팀이 올라가요";
+                var next = UiKit.Label(body, $"<b>{s.Name} {s.Games.Count + 1}차전</b>  vs {run.NextOpponent.Name}\n<size=30>{stakes}</size>", 38, TextAnchor.MiddleCenter);
+                UiKit.Height(next, 130);
+                var go = UiKit.Button(card, "경기 시작!", PlayPostseasonGame, Gold);
+                go.GetComponentInChildren<Text>().fontSize = 40;
+                UiKit.Height(go, 130);
+                UiAnim.Pulse(go, 1.05f, 0.6f);
+                UiKit.Height(UiKit.Button(card, "남은 경기 자동 진행", () => { CloseOverlay(); ShowSeasonEnd(); }, UiKit.Muted), 100);
+            }
+            else
+            {
+                string verdict = post.MyTeamWon ? $"<color=#FFD24D><b>우승!</b></color>\n<size=32>{me.Name}이(가) 정상에 올랐어요!</size>"
+                    : $"<color=#F28C40>{post.Series.FirstOrDefault(x => x.Loser == me && (x.High == me || x.Low == me))?.Name ?? "가을야구"} 탈락</color>\n<size=30>{post.Champion?.Name} 우승</size>";
+                var label = UiKit.Label(body, verdict, 48, TextAnchor.MiddleCenter);
+                UiKit.Height(label, 160);
+                if (post.MyTeamWon) UiAnim.Pulse(label, 1.15f, 0.5f);
+                UiKit.Height(UiKit.Button(card, "시즌 마무리 · 시상식", () => { CloseOverlay(); ShowSeasonEnd(); }, Gold), 120);
+            }
+        }
+
+        void PlayPostseasonGame()
+        {
+            CloseOverlay();
+            var day = _career.NextPostseasonGame();
+            if (day.AtBat != null) ShowAtBat(day);
+            else AfterPostseasonGame(day);
+        }
+
+        void AfterPostseasonGame(DayResult day)
+        {
+            ShowGameBanner(day);
+            var g = day.MyGame;
+            if (g != null && !g.IsTie) GameAudio.Sfx(g.Winner == _career.MyTeam ? GameAudio.Win : GameAudio.Lose);
+            Save();
+            ShowPostseason();
+        }
+
+        // ---------- Awards ceremony ----------
+
+        /// <summary>
+        /// The season's awards, as a stage: every title I won gets its own trophy card that pops in one
+        /// after another, then the other winners of the year. Then the season summary.
+        /// </summary>
+        void ShowCeremony(SeasonSummary summary, System.Action next)
+        {
+            var mine = summary.Awards.Where(a => a.Mine).ToList();
+            bool champion = summary.Postseason.MyTeamWon;
+            bool any = champion || mine.Count > 0;
+            var card = OpenOverlay($"{CareerState.YearOf(summary.Record.Season)} 시상식");
+            GameAudio.Sfx(any ? GameAudio.CheerBig : GameAudio.Popup);
+            var body = UiKit.ScrollList(card, 16);
+            UiKit.Height(body.parent, 0, 1);
+
+            int order = 0;
+            if (champion) TrophyCard(body, Postseason.ChampionTitle, "챔피언 결정전 우승", $"{_career.MyTeam.Name} · {MyPostLine(summary.Postseason)}", order++);
+            foreach (var a in mine.Where(a => a.Title != Awards.GoldenGlove))
+                TrophyCard(body, a.Title, a.Title, string.IsNullOrEmpty(a.Value) ? _career.Me.Name : $"기록 {a.Value}", order++);
+            foreach (var a in mine.Where(a => a.Title == Awards.GoldenGlove))
+                TrophyCard(body, a.Title, $"{Awards.GoldenGlove}", $"{Positions.Name(a.Position)} 부문 최고 수비", order++);
+            if (!any)
+            {
+                var none = UiKit.Label(body, "이번 시즌엔 상을 받지 못했어요.\n<size=28>다음 시즌엔 시상대에 올라 봐요!</size>", 36, TextAnchor.MiddleCenter, UiKit.Muted);
+                UiKit.Height(none, 150);
+            }
+            else
+            {
+                var count = UiKit.Label(body, $"<color=#FFD24D><b>{order}개</b></color> 수상!", 36, TextAnchor.MiddleCenter);
+                UiKit.Height(count, 60);
+            }
+
+            var others = summary.Awards.Where(a => !a.Mine && a.Title != Awards.GoldenGlove).ToList();
+            if (others.Count > 0)
+            {
+                UiKit.Height(UiKit.Label(body, "올해의 다른 수상자", 30, TextAnchor.LowerLeft, Gold), 60);
+                foreach (var a in others)
+                    UiKit.Height(UiKit.Label(body, $"{a.Title}  <b>{a.Winner}</b> <size=24><color=#BAC4D8>({a.Team}) {a.Value}</color></size>", 28, TextAnchor.MiddleLeft), 46);
+            }
+            var ok = UiKit.Button(card, "시즌 결산 보기", () => next(), any ? Gold : UiKit.Accent);
+            UiKit.Height(ok, 120);
+        }
+
+        /// <summary>One title I won: a gold-trimmed card with its trophy, the title big, and what earned it.</summary>
+        void TrophyCard(RectTransform body, string trophy, string title, string detail, int order)
+        {
+            var panel = UiKit.Panel(body, "Trophy", new Color(0.24f, 0.19f, 0.07f, 1f));
+            UiKit.Height(panel, 210);
+            var outline = panel.gameObject.AddComponent<Outline>();
+            outline.effectColor = Gold;
+            outline.effectDistance = new Vector2(3, -3);
+            var row = UiKit.Row(panel, 24);
+            row.padding = new RectOffset(24, 24, 18, 18);
+            row.childForceExpandWidth = false;
+            row.childAlignment = TextAnchor.MiddleLeft;
+            var sprite = ArtLibrary.TrophyIcon(trophy);
+            if (sprite != null)
+            {
+                var icon = UiKit.Panel(panel, "Icon", Color.white, rounded: false);
+                var image = icon.GetComponent<Image>();
+                image.sprite = sprite;
+                image.preserveAspect = true;
+                UiKit.Width(icon, 170);
+                UiAnim.Pulse(icon, 1.2f, 0.5f);
+            }
+            var texts = UiKit.Empty(panel, "Text");
+            UiKit.Width(texts, 0, 1);
+            UiKit.Column(texts, 0, 6).childAlignment = TextAnchor.MiddleLeft;
+            var name = UiKit.Label(texts, $"<b>{title}</b>", 50, TextAnchor.MiddleLeft, Gold);
+            UiKit.Height(name, 80);
+            UiKit.Height(UiKit.Label(texts, detail, 30, TextAnchor.MiddleLeft), 80);
+            StartCoroutine(PopLater(panel, 0.15f + 0.25f * order));
+        }
+
+        System.Collections.IEnumerator PopLater(RectTransform panel, float delay)
+        {
+            var group = panel.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 0;
+            yield return new WaitForSecondsRealtime(delay);
+            if (panel == null) yield break;
+            group.alpha = 1;
+            UiAnim.PopIn(panel, 0.3f);
+            GameAudio.Sfx(GameAudio.Achievement);
         }
 
         string MyPostLine(PostseasonResult post)
