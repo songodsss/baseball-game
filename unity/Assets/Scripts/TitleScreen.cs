@@ -8,7 +8,7 @@ using CareerState = BaseballSim.Career.Career;
 namespace BaseballGame
 {
     /// <summary>
-    /// Home: a small town of buildings in a sunny meadow. The training centre leads to my players (save slots); the
+    /// Home: the club's ballpark complex, buildings on a bright paved plaza. The training centre leads to my players (save slots); the
     /// others hold what belongs to the whole club. Lots under construction leave room for more.
     /// </summary>
     public class TitleScreen : MonoBehaviour
@@ -79,8 +79,10 @@ namespace BaseballGame
 
             TopBar();
 
-            // The town: a sunny meadow that scrolls, with the buildings dotted along a winding path.
-            var ground = UiKit.Panel(_root, "Town", Scenery.Grass);
+            // The town: a ballpark complex that scrolls, with the buildings dotted along a winding walkway.
+            // A light paved plaza, like the grounds of a ballpark complex (a paving picture at
+            // Art/Backgrounds/town replaces this plain colour).
+            var ground = UiKit.Panel(_root, "Town", new Color(0.86f, 0.84f, 0.8f));
             UiKit.Height(ground, 0, 1);
             UiKit.Column(ground, 10, 0);
             var town = UiKit.ScrollList(ground, 0);
@@ -190,25 +192,16 @@ namespace BaseballGame
             UiKit.Height(map, height);
             var rng = new System.Random(1103);
 
-            // A painted ground, if there is one, else soft lighter and darker patches on the grass.
+            // A painted ground, if there is one; otherwise the plain grass of the panel.
             var groundArt = ArtLibrary.Background("town");
             if (groundArt != null) PaintedGround(map, groundArt, height);
-            else
-                for (int i = 0; i < (int)(height / 180); i++)
-                {
-                    float w = 300 + rng.Next(280);
-                    Scenery.Dot(map, i % 2 == 0 ? Scenery.GrassLight : Scenery.GrassDark, (float)rng.NextDouble(), (float)rng.NextDouble() * height, w, w * 0.55f);
-                }
 
-            // The path: a curve through every door, from the top of the meadow to the bottom.
+            // The walkway past every door. The plaza is paved everywhere, so it isn't drawn; the curve
+            // just keeps trees and benches out of people's way.
             var doors = new System.Collections.Generic.List<Vector2> { new Vector2(0.5f * MapWidth, -60) };
             doors.AddRange(spots.Select(s => new Vector2(s.X * MapWidth, s.Foot + 16)));
             doors.Add(new Vector2(0.5f * MapWidth, height + 60));
             var path = PathPoints(doors, 18);
-            foreach (var p in path) Scenery.Dot(map, Scenery.PathEdge, p.x / MapWidth, p.y, 82, 70);
-            foreach (var p in path) Scenery.Dot(map, Scenery.Path, p.x / MapWidth, p.y, 64, 52);
-            for (int i = 3; i < path.Count; i += 7) // a few pebbles in the sand
-                Scenery.Dot(map, new Color(1f, 0.95f, 0.85f, 0.7f), path[i].x / MapWidth + ((float)rng.NextDouble() - 0.5f) * 0.03f, path[i].y, 12, 9);
 
             bool Clear(float x, float y, float r)
             {
@@ -222,37 +215,30 @@ namespace BaseballGame
                 return true;
             }
 
-            // A pond in the first open space big enough.
-            for (int tries = 0; tries < 300; tries++)
+            var standing = new System.Collections.Generic.List<(float foot, System.Action draw)>();
+
+            // One fountain, if there's a picture for it, in the first open space big enough.
+            var pond = ArtLibrary.Get("Decor/fountain");
+            for (int tries = 0; pond != null && tries < 300; tries++)
             {
-                float x = 120 + (float)rng.NextDouble() * (MapWidth - 240), y = 700 + (float)rng.NextDouble() * (height - 900);
-                if (!Clear(x, y, 130)) continue;
-                Scenery.Pond(map, x / MapWidth, y, 230, 120);
-                spots.Add(new Spot(x / MapWidth, y, 260, 150)); // keep the trees off the water
+                float x = 140 + (float)rng.NextDouble() * (MapWidth - 280), y = 700 + (float)rng.NextDouble() * (height - 900);
+                if (!Clear(x, y, 140)) continue;
+                standing.Add((y, () => Decor(map, pond, x / MapWidth, y, 280)));
+                spots.Add(new Spot(x / MapWidth, y - 100, 300, 200)); // keep everything else off the water
                 break;
             }
 
-            // Flowers, then trees and bushes sorted with the buildings by where they stand.
-            for (int n = 0, tries = 0; n < height / 70 && tries < 800; tries++)
+            // Planter trees, hedges, lamps, benches and flags from Art/Decor, scattered over the plaza and
+            // sorted with the buildings by where they stand, so nearer things overlap farther ones.
+            var pool = DecorPool();
+            var placed = new System.Collections.Generic.List<Vector2>();
+            for (int n = 0, tries = 0; pool.Count > 0 && n < height / 85 && tries < 2000; tries++)
             {
+                var (art, size) = pool[rng.Next(pool.Count)];
                 float x = (float)rng.NextDouble() * MapWidth, y = (float)rng.NextDouble() * height;
-                if (!Clear(x, y, 20)) continue;
-                Scenery.Flowers(map, x / MapWidth, y, 50, rng, 3 + rng.Next(3));
-                n++;
-            }
-
-            var standing = new System.Collections.Generic.List<(float foot, System.Action draw)>();
-            var trees = new System.Collections.Generic.List<Vector2>();
-            for (int n = 0, tries = 0; n < height / 90 && tries < 1500; tries++)
-            {
-                bool tree = rng.Next(3) > 0;
-                float size = tree ? 100 + rng.Next(50) : 60 + rng.Next(40);
-                float x = (float)rng.NextDouble() * MapWidth, y = (float)rng.NextDouble() * height;
-                if (!Clear(x, y, size * 0.5f) || trees.Any(t => (t - new Vector2(x, y)).magnitude < size * 0.8f)) continue;
-                trees.Add(new Vector2(x, y));
-                int seed = rng.Next();
-                if (tree) standing.Add((y, () => Scenery.Tree(map, x / MapWidth, y, size, new System.Random(seed))));
-                else standing.Add((y, () => Scenery.Bush(map, x / MapWidth, y, size, new System.Random(seed))));
+                if (!Clear(x, y, size * 0.45f) || placed.Any(t => (t - new Vector2(x, y)).magnitude < size * 0.75f)) continue;
+                placed.Add(new Vector2(x, y));
+                standing.Add((y, () => Decor(map, art, x / MapWidth, y, size)));
                 n++;
             }
             standing.Add((TrainingSpot.Foot, () => BuildingTile(Place(map, TrainingSpot, training.Id), training, big: true)));
@@ -263,6 +249,42 @@ namespace BaseballGame
                 standing.Add((s.Foot, () => BuildingTile(Place(map, s, b.Id), b)));
             }
             foreach (var item in standing.OrderBy(x => x.foot)) item.draw();
+        }
+
+        /// <summary>
+        /// The decoration pictures there are, each with its size in pixels. Commoner things are listed
+        /// more than once so they turn up more often.
+        /// </summary>
+        static System.Collections.Generic.List<(Sprite art, float size)> DecorPool()
+        {
+            var list = new System.Collections.Generic.List<(Sprite, float)>();
+            void Add(string name, float size, int weight)
+            {
+                var art = ArtLibrary.Get("Decor/" + name);
+                if (art != null) for (int i = 0; i < weight; i++) list.Add((art, size));
+            }
+            Add("tree_planter", 180, 4);
+            Add("tree_blossom", 180, 2);
+            Add("hedge", 110, 3);
+            Add("flower_planter", 95, 3);
+            Add("lamp", 140, 2);
+            Add("bench", 110, 1);
+            Add("flag", 160, 1);
+            return list;
+        }
+
+        /// <summary>A decoration picture standing with its foot at (x01, y).</summary>
+        static void Decor(RectTransform map, Sprite art, float x01, float y, float size)
+        {
+            var image = UiKit.Empty(map, art.name).gameObject.AddComponent<Image>();
+            image.sprite = art;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            var rt = image.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(x01, 1);
+            rt.pivot = new Vector2(0.5f, 0.1f);
+            rt.sizeDelta = new Vector2(size, size);
+            rt.anchoredPosition = new Vector2(0, -y);
         }
 
         static RectTransform Place(RectTransform map, Spot s, string id)
