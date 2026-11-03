@@ -544,7 +544,7 @@ namespace BaseballGame
             var card = OpenOverlay("찬스 타석!");
             SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 찬스: " + result.AtBatLog.Last() : null);
             PitchMix(card, $"투수 {s.Pitcher.Name}의 승부구", s.FastballShare);
-            Hunch(card, $"느낌: 이번엔 <b>{(s.Hunch == Pitch.Fastball ? "직구" : "변화구")}</b>가 올 것 같다", $"선구안 감 적중률 {s.HunchAccuracy:P0}");
+            Hunch(card, $"느낌: 이번엔 <b>{(s.Hunch == Pitch.Fastball ? "직구" : "변화구")}</b>가 올 것 같다", $"선구안 감 적중률 {s.HunchAccuracy:P0}" + MoraleNote());
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             ChoiceRow(card, ("직구 노리기", Approach.SitFastball, UiKit.Accent), ("변화구 노리기", Approach.SitBreaking, UiKit.Accent));
             ChoiceRow(card, ("신중하게 (볼넷 노림)", Approach.Patient, UiKit.Muted), ("평소대로", Approach.Normal, UiKit.Background));
@@ -563,11 +563,17 @@ namespace BaseballGame
             var card = OpenOverlay("위기 상황! 승부구 선택");
             SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 승부: " + result.AtBatLog.Last() : null);
             PitchMix(card, $"타자 {s.Batter.Name}이(가) 노리는 공", s.SitsFastball);
-            Hunch(card, $"포수의 느낌: <b>{(s.Hunch == Pitch.Fastball ? "직구" : "변화구")}</b>를 노리고 있다", $"제구 감 적중률 {s.HunchAccuracy:P0}");
+            Hunch(card, $"포수의 느낌: <b>{(s.Hunch == Pitch.Fastball ? "직구" : "변화구")}</b>를 노리고 있다", $"제구 감 적중률 {s.HunchAccuracy:P0}" + MoraleNote());
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             ChoiceRow(card, ("직구로 승부", Approach.ThrowFastball, UiKit.Accent), ("변화구로 승부", Approach.ThrowBreaking, UiKit.Accent));
             ChoiceRow(card, ("어렵게 승부 (볼넷 각오)", Approach.PitchAround, UiKit.Muted), ("평소대로", Approach.Normal, UiKit.Background));
             Tip("pitch", "위기에선 승부구를 골라요. 타자가 노리지 않는 공을 던지면 삼진이 늘고, 노리는 공을 던지면 장타를 맞기 쉬워요. 제구가 높을수록 포수의 느낌이 정확해요.");
+        }
+
+        string MoraleNote()
+        {
+            int m = _career.Me.Morale;
+            return m >= AtBatChoice.ConfidentMorale ? "  <color=#5FA8FF>(자신감 +10%)</color>" : m <= -AtBatChoice.ConfidentMorale ? "  <color=#F28C40>(슬럼프 -10%)</color>" : "";
         }
 
         static readonly Color Tactic = new Color(0.45f, 0.35f, 0.8f);
@@ -2556,7 +2562,8 @@ namespace BaseballGame
             string avg = l.AtBats == 0 ? ".000" : ((double)l.Hits / l.AtBats).ToString(".000");
             string injury = me.IsInjured ? $"  <color=#F28C40>{Injuries.Name(me.Injury)} {me.InjuryDaysLeft}일</color>"
                 : me.LingerDays > 0 ? $"  <color=#F28C40>후유증 {me.LingerDays}일</color>" : "";
-            string morale = me.Morale > 0 ? $"  <color=#5FA8FF>사기 +{me.Morale}</color>" : me.Morale < 0 ? $"  <color=#F28C40>사기 {me.Morale}</color>" : "";
+            string moraleTag = me.Morale >= AtBatChoice.ConfidentMorale ? " <b>자신감</b>" : me.Morale <= -AtBatChoice.ConfidentMorale ? " <b>슬럼프</b>" : "";
+            string morale = me.Morale > 0 ? $"  <color=#5FA8FF>사기 +{me.Morale}{moraleTag}</color>" : me.Morale < 0 ? $"  <color=#F28C40>사기 {me.Morale}{moraleTag}</color>" : "  <color=#BAC4D8>사기 0</color>";
             var next = Traits.NextMilestone(me);
             string traits = me.Traits.Count == 0 ? "특성 없음" : "특성 " + string.Join(" · ", me.Traits.Select(id => Traits.Find(id)?.Name));
             if (_career.Goal != null) traits = $"목표 {_career.Goal.Text} ({_career.Goal.Progress(_career)})  ·  " + traits;

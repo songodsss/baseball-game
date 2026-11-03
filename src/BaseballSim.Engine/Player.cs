@@ -30,6 +30,8 @@ namespace BaseballSim
         public PitchingRatings Pitching;
         /// <summary>Day-of-game form, -10..+10, added to every rating while playing.</summary>
         public int Condition;
+        /// <summary>My player's morale (-10..10): confident at 7+, slumping at -7 or less; reads big spots better or worse.</summary>
+        public int Morale;
         /// <summary>Traits that change big at bats (see AtBatChoice); empty for league players.</summary>
         public HashSet<string> Traits = new HashSet<string>();
 
