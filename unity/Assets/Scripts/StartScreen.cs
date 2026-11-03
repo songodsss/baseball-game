@@ -24,8 +24,7 @@ namespace BaseballGame
             Scenery.Cloud(back, 0.78f, 0.78f, 0.9f, 9);
             Scenery.Cloud(back, 0.45f, 0.66f, 0.7f, 18);
 
-            // A painted title picture if there is one (Resources/Art/Backgrounds/start), else rolling
-            // green hills along the bottom with the stadium sitting on them.
+            // A painted title picture if there is one (Resources/Art/Backgrounds/start).
             var painted = ArtLibrary.Background("start");
             if (painted != null)
             {
@@ -36,7 +35,8 @@ namespace BaseballGame
                 fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
                 fit.aspectRatio = painted.rect.width / painted.rect.height;
             }
-            else DrawnHills(back);
+            // Otherwise the legends fill the screen, and if there are none, hills and the stadium.
+            else if (!LegendReel.Build(back)) DrawnHills(back);
 
             var root = UiKit.Empty(back, "Root");
             UiKit.Stretch(root);
@@ -54,18 +54,21 @@ namespace BaseballGame
                 UiAnim.PopIn(img, 0.45f);
             }
 
-            var title = UiKit.Label(root, TitleScreen.GameTitle, 100, TextAnchor.MiddleCenter);
+            // A big gold title with a thick dark rim, poster style.
+            var title = UiKit.Label(root, TitleScreen.GameTitle, 110, TextAnchor.MiddleCenter, new Color(1f, 0.84f, 0.3f));
             title.fontStyle = FontStyle.Bold;
-            Outlined(title, 3);
+            title.horizontalOverflow = HorizontalWrapMode.Overflow;
+            Outlined(title, 5);
+            var glow = title.gameObject.AddComponent<Shadow>();
+            glow.effectColor = new Color(0.35f, 0.12f, 0f, 0.9f);
+            glow.effectDistance = new Vector2(0, -9);
             Place(title.rectTransform, 0.775f, 150);
 
             var sub = UiKit.Label(root, "프로 야구 선수 육성", 36, TextAnchor.MiddleCenter);
             Outlined(sub, 2);
             Place(sub.rectTransform, 0.72f, 60);
 
-            LegendReel.Build(root);
-
-            // The hint sits on a navy pill so it reads over the grass.
+            // The hint sits on a navy pill so it reads over any picture.
             var pill = UiKit.Panel(root, "Hint", Scenery.Plate);
             pill.anchorMin = pill.anchorMax = new Vector2(0.5f, 0.07f);
             pill.sizeDelta = new Vector2(560, 100);
@@ -147,80 +150,92 @@ namespace BaseballGame
     }
 
     /// <summary>
-    /// The league's legends on the start screen: their pictures take turns in a framed card, each
-    /// drifting in slowly and crossfading to the next, with name, nickname and record underneath.
+    /// The league's legends fill the start screen: one at a time, full height, centred on the player
+    /// (their pictures have them on the right), slowly pushing in and crossfading to the next, with
+    /// their name large over the lower part. Shades top and bottom keep the title and hint readable.
     /// </summary>
     public class LegendReel : MonoBehaviour
     {
-        const float Hold = 4.5f, FadeTime = 0.9f;
+        const float Hold = 4.5f, FadeTime = 1.1f;
+        /// <summary>Where the player stands across the picture (0 = left edge, 1 = right edge).</summary>
+        const float Subject = 0.7f;
 
         System.Collections.Generic.List<(BaseballSim.Career.Legend legend, Sprite art)> _legends;
         Image _front, _back;
         Text _caption;
+        CanvasGroup _captionGroup;
         int _index;
         float _clock;
         bool _fading;
 
-        public static void Build(RectTransform root)
+        /// <summary>Adds the reel behind everything else on <paramref name="back"/>; false if there are no legend pictures.</summary>
+        public static bool Build(RectTransform back)
         {
             var legends = BaseballSim.Career.Legends.All
                 .Select(l => (legend: l, art: ArtLibrary.Get("Legends/" + l.Id)))
                 .Where(x => x.art != null).ToList();
-            if (legends.Count == 0) return;
+            if (legends.Count == 0) return false;
 
-            var frame = UiKit.Panel(root, "Legends", Scenery.Plate);
-            frame.anchorMin = new Vector2(0.05f, 0.37f);
-            frame.anchorMax = new Vector2(0.95f, 0.66f);
-            frame.offsetMin = frame.offsetMax = Vector2.zero;
-            frame.GetComponent<Image>().raycastTarget = false;
-
-            var window = UiKit.Empty(frame, "Window");
-            UiKit.Stretch(window);
-            window.offsetMin = new Vector2(10, 10);
-            window.offsetMax = new Vector2(-10, -10);
-            window.gameObject.AddComponent<RectMask2D>();
-
-            var reel = frame.gameObject.AddComponent<LegendReel>();
+            var stage = UiKit.Panel(back, "Legends", new Color(0.03f, 0.05f, 0.1f), rounded: false);
+            UiKit.Stretch(stage);
+            stage.GetComponent<Image>().raycastTarget = false;
+            var reel = stage.gameObject.AddComponent<LegendReel>();
             reel._legends = legends;
-            reel._back = reel.Picture(window);
-            reel._front = reel.Picture(window);
+            reel._back = reel.Picture(stage);
+            reel._front = reel.Picture(stage);
 
-            // A dark band along the bottom for the caption.
-            var band = UiKit.Panel(window, "Band", Color.white, rounded: false);
-            band.GetComponent<Image>().sprite = UiKit.GradientSprite(new Color(0, 0, 0, 0), new Color(0.03f, 0.06f, 0.14f, 0.85f));
-            band.GetComponent<Image>().raycastTarget = false;
-            band.anchorMin = Vector2.zero;
-            band.anchorMax = new Vector2(1, 0.38f);
-            band.offsetMin = band.offsetMax = Vector2.zero;
+            Shade(stage, new Vector2(0, 0.6f), Vector2.one, new Color(0.03f, 0.08f, 0.2f, 0f), new Color(0.03f, 0.08f, 0.2f, 0.85f));
+            Shade(stage, Vector2.zero, new Vector2(1, 0.45f), new Color(0.02f, 0.03f, 0.08f, 0.92f), new Color(0.02f, 0.03f, 0.08f, 0f));
 
-            var tag = UiKit.Panel(window, "Tag", new Color(1f, 0.78f, 0.25f, 0.95f));
-            tag.anchorMin = tag.anchorMax = new Vector2(0, 1);
-            tag.pivot = new Vector2(0, 1);
-            tag.sizeDelta = new Vector2(150, 50);
-            tag.anchoredPosition = new Vector2(16, -16);
-            var tagText = UiKit.Label(tag, "<b>LEGEND</b>", 26, TextAnchor.MiddleCenter, new Color(0.15f, 0.1f, 0.02f));
-            UiKit.Stretch(tagText.rectTransform);
-
-            reel._caption = UiKit.Label(window, "", 40, TextAnchor.LowerLeft);
-            var rt = reel._caption.rectTransform;
-            UiKit.Stretch(rt);
-            rt.offsetMin = new Vector2(24, 16);
-            rt.offsetMax = new Vector2(-24, 0);
+            var caption = UiKit.Empty(stage, "Caption");
+            caption.anchorMin = new Vector2(0, 0.17f);
+            caption.anchorMax = new Vector2(1, 0.33f);
+            caption.offsetMin = new Vector2(48, 0);
+            caption.offsetMax = new Vector2(-48, 0);
+            reel._captionGroup = caption.gameObject.AddComponent<CanvasGroup>();
+            reel._caption = UiKit.Label(caption, "", 72, TextAnchor.LowerLeft);
+            UiKit.Stretch(reel._caption.rectTransform);
+            var outline = reel._caption.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0, 0, 0, 0.6f);
+            outline.effectDistance = new Vector2(2, -2);
 
             reel._index = new System.Random(System.Environment.TickCount).Next(legends.Count);
             reel.Show(reel._front, reel._index);
             reel._back.color = new Color(1, 1, 1, 0);
-            UiAnim.PopIn(frame, 0.4f);
+            return true;
         }
 
-        Image Picture(RectTransform window)
+        static void Shade(RectTransform stage, Vector2 min, Vector2 max, Color bottom, Color top)
         {
-            var image = UiKit.Empty(window, "Picture").gameObject.AddComponent<Image>();
+            var shade = UiKit.Panel(stage, "Shade", Color.white, rounded: false);
+            shade.GetComponent<Image>().sprite = UiKit.GradientSprite(top, bottom);
+            shade.GetComponent<Image>().raycastTarget = false;
+            shade.anchorMin = min;
+            shade.anchorMax = max;
+            shade.offsetMin = shade.offsetMax = Vector2.zero;
+        }
+
+        Image Picture(RectTransform stage)
+        {
+            var image = UiKit.Empty(stage, "Picture").gameObject.AddComponent<Image>();
             image.raycastTarget = false;
-            var fit = image.gameObject.AddComponent<AspectRatioFitter>();
-            fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
-            fit.aspectRatio = 16f / 9f;
             return image;
+        }
+
+        /// <summary>Full height of the screen, slid sideways so the player is in the middle.</summary>
+        void Fit(Image image, float zoom)
+        {
+            var stage = (RectTransform)transform;
+            var art = image.sprite;
+            if (art == null) return;
+            float h = Mathf.Max(stage.rect.height, stage.rect.width * art.rect.height / art.rect.width) * zoom;
+            float w = h * art.rect.width / art.rect.height;
+            var rt = image.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(w, h);
+            float x = (0.5f - Subject) * w;
+            float limit = Mathf.Max(0, (w - stage.rect.width) / 2); // never show past the picture's edge
+            rt.anchoredPosition = new Vector2(Mathf.Clamp(x, -limit, limit), h * 0.04f);
         }
 
         void Show(Image image, int index)
@@ -228,29 +243,26 @@ namespace BaseballGame
             var (legend, art) = _legends[index];
             image.sprite = art;
             image.color = Color.white;
-            image.transform.localScale = Vector3.one;
-            image.transform.SetSiblingIndex(1); // above the other picture, under the band and text
-            _caption.text = $"<b>{legend.Name}</b> <size=30><color=#FFD668>\"{legend.Nickname}\"</color></size>\n" +
-                            $"<size=26><color=#BAC4D8>{legend.Years} · {legend.Record}</color></size>";
+            image.transform.SetSiblingIndex(1); // over the other picture, under the shades and caption
+            _caption.text = $"<size=30><color=#FFD668><b>LEGEND</b> · \"{legend.Nickname}\"</color></size>\n<b>{legend.Name}</b>\n" +
+                            $"<size=28><color=#BAC4D8>{legend.Years} · {legend.Record}</color></size>";
             _clock = 0;
         }
 
         void Update()
         {
             _clock += Time.unscaledDeltaTime;
-            // A slow push-in on the picture showing.
-            _front.transform.localScale = Vector3.one * (1f + 0.06f * Mathf.Clamp01(_clock / (Hold + FadeTime)));
+            Fit(_front, 1f + 0.07f * Mathf.Clamp01(_clock / (Hold + FadeTime))); // a slow push-in
+            _captionGroup.alpha = Mathf.Clamp01(_clock / 0.6f) * (_fading ? 1f - Mathf.Clamp01((_clock - Hold) / (FadeTime * 0.5f)) : 1f);
             if (_legends.Count < 2 || _clock < Hold) return;
 
-            // Bring the next picture in over the current one.
             if (!_fading)
             {
-                int next = (_index + 1) % _legends.Count;
-                _back.sprite = _legends[next].art;
-                _back.transform.localScale = Vector3.one;
+                _back.sprite = _legends[(_index + 1) % _legends.Count].art;
                 _back.transform.SetSiblingIndex(1);
                 _fading = true;
             }
+            Fit(_back, 1f);
             float k = Mathf.Clamp01((_clock - Hold) / FadeTime);
             _back.color = new Color(1, 1, 1, k);
             if (k < 1f) return;
