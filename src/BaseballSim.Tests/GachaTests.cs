@@ -114,7 +114,7 @@ public class GachaTests
         club.AddCopy(GachaBox.Cards, card.Id, card.Rarity);
         Assert.False(club.EquipCard(carded, 0, Gacha.Cards[1].Id)); // not owned
         Assert.True(club.EquipCard(carded, 0, card.Id));
-        Assert.Equal(1.15, carded.CardMultiplier(Stat.Eye), 6);
+        Assert.Equal(2.0, carded.CardMultiplier(Stat.Eye), 6);
         Assert.Equal(1.0, carded.CardMultiplier(Stat.Power), 6);
 
         int Progress(CareerState c) => c.Me.Ratings[Stat.Eye] * 1000 + c.Me.Exp.GetValueOrDefault(Stat.Eye);
@@ -124,7 +124,7 @@ public class GachaTests
         // Level ups reach the worn card.
         club.AddCopy(GachaBox.Cards, card.Id, card.Rarity);
         club.RefreshCards(carded);
-        Assert.Equal(1.16, carded.CardMultiplier(Stat.Eye), 6);
+        Assert.Equal(2.15, carded.CardMultiplier(Stat.Eye), 6);
     }
 
     [Fact]

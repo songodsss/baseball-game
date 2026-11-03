@@ -73,7 +73,7 @@ namespace BaseballGame
             UiKit.Button(tabs, "내 팀 장비", () => Switch(GachaBox.Gear), _box == GachaBox.Gear ? UiKit.Accent : UiKit.Card);
 
             string what = _box == GachaBox.Cards
-                ? "장착한 선수가 그 능력치를 훈련할 때 경험치가 더 쌓여요 (+5~15%, 겹치면 레벨업)."
+                ? "장착한 선수가 그 능력치를 훈련할 때 경험치가 더 쌓여요 (N +20% ~ SSR +100%, 겹치면 레벨마다 +15%p, 같은 능력치 카드는 효과가 더해져요)."
                 : "은퇴 선수들로 만든 내 팀 전원의 능력치가 올라가요 (+1~5). 내 팀 리그·결투장에 그대로 들어가요.";
             UiKit.Height(UiKit.Label(_card,
                 $"코인 <color=#FFD24D>{_club.Coins:N0}</color>  ·  뽑기권 {_club.DrawTickets}장  ·  SSR 골라 받기까지 {_club.DrawsToPity(_box)}회\n" +

@@ -67,7 +67,8 @@ namespace BaseballSim.Career
 
         /// <summary>Odds in percent, N to SSR; they add up to 100.</summary>
         public static readonly double[] Odds = { 60, 30, 8.5, 1.5 };
-        static readonly int[] CardPercent = { 5, 8, 11, 15 };
+        static readonly int[] CardPercent = { 20, 40, 70, 100 };
+        const int CardPercentPerLevel = 15;
         static readonly int[] GearPoints = { 1, 2, 3, 5 };
         static readonly int[] RefundCoins = { 10, 30, 100, 300 };
 
@@ -120,8 +121,12 @@ namespace BaseballSim.Career
         public static TrainingCard Card(string id) => Cards.FirstOrDefault(c => c.Id == id);
         public static TeamGear GearPiece(string id) => Gear.FirstOrDefault(g => g.Id == id);
 
-        /// <summary>Extra training exp of a card at a level, in percent: base by rarity, +1 per level above 1.</summary>
-        public static int CardBonus(Rarity r, int level) => CardPercent[(int)r] + Math.Max(0, Math.Min(MaxLevel, level) - 1);
+        /// <summary>
+        /// Extra training exp of a card at a level, in percent: N 20, R 40, SR 70, SSR 100, +15 per level above 1
+        /// (SSR Lv.5 = 160%). Growth gets steep near the top, so this is what it takes to show: over a 14-season
+        /// career one SSR Lv.5 is worth about +7 in its stat, two on the same stat about +12.
+        /// </summary>
+        public static int CardBonus(Rarity r, int level) => CardPercent[(int)r] + CardPercentPerLevel * Math.Max(0, Math.Min(MaxLevel, level) - 1);
 
         /// <summary>Rating points a gear piece adds to my team at a level: base by rarity, +1 per level above 1.</summary>
         public static int GearBonus(Rarity r, int level) => GearPoints[(int)r] + Math.Max(0, Math.Min(GearMaxLevel(r), level) - 1);
