@@ -278,7 +278,9 @@ namespace BaseballGame
         static void PaintedGround(RectTransform map, Sprite art, float height)
         {
             float tile = MapWidth * art.rect.height / art.rect.width;
-            for (float y = 0; y < height; y += tile)
+            // Every other copy is flipped upside down so the joins mirror each other and no seam shows.
+            int n = 0;
+            for (float y = 0; y < height; y += tile, n++)
             {
                 var image = UiKit.Empty(map, "Ground").gameObject.AddComponent<Image>();
                 image.sprite = art;
@@ -286,9 +288,10 @@ namespace BaseballGame
                 var rt = image.rectTransform;
                 rt.anchorMin = new Vector2(0, 1);
                 rt.anchorMax = new Vector2(1, 1);
-                rt.pivot = new Vector2(0.5f, 1);
+                rt.pivot = new Vector2(0.5f, 0.5f);
                 rt.sizeDelta = new Vector2(0, tile + 2);
-                rt.anchoredPosition = new Vector2(0, -y);
+                rt.anchoredPosition = new Vector2(0, -y - tile / 2);
+                if (n % 2 == 1) rt.localScale = new Vector3(1, -1, 1);
             }
         }
 
