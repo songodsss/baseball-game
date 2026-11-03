@@ -80,7 +80,7 @@ namespace BaseballSim.Career
 
         static int Mvps(Career c) => c.Me.History.Count(h => h.Titles.Contains(Awards.Mvp));
 
-        public const int JangHomeRuns = 452, HanWalks = 1488, SeoSteals = 979, OhMvps = 3, YoonWins = 319, MaSaves = 579, MaHolds = 559;
+        public const int JangHomeRuns = 452, HanWalks = 1488, SeoSteals = 979, OhMvps = 3, YoonWins = 319, MaSaves = 650, NohHolds = 640;
         public const double MinAverage = 0.319;
         public const int AverageSeasons = 10;
 
@@ -191,14 +191,14 @@ namespace BaseballSim.Career
             },
             new Legend
             {
-                Id = "ma", Name = "마석규", Nickname = "자물쇠", Years = "1996~2015", Record = "통산 579세이브", Speciality = Stat.Velocity, ForPitchers = true,
-                Story = "통산 최다 세이브(579개). 셋업맨 시절에도 559홀드로 1위였다. 늘 껌을 씹고 농담을 던지지만, 9회만 되면 눈빛이 바뀌었다. \"9회는 공이 아니라 배짱으로 던진다.\"",
+                Id = "ma", Name = "마석규", Nickname = "자물쇠", Years = "1996~2015", Record = "통산 650세이브", Speciality = Stat.Velocity, ForPitchers = true,
+                Story = "통산 최다 세이브(650개). 8회를 지켜 준 단짝 셋업맨 노진우 덕분이라는 말을 입에 달고 산다. 늘 껌을 씹고 농담을 던지지만, 9회만 되면 눈빛이 바뀌었다. \"9회는 공이 아니라 배짱으로 던진다.\"",
                 Line = "마지막 아웃 하나가 제일 무거워. 그거 드는 법 알려 줄까?",
                 Lesson = "위기에서 숨 고르는 법을 배웠다. 9회의 공이 덜 떨린다.",
-                Goal = c => c.Me.Role == PitcherRole.Setup ? CountGoal(c, MaHolds, "홀드") : CountGoal(c, MaSaves, "세이브"),
-                Progress = c => c.Me.Role == PitcherRole.Setup ? Scaled(c, null, p => p.Holds) / (MaHolds + 1) : Scaled(c, null, p => p.Saves) / (MaSaves + 1),
-                Halfway = c => c.Me.Role == PitcherRole.Setup ? Scaled(c, null, p => p.Holds) >= MaHolds / 2 : Scaled(c, null, p => p.Saves) >= MaSaves / 2,
-                Chases = c => c.Me.Role != PitcherRole.Starter,
+                Goal = c => CountGoal(c, MaSaves, "세이브"),
+                Progress = c => Scaled(c, null, p => p.Saves) / (MaSaves + 1),
+                Halfway = c => Scaled(c, null, p => p.Saves) >= MaSaves / 2,
+                Chases = c => c.Me.Role == PitcherRole.Closer,
                 ReturnText = "마석규가 껌을 씹으며 불펜 문을 열었다.\n\"벌써 반? 이러다 내 기록 날아가겠네.\"\n그러다 껌을 뱉고 진지해졌다. \"블론 하나에 무너지지 마라. 다음 날 또 올라가는 게 마무리다.\"",
                 ReturnLabelA = "위기 상황 훈련을 받는다", ReturnResultA = "만루, 풀카운트. 마석규가 만든 가상 상황에서 백 번을 던졌다.",
                 ReturnLabelB = "같이 껌을 씹는다", ReturnResultB = "\"오, 배짱 있네.\" 마석규가 껌 한 통을 통째로 줬다.",
@@ -206,6 +206,24 @@ namespace BaseballSim.Career
                 SurpassLabel = "열쇠 목걸이를 꽉 쥔다", SurpassResult = "관중석에서 '자물쇠' 응원가가 울렸다. 이번엔 내 이름이 들어갔다.",
                 NearMiss = "마석규는 껌을 씹으며 '그 정도면 자물쇠 2호 자격 충분'이라고 했다.",
                 Ceremony = "마석규가 열쇠 목걸이를 흔들며 올라왔다. \"자물쇠 반납받으러 왔다. ...농담이야.\"",
+            },
+            new Legend
+            {
+                Id = "noh", Name = "노진우", Nickname = "8회의 남자", Years = "1998~2017", Record = "통산 640홀드", Speciality = Stat.Control, ForPitchers = true,
+                Story = "통산 최다 홀드(640개). 20년 동안 8회만 던졌다. 세이브는 단 하나도 없다. 마석규의 650세이브 중 절반은 자기 몫이라고 농담하지만, 정작 은퇴식 날엔 마석규가 그 말을 대신 했다. 조용하고 꼼꼼해서, 지금도 상대 타자 노트를 손으로 쓴다.",
+                Line = "박수는 9회가 받지. 근데 경기는 8회에 끝나는 거야.",
+                Lesson = "몸 풀 시간 없이 바로 올라가는 법을 배웠다. 불펜 문이 열리자마자 공이 손에 붙는다.",
+                Goal = c => CountGoal(c, NohHolds, "홀드"),
+                Progress = c => Scaled(c, null, p => p.Holds) / (NohHolds + 1),
+                Halfway = c => Scaled(c, null, p => p.Holds) >= NohHolds / 2,
+                Chases = c => c.Me.Role == PitcherRole.Setup,
+                ReturnText = "노진우가 손때 묻은 노트를 들고 불펜에 왔다.\n\"벌써 반이네. 이 노트, 너 나오는 경기는 다 적어 놨다.\"\n페이지를 넘기며 말했다. \"너는 2아웃 이후에 공이 높아져. 거기서 한 번만 버티면 된다.\"",
+                ReturnLabelA = "노트를 같이 본다", ReturnResultA = "타자마다 빨간 동그라미가 하나씩 있었다. 그 코스로만 던졌더니 공이 방망이를 피해 갔다.",
+                ReturnLabelB = "\"세이브는 왜 하나도 없어요?\"", ReturnResultB = "노진우가 웃었다. \"9회엔 석규가 있었으니까. 너도 믿을 사람 하나는 있어야 돼.\"",
+                SurpassText = "8회 2아웃, 마지막 타자 삼진. 통산 홀드 신기록.\n\n더그아웃으로 들어오는데 전광판에 노진우의 얼굴이 떴다.\n경기 후 노진우가 노트 한 권을 내밀었다. 표지에 내 이름이 적혀 있었다.\n\"네 경기만 따로 적은 거다. 이제 네가 이어서 써라.\"",
+                SurpassLabel = "노트를 받는다", SurpassResult = "첫 장에 노진우의 글씨로 적혀 있었다. '8회를 지키는 사람이 경기를 지킨다.'",
+                NearMiss = "노진우는 노트 마지막 장에 '거의 다 왔었다. 충분히 잘 지켰다'고 적어 보냈다.",
+                Ceremony = "노진우와 마석규가 나란히 올라왔다. \"8회랑 9회가 같이 왔다. 이제 네가 둘 다 해라.\"",
             },
         };
 

@@ -140,7 +140,7 @@ public class StoryEventTests
     [Fact]
     public void LegendsAreLeagueHistoryNotMyPlayers()
     {
-        Assert.Equal(7, Legends.All.Count);
+        Assert.Equal(8, Legends.All.Count);
         Assert.Equal(5, Legends.All.Count(l => !l.ForPitchers));
         Assert.Equal(CareerPlayer.AllStats.Count(), Legends.All.Where(l => !l.ForPitchers).Select(l => l.Speciality).Distinct().Count());
         Assert.DoesNotContain(StoryEvents.All, e => e.Id.StartsWith("legend_"));
