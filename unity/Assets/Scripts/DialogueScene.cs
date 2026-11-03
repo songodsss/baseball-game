@@ -444,7 +444,7 @@ namespace BaseballGame
             // Everyday people
             { "coach", "coach" }, { "감독", "manager" }, { "감독님", "teacher" }, { "트레이너", "trainer" }, { "기자", "reporter" },
             { "라파엘", "rafael" }, { "형", "aide" }, { "할아버지", "grandpa_fan" }, { "사장", "president" }, { "사장님", "president" },
-            { "에이전트", "agent" }, { "아이", "kid" }, { "꼬마", "kid" },
+            { "에이전트", "agent" }, { "아이", "kid" }, { "꼬마", "kid" }, { "연인", "girlfriend" }, { "아내", "girlfriend" },
         };
 
         static Sprite PersonArt(DialogueLine line)
