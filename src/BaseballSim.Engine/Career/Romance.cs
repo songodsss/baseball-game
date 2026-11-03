@@ -111,13 +111,13 @@ namespace BaseballSim.Career
                     var open = hs.Where(h => Heart(c, h.Key) >= ConfessAt).OrderByDescending(h => Heart(c, h.Key)).ToList();
                     if (open.Count == 0) return !c.Seen(ChoiceId) && Due("seen:" + prev, gap) ? Apart(hs) : null;
                     if (open.Count == 1 || Heart(c, open[0].Key) - Heart(c, open[1].Key) >= ClearLead)
-                        return Due("seen:" + prev, gap) ? DriftScene(hs.First(h => h != open[0]), open[0]) : null;
+                        return Due("seen:" + prev, gap) ? DriftScene(c, hs.First(h => h != open[0]), open[0]) : null;
                     if (!c.Seen(ChoiceId)) return Due("seen:" + prev, gap) ? Choice(c, open) : null;
                     return c.HasMark("romance_wait") && !c.SeenThisSeason(ChoiceId) && c.Day >= season * 3 / 10 ? Choice(c, open) : null;
                 }
                 var other = hs.First(h => h != some);
-                if (!Drifted(c, other.Key)) return Due(SomePrefix + some.Key, gap / 2) ? DriftScene(other, some) : null;
-                string before = "seen:her_" + other.Key + "_drift";
+                if (!Drifted(c, other.Key)) return Due(SomePrefix + some.Key, gap / 2) ? DriftScene(c, other, some) : null;
+                string before = DriftPrefix + other.Key;
                 foreach (var ev in some.Some)
                 {
                     if (!c.Seen(ev.Id)) return Due(before, gap) ? ev : null;
@@ -179,18 +179,46 @@ namespace BaseballSim.Career
         }
 
         /// <summary>The other heroine moves on with her own life; the 썸 with the one the heart went to begins.</summary>
-        static StoryEvent DriftScene(Def her, Def chosen) => new StoryEvent
+        /// <summary>Her heart is still at least this warm: the player gets one last chance to ask her to stay.</summary>
+        public const int HoldOnAt = 30;
+
+        /// <summary>
+        /// The other heroine moves on with her own life; the 썸 with the one the heart went to begins.
+        /// While she still cares, there is one last chance to ask her to stay: then the 썸 is with her,
+        /// and the first one, told honestly, steps back.
+        /// </summary>
+        static StoryEvent DriftScene(Career c, Def her, Def chosen)
         {
-            Id = "her_" + her.Key + "_drift", Title = her.DriftTitle, Text = her.Drift,
-            Weight = (_, __) => 0,
-            Choices =
+            var ev = new StoryEvent
             {
-                new EventChoice { Label = "진심으로 응원한다", Result = $"\"잘 지내요. 진짜로.\" 웃으며 인사했다.\n돌아오는 길, 휴대폰에 {chosen.Name}의 이름이 떠 있었다.",
-                    Apply = e => { e.Mark(SomePrefix + chosen.Key); e.Mark(DriftPrefix + her.Key); e.Morale(3); } },
-                new EventChoice { Label = "짧게 인사만 한다", Result = $"인사는 짧았다. 그래도 그게 맞는 것 같았다.\n그날 밤, {chosen.Name}에게서 온 문자를 몇 번이고 다시 읽었다.",
-                    Apply = e => { e.Mark(SomePrefix + chosen.Key); e.Mark(DriftPrefix + her.Key); } },
-            },
-        };
+                Id = "her_" + her.Key + "_drift", Title = her.DriftTitle, Text = her.Drift,
+                Weight = (_, __) => 0,
+                Choices =
+                {
+                    new EventChoice { Label = "진심으로 응원한다", Result = $"\"잘 지내요. 진짜로.\" 웃으며 인사했다.\n돌아오는 길, 휴대폰에 {chosen.Name}의 이름이 떠 있었다.",
+                        Apply = e => { e.Mark(SomePrefix + chosen.Key); e.Mark(DriftPrefix + her.Key); e.Morale(3); } },
+                    new EventChoice { Label = "짧게 인사만 한다", Result = $"인사는 짧았다. 그래도 그게 맞는 것 같았다.\n그날 밤, {chosen.Name}에게서 온 문자를 몇 번이고 다시 읽었다.",
+                        Apply = e => { e.Mark(SomePrefix + chosen.Key); e.Mark(DriftPrefix + her.Key); } },
+                },
+            };
+            if (Heart(c, her.Key) >= HoldOnAt)
+                ev.Choices.Add(new EventChoice
+                {
+                    Label = $"\"가지 마요\" 하고 붙잡는다",
+                    Result = $"\"가지 마요.\" 생각보다 말이 먼저 나왔다.\n{her.Name}{Particle(her.Name, "이")} 한참 나를 봤다. 그러다 고개를 숙이고 작게 웃었다.\n{her.Name}{Particle(her.Name, "이")} 말했다. \"...그 말, 조금 기다렸어요.\"\n\n" +
+                             $"며칠 뒤 {chosen.Name}에게 사실대로 말했다. {chosen.Name}{Particle(chosen.Name, "은")} 잠깐 말이 없다가 웃었다. \"말해 줘서 고마워요. 응원할게요.\"",
+                    Apply = e =>
+                    {
+                        e.Unmark(SomePrefix + chosen.Key);
+                        e.Mark(SomePrefix + her.Key);
+                        e.Mark(DriftPrefix + chosen.Key);
+                        AddHeart(e, her.Key, 15);
+                        AddHeart(e, chosen.Key, -10);
+                        e.Morale(2);
+                    },
+                });
+            return ev;
+        }
 
         static StoryEvent Confession(Def her) => new StoryEvent
         {

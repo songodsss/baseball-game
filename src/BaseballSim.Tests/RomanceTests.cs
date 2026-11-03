@@ -93,6 +93,22 @@ public class RomanceTests
     }
 
     [Fact]
+    public void TheOneLeavingCanBeAskedToStay()
+    {
+        var career = NewCareer(16, StoryRoute.Walkon);
+        var heroines = Romance.Of(StoryRoute.Walkon);
+        // The first heroine pulls ahead at the crossroads, but when the second is about to leave the player asks her to stay.
+        var seen = Play(career, ev => ev.Id.EndsWith("_drift") ? 2 : 0);
+        Assert.Contains($"her_{heroines[1].Key}_drift", seen);
+        Assert.True(Romance.Drifted(career, heroines[0].Key));
+        var lover = Romance.Lover(career);
+        Assert.NotNull(lover);
+        Assert.Equal(heroines[1].Key, lover.Key);
+        Assert.Contains($"her_{lover.Key}_confess", seen);
+        Assert.True(Romance.Married(career));
+    }
+
+    [Fact]
     public void ColdAnswersCloseTheRomance()
     {
         var career = NewCareer(13, StoryRoute.Walkon);
