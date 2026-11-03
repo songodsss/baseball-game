@@ -115,8 +115,8 @@ namespace BaseballSim.Career
                     case "senior": Add(name, SpeakerKind.Player, null, "선배", "선배님"); break;
                     case "junior": Add(name, SpeakerKind.Player, null, "후배"); break;
                     case "mate": case "veteran": case "exveteran": Add(name, SpeakerKind.Player); break;
-                    case "coach": Add(name, SpeakerKind.Person, null, "코치", "코치님"); break;
-                    case "excoach": Add(name, SpeakerKind.Person); break;
+                    case "coach": Add(name, SpeakerKind.Person, "coach", "코치", "코치님"); break;
+                    case "excoach": Add(name, SpeakerKind.Person, "coach"); break;
                     case "met":
                         if (name.StartsWith("story:")) Add(name.Substring("story:".Length), SpeakerKind.Player);
                         break;

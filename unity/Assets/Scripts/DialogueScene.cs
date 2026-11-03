@@ -384,14 +384,14 @@ namespace BaseballGame
             }
 
             _portrait.sprite = sprite;
-            bool standing = line.Kind == SpeakerKind.Me || line.Kind == SpeakerKind.Player;
+            bool standing = sprite != Silhouette;
             float h = standing ? 1120 : 760;
             float w = h * sprite.rect.width / sprite.rect.height;
             _portraitHolder.sizeDelta = new Vector2(w, h);
             // I stand a little to the left, the people I talk to a little to the right.
             float x = line.Kind == SpeakerKind.Me ? -150 : 120;
             _portraitHolder.anchoredPosition = new Vector2(x, BoxBottom + BoxHeight - (standing ? 330 : 120));
-            _portrait.color = line.Kind == SpeakerKind.Person ? new Color(0.62f, 0.66f, 0.74f) : Color.white;
+            _portrait.color = standing ? Color.white : new Color(0.62f, 0.66f, 0.74f);
             StopAllCoroutines();
             StartCoroutine(Enter(_portraitHolder, line.Kind == SpeakerKind.Me ? -1 : 1));
         }
@@ -423,10 +423,36 @@ namespace BaseballGame
                     var legend = LegendCrop(line.PortraitKey);
                     return legend != null ? (legend, true) : (Silhouette, false);
                 case SpeakerKind.Player:
-                    return (PlayerFace(line.PortraitKey ?? line.Speaker) ?? Silhouette, false);
+                    return (PersonArt(line) ?? PlayerFace(line.PortraitKey ?? line.Speaker) ?? Silhouette, false);
                 default:
-                    return (Silhouette, false);
+                    return (PersonArt(line) ?? Silhouette, false);
             }
+        }
+
+        /// <summary>
+        /// Drawn pictures for the people of the stories, by name or role: Art/People/&lt;file&gt;.
+        /// Anyone missing here (or whose picture isn't in yet) keeps the silhouette or a player face.
+        /// </summary>
+        static readonly Dictionary<string, string> People = new Dictionary<string, string>
+        {
+            // 마지막 순번
+            { "최강훈", "choi_ganghun" }, { "윤도현", "yoon_dohyun" }, { "하윤", "hayun" }, { "한소라", "han_sora" },
+            // 천재의 무게
+            { "백무진", "baek_mujin" }, { "정우진", "jung_woojin" }, { "어머니", "mother" }, { "소이", "soi" },
+            // 연습생 신화
+            { "도봉구", "do_bonggu" }, { "김반석", "kim_banseok" }, { "할머니", "grandma" }, { "이다온", "lee_daon" },
+            // Everyday people
+            { "coach", "coach" }, { "감독", "manager" }, { "감독님", "teacher" }, { "트레이너", "trainer" }, { "기자", "reporter" },
+            { "라파엘", "rafael" }, { "형", "aide" }, { "할아버지", "grandpa_fan" }, { "사장", "president" }, { "사장님", "president" },
+            { "에이전트", "agent" }, { "아이", "kid" }, { "꼬마", "kid" },
+        };
+
+        static Sprite PersonArt(DialogueLine line)
+        {
+            string file;
+            if ((line.PortraitKey != null && People.TryGetValue(line.PortraitKey, out file)) || (line.Speaker != null && People.TryGetValue(line.Speaker, out file)))
+                return ArtLibrary.Get("People/" + file);
+            return null;
         }
 
         static readonly Dictionary<string, Sprite> LegendCrops = new Dictionary<string, Sprite>();
