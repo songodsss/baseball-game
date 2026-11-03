@@ -100,6 +100,7 @@ namespace BaseballGame
             var chartRt = UiKit.Empty(holder, "Chart");
             chartRt.anchorMin = chartRt.anchorMax = new Vector2(0.5f, 0.5f);
             chartRt.sizeDelta = new Vector2(440, 440);
+            chartRt.gameObject.AddComponent<CanvasRenderer>(); // a Graphic needs one, or masks throw
             var chart = chartRt.gameObject.AddComponent<RadarGraphic>();
             chart.raycastTarget = false;
             chart.Values = stats.Select(s => me.EffectiveRating(s) / 100f).ToList();

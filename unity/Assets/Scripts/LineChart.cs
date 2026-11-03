@@ -39,6 +39,8 @@ namespace BaseballGame
 
             var area = UiKit.Empty(box, "Plot");
             UiKit.Height(area, 0, 1);
+            // A Graphic needs a CanvasRenderer; without one the scroll's mask throws on every frame.
+            if (area.GetComponent<CanvasRenderer>() == null) area.gameObject.AddComponent<CanvasRenderer>();
             var chart = area.gameObject.AddComponent<LineChart>();
             chart.raycastTarget = false;
             chart.Min = min;
