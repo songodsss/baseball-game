@@ -145,7 +145,7 @@ namespace BaseballSim.Career
                 Title = "선배의 은퇴식",
                 Text = "새 시즌 홈 개막 시리즈. 오늘은 {senior} 선배의 은퇴식이다.\n시구는 선배, 시포는 {name}이 맡게 됐다.",
                 Weight = (c, d) => (c.HasMark(SeniorRetired) || c.HasMark(SeniorLeaving)) && SeasonsSince(c, c.HasMark(SeniorRetired) ? SeniorRetired : SeniorLeaving) >= 1
-                    && Progress(c) < 0.35 && !c.InFarm && c.IsClose("senior") && !c.Seen("senior_ceremony") ? 6 : 0,
+                    && c.Day <= 6 && HomeGame(c, d) && !c.InFarm && c.IsClose("senior") && !c.Seen("senior_ceremony") ? 6 : 0,
                 Choices =
                 {
                     new EventChoice

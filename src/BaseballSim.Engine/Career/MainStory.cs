@@ -46,6 +46,10 @@ namespace BaseballSim.Career
         public string Title;
         public Func<Career, string> Text;
         public Func<Career, List<StoryOption>> Options;
+        /// <summary>Played before the season's first game (a camp, a ceremony), never in the middle of it.</summary>
+        public bool AtSeasonStart;
+        /// <summary>A moment this version needs today on top of its slot's (a home game, a bad night...).</summary>
+        public Func<Career, DayResult, bool> When;
     }
 
     internal class StoryOption
@@ -96,54 +100,83 @@ namespace BaseballSim.Career
         {
             public string Id;
             public int Chapter;
-            public Func<Career, DayResult, bool> Ready;
+            /// <summary>Its moment, checked after each day; false for scenes told only before a season.</summary>
+            public Func<Career, DayResult, bool> Ready = (c, d) => false;
+            /// <summary>Told before the season's first game when this is true (null = never then).</summary>
+            public Func<Career, bool> Pre;
+            /// <summary>Its moment has gone by for good: the scene is skipped so the story never tells it late.</summary>
+            public Func<Career, DayResult, bool> Expired = (c, d) => false;
+            /// <summary>Comes on its day even right after another scene.</summary>
+            public bool NoGap;
         }
 
         /// <summary>The moments every story is told through, in order.</summary>
         static readonly List<Slot> Slots = new List<Slot>
         {
-            // Prologue: the first days.
-            new Slot { Id = "draft", Chapter = 0, Ready = (c, d) => true },
-            new Slot { Id = "roommate", Chapter = 0, Ready = (c, d) => true },
-            new Slot { Id = "camp", Chapter = 0, Ready = (c, d) => true },
+            // Prologue: before the first game of the first season.
+            new Slot { Id = "draft", Chapter = 0, Pre = c => c.Season == 1, Expired = (c, d) => !(c.Season == 1 && c.Day == 0) },
+            new Slot { Id = "roommate", Chapter = 0, Pre = c => c.Season == 1, Expired = (c, d) => !(c.Season == 1 && c.Day == 0) },
+            new Slot { Id = "camp", Chapter = 0, Pre = c => c.Season == 1, Expired = (c, d) => !(c.Season == 1 && c.Day == 0) },
             // 1. Debut: the first season.
-            new Slot { Id = "first", Chapter = 1, Ready = (c, d) => HasFirstRecord(c) || c.Season > 1 || SeasonPart(c) >= 0.4 },
-            new Slot { Id = "first_pay", Chapter = 1, Ready = (c, d) => c.Season > 1 || SeasonPart(c) >= 0.5 },
+            new Slot
+            {
+                Id = "first", Chapter = 1, NoGap = true,
+                // The day of the first hit (win, save, hold); or, with none by mid-season, the wait itself.
+                Ready = (c, d) => FirstRecordToday(c, d) || !HasFirstRecord(c) && (c.Season > 1 || SeasonPart(c) >= 0.4),
+                Expired = (c, d) => HasFirstRecord(c) && !FirstRecordToday(c, d),
+            },
+            new Slot
+            {
+                Id = "first_pay", Chapter = 1, NoGap = true,
+                Ready = (c, d) => c.Season == 1 && d?.Payday != null && c.PaidMonths == 1,
+                Expired = (c, d) => c.Season > 1 || c.PaidMonths > 1 || c.PaidMonths == 1 && d?.Payday == null,
+            },
             new Slot { Id = "letter", Chapter = 1, Ready = (c, d) => c.Season > 1 || SeasonPart(c) >= 0.6 },
-            new Slot { Id = "rival", Chapter = 1, Ready = (c, d) => c.Season > 1 || SeasonPart(c) >= 0.8 },
-            new Slot { Id = "first_winter", Chapter = 1, Ready = (c, d) => c.Season >= 2 },
+            new Slot { Id = "rival", Chapter = 1, Ready = (c, d) => c.Season == 1 && SeasonPart(c) >= 0.8, Expired = (c, d) => c.Season > 1 },
+            new Slot { Id = "first_winter", Chapter = 1, Pre = c => c.Season == 2, Expired = (c, d) => c.Season > 2 || c.Season == 2 && c.Day > 0 },
             // 2. The first wall: years two to four.
-            new Slot { Id = "sophomore", Chapter = 2, Ready = (c, d) => c.Season >= 2 && SeasonPart(c) >= 0.25 || c.Season >= 3 },
-            new Slot { Id = "wall", Chapter = 2, Ready = (c, d) => InASlump(c) || c.Season >= 2 && SeasonPart(c) >= 0.5 || c.Season >= 3 },
+            new Slot { Id = "sophomore", Chapter = 2, Ready = (c, d) => c.Season == 2 && SeasonPart(c) >= 0.1, Expired = (c, d) => c.Season > 2 },
+            new Slot
+            {
+                Id = "wall", Chapter = 2,
+                // Sent down today, or a run of bad games.
+                Ready = (c, d) => DemotedToday(d) || !c.InFarm && (InASlump(c) || BadGame(c, d) && (c.Season >= 3 || c.Season >= 2 && SeasonPart(c) >= 0.5)),
+            },
             new Slot { Id = "rooftop", Chapter = 2, Ready = (c, d) => true },
             new Slot { Id = "mentor_past", Chapter = 2, Ready = (c, d) => c.Season >= 3 },
-            new Slot { Id = "breakthrough", Chapter = 2, Ready = (c, d) => !c.InFarm && (PlayedWell(d) || DaysSinceLast(c) >= Games(c) / 3) },
+            new Slot { Id = "breakthrough", Chapter = 2, Ready = (c, d) => !c.InFarm && PlayedWell(d) },
             // 3. The spot that calls your name: about 22 to 26.
             new Slot { Id = "pressure", Chapter = 3, Ready = (c, d) => c.Me.Age >= 22 || c.Season >= 4 && IsCore(c) },
-            new Slot { Id = "spot", Chapter = 3, Ready = (c, d) => c.Season >= 2 && IsCore(c) || c.Me.Age >= 24 },
+            new Slot { Id = "spot", Chapter = 3, Pre = c => c.Season >= 2 && IsCore(c) || c.Me.Age >= 24 },
             new Slot { Id = "injury", Chapter = 3, Ready = (c, d) => DaysSinceLast(c) >= Games(c) / 4 },
             new Slot { Id = "contract", Chapter = 3, Ready = (c, d) => c.Me.Age >= 25 },
             new Slot { Id = "kin_visit", Chapter = 3, Ready = (c, d) => c.Me.Age >= 25 && DaysSinceLast(c) >= Games(c) / 4 },
-            new Slot { Id = "race", Chapter = 3, Ready = (c, d) => SeasonPart(c) >= 0.5 && DaysSinceLast(c) >= Games(c) / 6 },
+            new Slot { Id = "race", Chapter = 3, Ready = (c, d) => SeasonPart(c) >= 0.8 && DaysSinceLast(c) >= Games(c) / 6 },
             // 4. The summit: about 27 to 30.
-            new Slot { Id = "summit", Chapter = 4, Ready = (c, d) => HasSummit(c) || c.Me.Age >= 28 },
-            new Slot { Id = "bigstage", Chapter = 4, Ready = (c, d) => SeasonPart(c) >= 0.8 },
+            new Slot
+            {
+                Id = "summit", Chapter = 4,
+                // The awards come in the winter: told before the next season. A gold medal, the day it's won.
+                Pre = c => WonTitleLastSeason(c),
+                Ready = (c, d) => d?.Tournament?.Medal == NationalTeam.Gold && d.Tournament.Selected || !HasSummit(c) && c.Me.Age >= 28,
+            },
+            new Slot { Id = "bigstage", Chapter = 4, Ready = (c, d) => SeasonPart(c) >= 0.8 && Played(d) },
             new Slot { Id = "family", Chapter = 4, Ready = (c, d) => c.Me.Age >= 27 && DaysSinceLast(c) >= Games(c) / 4 },
             new Slot { Id = "voice_feature", Chapter = 4, Ready = (c, d) => c.Me.Age >= 29 },
-            new Slot { Id = "rival_peak", Chapter = 4, Ready = (c, d) => c.Me.Age >= 30 && SeasonPart(c) >= 0.5 },
+            new Slot { Id = "rival_peak", Chapter = 4, Ready = (c, d) => c.Me.Age >= 30 && SeasonPart(c) >= 0.4 },
             // 5. Veteran: about 31 to 36.
             new Slot { Id = "body", Chapter = 5, Ready = (c, d) => c.Me.Age >= 32 },
             new Slot { Id = "role_change", Chapter = 5, Ready = (c, d) => c.Me.Age >= 33 },
-            new Slot { Id = "friend", Chapter = 5, Ready = (c, d) => DaysSinceLast(c) >= Games(c) / 4 },
+            new Slot { Id = "friend", Chapter = 5, Ready = (c, d) => DaysSinceLast(c) >= Games(c) / 4 && Played(d) },
             new Slot { Id = "mentor_old", Chapter = 5, Ready = (c, d) => c.Me.Age >= 34 },
-            new Slot { Id = "milestone", Chapter = 5, Ready = (c, d) => c.Me.Age >= 34 && DaysSinceLast(c) >= Games(c) / 4 },
+            new Slot { Id = "milestone", Chapter = 5, Ready = (c, d) => c.Me.Age >= 34 && DaysSinceLast(c) >= Games(c) / 4 && Played(d) },
             new Slot { Id = "rival_end", Chapter = 5, Ready = (c, d) => c.Me.Age >= 35 },
-            new Slot { Id = "family_game", Chapter = 5, Ready = (c, d) => SeasonPart(c) >= 0.5 && DaysSinceLast(c) >= Games(c) / 6 },
+            new Slot { Id = "family_game", Chapter = 5, Ready = (c, d) => SeasonPart(c) >= 0.5 && DaysSinceLast(c) >= Games(c) / 6 && Played(d) },
             // 6. The last season.
-            new Slot { Id = "last", Chapter = 6, Ready = (c, d) => c.Me.Age >= 37 },
-            new Slot { Id = "farewell_tour", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.4 },
+            new Slot { Id = "last", Chapter = 6, Pre = c => c.Me.Age >= 37 },
+            new Slot { Id = "farewell_tour", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.4 && Played(d) },
             new Slot { Id = "last_letter", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.7 },
-            new Slot { Id = "last_game", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.9 },
+            new Slot { Id = "last_game", Chapter = 6, Ready = (c, d) => SeasonPart(c) >= 0.95 },
         };
 
         static readonly List<StoryRouteDef> Routes = new List<StoryRouteDef> { LastPickStory.Build(), ProdigyStory.Build(), WalkonStory.Build() };
@@ -178,9 +211,45 @@ namespace BaseballSim.Career
         public static StoryEvent Next(Career c, DayResult day)
         {
             if (c.InMilitary) return null;
-            var slot = NextSlot(c);
-            if (slot != null && (c.Story.LastSeason < 0 || DaysSinceLast(c) >= MinGap(c)) && slot.Ready(c, day)) return ToEvent(c, slot.Id);
+            // A legend's record falling is today's news before anything else.
+            var surpass = LegendStory.SurpassToday(c, day);
+            if (surpass != null) return surpass;
+            var slot = DueSlot(c, day);
+            if (slot != null)
+            {
+                var scene = SceneFor(c, slot.Id);
+                bool gapOk = slot.NoGap || c.Story.LastSeason < 0 || DaysSinceLast(c) >= MinGap(c);
+                if (gapOk && !scene.AtSeasonStart && slot.Ready(c, day) && (scene.When?.Invoke(c, day) ?? true)) return ToEvent(c, slot.Id, scene);
+            }
             return LegendStory.Next(c, day);
+        }
+
+        /// <summary>
+        /// A scene told before the season's first game (the draft, spring camp, a winter ceremony), or null.
+        /// Called again after each one, so the prologue plays out in a row.
+        /// </summary>
+        public static StoryEvent AtSeasonStart(Career c)
+        {
+            if (c.InMilitary || c.Day != 0) return null;
+            var slot = DueSlot(c, null);
+            if (slot != null)
+            {
+                var scene = SceneFor(c, slot.Id);
+                if (scene.AtSeasonStart || slot.Pre != null && slot.Pre(c)) return ToEvent(c, slot.Id, scene);
+            }
+            return LegendStory.AtSeasonStart(c);
+        }
+
+        /// <summary>The next slot, after quietly passing over any whose moment has gone by.</summary>
+        static Slot DueSlot(Career c, DayResult day)
+        {
+            var slot = NextSlot(c);
+            while (slot != null && slot.Expired(c, day))
+            {
+                c.Story.Seen.Add(slot.Id);
+                slot = NextSlot(c);
+            }
+            return slot;
         }
 
         /// <summary>
@@ -302,11 +371,40 @@ namespace BaseballSim.Career
 
         internal static bool HasSummit(Career c) => c.Me.GoldMedals > 0 || c.Me.History.Any(h => h.Titles.Count > 0);
 
-        static bool InASlump(Career c) => c.InFarm || c.HitlessStreak >= 4;
+        static bool InASlump(Career c) => c.HitlessStreak >= 4;
+
+        static bool DemotedToday(DayResult d) => d?.Move != null && d.Move.Kind == RosterMoveKind.Demoted;
+
+        static bool Played(DayResult d) => d != null && (d.MyLine != null && d.MyLine.PlateAppearances > 0 || d.MyPitching != null);
+
+        /// <summary>A bad night: no hit in three or more at bats, or three runs given up.</summary>
+        internal static bool BadGame(Career c, DayResult d) =>
+            d != null && (d.MyLine != null && d.MyLine.AtBats >= 3 && d.MyLine.Hits == 0 || d.MyPitching != null && d.MyPitching.Runs >= 3);
+
+        static bool WonTitleLastSeason(Career c)
+        {
+            var last = c.Me.History.LastOrDefault();
+            return last != null && last.Titles.Count > 0;
+        }
+
+        /// <summary>Today's game brought the first hit (or win, save, hold) of the career.</summary>
+        internal static bool FirstRecordToday(Career c, DayResult d)
+        {
+            if (d == null || d.InFarm) return false;
+            var me = c.Me;
+            if (!me.IsPitcher)
+            {
+                int today = d.MyLine?.Hits ?? 0;
+                return today > 0 && c.SeasonLine.Hits + me.History.Sum(h => h.Line?.Hits ?? 0) == today;
+            }
+            int Count(PitcherLine l) => l == null ? 0 : me.Role == PitcherRole.Closer ? l.Saves : me.Role == PitcherRole.Setup ? l.Holds : l.Wins;
+            int now = Count(d.MyPitching);
+            return now > 0 && Count(c.SeasonPitching) + me.History.Sum(h => Count(h.Pitching)) == now;
+        }
 
         static bool PlayedWell(DayResult d) =>
-            d.MyLine != null && (d.MyLine.HomeRuns > 0 || d.MyLine.Hits >= 2)
-            || d.MyPitching != null && !d.InFarm && (d.MyPitching.Wins + d.MyPitching.Saves + d.MyPitching.Holds > 0);
+            d != null && (d.MyLine != null && (d.MyLine.HomeRuns > 0 || d.MyLine.Hits >= 2)
+            || d.MyPitching != null && !d.InFarm && (d.MyPitching.Wins + d.MyPitching.Saves + d.MyPitching.Holds > 0));
 
         static bool IsCore(Career c)
         {

@@ -146,7 +146,7 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "mentor_past", Title = "같은 자리, 다른 시절",
+                Slot = "mentor_past", Title = "같은 자리, 다른 시절", When = (c, d) => d?.MyGame != null && d.MyGame.Away == c.MyTeam,
                 Text = c => "원정 경기 날, 오래된 지방 구장.\n{mentor:이} 외야 펜스의 움푹 팬 자국 앞에 한참 서 있었다.\n\n\"여기서 공 쫓다가 부딪혔다. 그날로 선수 생활 끝났지.\"\n담담한 목소리였다.",
                 Options = c => new List<StoryOption>
                 {
@@ -172,7 +172,7 @@ namespace BaseballSim.Career
             // ----- 3. The spot that calls your name -----
             new StoryScene
             {
-                Slot = "pressure", Title = "야유",
+                Slot = "pressure", Title = "야유", When = (c, d) => BadGame(c, d),
                 Text = c => "홈 경기, 찬스에서 물러났다. 관중석 어딘가에서 야유가 들렸다.\n처음이었다. 우리 팬들의 야유는.\n\n경기 후 {voice:이} 다가왔다. \"기대가 커서 그래요. 아무도 기대 안 하는 선수한텐 야유도 안 해요.\"",
                 Options = c => new List<StoryOption>
                 {
@@ -220,7 +220,7 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "kin_visit", Title = "{kin}의 직관",
+                Slot = "kin_visit", Title = "{kin}의 직관", When = (c, d) => d?.MyGame != null && d.MyGame.Home == c.MyTeam && (d.MyLine?.PlateAppearances > 0 || d.MyPitching != null),
                 Text = c => "오늘 관중석 어딘가에 {kin:이} 있다.\n티켓을 보내 줬는데, 꼭 오겠다고 했다.\n\n몸을 푸는데 자꾸 관중석으로 눈이 간다.\n저기, 응원 도구를 어색하게 든 익숙한 실루엣.",
                 Options = c => new List<StoryOption>
                 {
@@ -306,7 +306,7 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "rival_peak", Title = "{rival:과}의 정상 대결",
+                Slot = "rival_peak", Title = "{rival:과}의 정상 대결", When = (c, d) => d?.MyGame != null && c.RivalTeam != null && (d.MyGame.Home == c.RivalTeam || d.MyGame.Away == c.RivalTeam),
                 Text = c => "리그 최고를 다투는 두 이름. 나와 {rival}.\n스포츠 뉴스는 매일 둘을 나란히 비교했다.\n\n오늘은 직접 맞붙는 날. 경기 전 복도에서 {rival:이} 먼저 말을 걸었다.\n\"10년 넘게 너만 보고 달렸다. 알고 있냐.\"",
                 Options = c => new List<StoryOption>
                 {
@@ -318,7 +318,7 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "rival_peak", Title = "같은 비행기",
+                Slot = "rival_peak", Title = "같은 비행기", When = (c, d) => c.Day == c.AllStarDay + 1,
                 Text = c => "올스타 휴식기, 우연히 같은 비행기를 탔다. 옆자리에 {rival}.\n어색한 침묵이 십 분쯤 흘렀다.\n\n\"...신인왕 경쟁하던 해에, 너 때문에 밤에 잠이 안 왔다.\"\n{rival:이} 창밖을 보며 말했다.",
                 Options = c => new List<StoryOption>
                 {
@@ -433,7 +433,7 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "rival_end", Title = "올스타 벤치",
+                Slot = "rival_end", Title = "올스타 벤치", When = (c, d) => c.Day == c.AllStarDay + 1 && c.SeasonNotes.Any(n => n.Contains("올스타")),
                 Text = c => "올스타전 벤치. 어느새 나와 {rival:이} 최고참이다.\n후배들이 사인을 받으러 줄을 섰다.\n\n{rival:이} 중얼거렸다. \"우리가 사인 받으러 다니던 게 엊그제 같은데.\"",
                 Options = c => new List<StoryOption>
                 {
@@ -447,7 +447,7 @@ namespace BaseballSim.Career
             // ----- 6. The last season -----
             new StoryScene
             {
-                Slot = "farewell_tour", Title = "마지막 원정",
+                Slot = "farewell_tour", Title = "마지막 원정", When = (c, d) => d?.MyGame != null && d.MyGame.Away == c.MyTeam,
                 Text = c => "원정 구장에 도착하니 상대 팀이 작은 선물을 준비해 두었다.\n'마지막 방문을 환영합니다.' 전광판에 내 신인 시절 사진이 떴다.\n\n상대 팀 관중석에서도 박수가 터졌다.",
                 Options = c => new List<StoryOption>
                 {
@@ -459,7 +459,7 @@ namespace BaseballSim.Career
             },
             new StoryScene
             {
-                Slot = "farewell_tour", Title = "마지막 스프링캠프",
+                Slot = "farewell_tour", Title = "마지막 스프링캠프", AtSeasonStart = true,
                 Text = c => "따뜻한 남쪽 섬, 스무 번째쯤 되는 스프링캠프.\n처음 왔을 때 공 줍던 그 자리에서 신인들이 공을 줍고 있다.\n\n저녁, 바닷가 숙소 앞에서 {pal:이} 말했다. \"여기 처음 왔을 때 기억나? 너 그때 밤마다 혼자 배트 돌렸잖아.\"",
                 Options = c => new List<StoryOption>
                 {

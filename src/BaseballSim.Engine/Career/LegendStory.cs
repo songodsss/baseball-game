@@ -21,8 +21,9 @@ namespace BaseballSim.Career
     /// <summary>
     /// The legends' visits. Each legend comes three times in a career, at moments set by the player's
     /// growth: when the player's rating in their speciality reaches 50, when the player is halfway to
-    /// their record, and the day the record falls. Visits come on days without a main story scene, at
-    /// most one every quarter season, and never as a chore: just a card with a choice.
+    /// their record, and the day the record falls (right after that game; an MVP ceremony before the
+    /// next season). Visits come on days without a main story scene, at most one every quarter season,
+    /// and never as a chore: just a card with a choice.
     /// </summary>
     public static class LegendStory
     {
@@ -37,19 +38,46 @@ namespace BaseballSim.Career
             if (c.LegendLastSeason >= 0 && DaysSinceLast(c) < Math.Max(1, c.League.GamesPerSeason / 4)) return null;
             var mine = Legends.All.Where(l => l.Visits(me)).ToList();
 
-            foreach (var l in mine)
-                if (c.StageOf(l.Id) >= LegendStage.Met && c.StageOf(l.Id) < LegendStage.Surpassed && l.Chases(c) && l.Progress(c) >= 1)
-                    return Surpass(c, l);
             if (!c.LegendDuoSeen && c.StageOf("jang") == LegendStage.Surpassed && c.StageOf("oh") == LegendStage.Surpassed)
                 return Duo(c);
             foreach (var l in mine)
-                if (c.StageOf(l.Id) == LegendStage.Met && l.Chases(c) && l.Halfway(c) && SeasonsSinceLast(c) >= 1)
+                if (!l.AtSeasonStart && c.StageOf(l.Id) == LegendStage.Met && l.Chases(c) && l.Halfway(c) && SeasonsSinceLast(c) >= 1)
                     return Return(c, l);
             foreach (var l in mine)
                 if (c.StageOf(l.Id) == LegendStage.None && me.Ratings.TryGetValue(l.Speciality, out var r) && r >= MeetRating && !me.IsInjured)
                     return Meet(c, l);
             return null;
         }
+
+        /// <summary>
+        /// The day a record falls: right after that game, before any other scene and whatever the gap
+        /// since the last visit. Ceremony-type legends wait for the season start instead.
+        /// </summary>
+        public static StoryEvent SurpassToday(Career c, DayResult day)
+        {
+            if (c.InMilitary || day == null) return null;
+            foreach (var l in Legends.All.Where(l => l.Visits(c.Me) && !l.AtSeasonStart))
+                if (Surpassable(c, l) && (l.SurpassWhen?.Invoke(c, day) ?? Played(day)))
+                    return Surpass(c, l);
+            return null;
+        }
+
+        /// <summary>Before a season's first game: a ceremony-type legend's visit (오세찬 after an MVP).</summary>
+        public static StoryEvent AtSeasonStart(Career c)
+        {
+            if (c.InMilitary || c.Day != 0) return null;
+            foreach (var l in Legends.All.Where(l => l.Visits(c.Me) && l.AtSeasonStart))
+            {
+                if (Surpassable(c, l)) return Surpass(c, l);
+                if (c.StageOf(l.Id) == LegendStage.Met && l.Chases(c) && l.Halfway(c)) return Return(c, l);
+            }
+            return null;
+        }
+
+        static bool Surpassable(Career c, Legend l) =>
+            c.StageOf(l.Id) >= LegendStage.Met && c.StageOf(l.Id) < LegendStage.Surpassed && l.Chases(c) && l.Progress(c) >= 1;
+
+        static bool Played(DayResult d) => d.MyLine != null && d.MyLine.PlateAppearances > 0 || d.MyPitching != null;
 
         static int DaysSinceLast(Career c) => (c.Season - c.LegendLastSeason) * c.League.GamesPerSeason + c.Day - c.LegendLastDay;
         static int SeasonsSinceLast(Career c) => c.LegendLastSeason < 0 ? 99 : c.Season - c.LegendLastSeason;

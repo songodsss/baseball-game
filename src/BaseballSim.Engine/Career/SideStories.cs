@@ -90,7 +90,7 @@ namespace BaseballSim.Career
                 Id = "grandpa_fan",
                 Title = "외야석 할아버지",
                 Text = "외야 맨 앞줄에 늘 같은 할아버지가 앉아 있다.\n구단 직원 말로는 40년째 개근이라고 한다. 오늘 {name}을 향해 모자를 흔들었다.",
-                Weight = (c, d) => c.Season <= 2 && !c.InFarm && !c.Seen("grandpa_fan") ? 0.8 : 0,
+                Weight = (c, d) => c.Season <= 2 && !c.InFarm && HomeGame(c, d) && !c.Seen("grandpa_fan") ? 0.8 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "모자를 벗고 인사한다", Result = "할아버지가 두 팔을 번쩍 들었다.", Apply = e => { e.Morale(3); e.Mark("grandpa_friend"); } },
@@ -145,7 +145,7 @@ namespace BaseballSim.Career
                 Id = "grandpa_return",
                 Title = "돌아온 할아버지",
                 Text = "새 시즌 첫 홈경기. 외야 맨 앞줄에 낯익은 모자가 보인다.\n할아버지가 지팡이를 짚고 돌아왔다.",
-                Weight = (c, d) => c.HasMark("grandpa_recovering") && SeasonsSince(c, "grandpa_recovering") >= 1 && Progress(c) < 0.4 && !c.InFarm && !c.Seen("grandpa_return") ? 5 : 0,
+                Weight = (c, d) => c.HasMark("grandpa_recovering") && SeasonsSince(c, "grandpa_recovering") >= 1 && c.Day <= 6 && HomeGame(c, d) && !c.InFarm && !c.Seen("grandpa_return") ? 5 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "외야까지 뛰어가 인사한다", Result = "관중석이 박수로 할아버지를 맞았다. 41년째 개근이 시작됐다.", Apply = e => { e.Unmark("grandpa_recovering"); e.Morale(8); e.Fans(60); } },
@@ -240,7 +240,7 @@ namespace BaseballSim.Career
                 Id = "date_anniversary",
                 Title = "원정 중 기념일",
                 Text = "오늘이 만난 지 100일인데 원정 경기다.\n휴대폰에 '경기 잘해! 다치지 말고' 메시지가 와 있다.",
-                Weight = (c, d) => c.HasMark("dating") && Next(c, "blind_date", "date_anniversary", Gap(c) * 2) ? 3 : 0,
+                Weight = (c, d) => c.HasMark("dating") && Next(c, "blind_date", "date_anniversary", Gap(c) * 2) && d.MyGame != null && d.MyGame.Away == c.MyTeam ? 3 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "경기 끝나고 KTX로 깜짝 방문", Result = "새벽에 문을 열어 준 얼굴이 놀라서 울다 웃었다. 피곤해도 하나도 안 피곤하다.", Apply = e => { e.Fatigue(20); e.Morale(8); } },

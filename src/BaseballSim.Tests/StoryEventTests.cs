@@ -113,7 +113,8 @@ public class StoryEventTests
 
         career.LegendLastSeason = career.Season - 1;
         career.SeasonLine.HomeRuns = 114;
-        var broken = LegendStory.Next(career, new DayResult());
+        Assert.Null(LegendStory.Next(career, new DayResult())); // the record falls on a game day, not on a visit
+        var broken = LegendStory.SurpassToday(career, new DayResult { MyLine = new BattingLine { PlateAppearances = 4 } });
         Assert.Equal("legend_jang_3", broken.Id);
         SetPending(career, broken);
         career.ResolveEvent(0);

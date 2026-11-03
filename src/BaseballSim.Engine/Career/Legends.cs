@@ -39,6 +39,11 @@ namespace BaseballSim.Career
         /// <summary>Whether this player can chase the record at all (the pitchers' depend on role).</summary>
         public Func<Career, bool> Chases = c => true;
 
+        /// <summary>Its moments are award ceremonies (오세찬's MVPs): they're told before the next season starts.</summary>
+        public bool AtSeasonStart;
+        /// <summary>Extra condition for the day the record falls (민경호's average: the last game of a season).</summary>
+        public Func<Career, DayResult, bool> SurpassWhen;
+
         public string ReturnText, ReturnLabelA, ReturnResultA, ReturnLabelB, ReturnResultB;
         public string SurpassText, SurpassLabel, SurpassResult;
         /// <summary>Lines for the retirement article: came close, or broke it.</summary>
@@ -110,6 +115,7 @@ namespace BaseballSim.Career
                 Line = "안타는 세게 치는 게 아니라 빈 데로 보내는 거다.",
                 Lesson = "밀어치는 요령을 배웠다. 수비 사이로 공이 빠져나가는 그림이 보인다.",
                 Goal = c => $"통산 타율 .319 넘기 ({AverageSeasons}시즌 이상)",
+                SurpassWhen = (c, d) => c.Day >= c.League.GamesPerSeason,
                 Progress = c => Seasons(c) < AverageSeasons ? Math.Min(0.99, Average(c) / (MinAverage + 0.001)) : Average(c) / (MinAverage + 0.001),
                 Halfway = c => Seasons(c) >= 5 && Average(c) >= 0.300,
                 ReturnText = "민경호가 낡은 노트를 펼쳤다. 거기에 내 타율이 시즌별로 적혀 있었다.\n\"꾸준하네. 3할을 5년 넘게 치는 놈은 흔치 않아.\"\n그러더니 빨간 펜으로 한 줄을 그었다. \"근데 2스트라이크 이후가 약해. 여기서 갈린다.\"",
@@ -161,6 +167,7 @@ namespace BaseballSim.Career
                 Line = "글러브 말고 발로 잡는 거야. 펑고 몇 개만 쳐 줄게.",
                 Lesson = "타구 방향을 미리 읽는 스텝을 배웠다. 공이 글러브로 빨려 들어온다.",
                 Goal = c => $"MVP {OhMvps}회 (오세찬이 2위 했던 만큼)",
+                AtSeasonStart = true,
                 Progress = c => (double)Mvps(c) / OhMvps,
                 Halfway = c => Mvps(c) >= 1,
                 ReturnText = "첫 MVP 트로피를 받은 다음 날, 오세찬이 찾아왔다.\n\"축하한다. ...나는 끝내 못 받아 봤다. 세 번 다 그 덩치한테 밀렸지.\"\n트로피를 오래 바라보다가 말했다. \"한 번은 운일 수 있다. 세 번은 실력이다.\"",

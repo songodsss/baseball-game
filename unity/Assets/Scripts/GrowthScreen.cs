@@ -99,7 +99,21 @@ namespace BaseballGame
             {
                 Log($"{_career.Me.Name} 선수, {_career.Year}년 {_career.Day + 1}일차부터 이어서 합니다.");
                 CheckIn();
+                TrySeasonStart();
             }
+        }
+
+        /// <summary>
+        /// Before the season's first game, the scenes that belong there (prologue, spring camp, a winter
+        /// ceremony, opening day) come one after another. True if one is showing.
+        /// </summary>
+        bool TrySeasonStart()
+        {
+            if (_overlay != null || _career == null || _retired || _career.Day != 0 || _career.IsSeasonOver) return false;
+            var ev = _career.SeasonStartEvent();
+            if (ev == null) return false;
+            ShowEvent(ev);
+            return true;
         }
 
         // Phones kill backgrounded apps without warning, so save whenever the app is left too.
@@ -349,6 +363,8 @@ namespace BaseballGame
                 ShowGoalOffer(action);
                 return;
             }
+            // The prologue and other season-start scenes come before the first pitch.
+            if (TrySeasonStart()) return;
             TakeSnapshot();
             // Before the season's first day: kept so a rewind ticket can replay the season.
             if (_career.Day == 0) SaveStore.SaveSeasonStart(_career, _club);
@@ -849,7 +865,7 @@ namespace BaseballGame
             var card = OpenOverlay(ev.Title);
             string text = outcome.Text + (changes.Length > 0 ? $"\n\n<color=#5FA8FF>{changes}</color>" : "");
             UiKit.Height(UiKit.Label(card, text, 36, TextAnchor.MiddleCenter), 0, 1);
-            UiKit.Height(UiKit.Button(card, "확인", CloseOverlay), 120);
+            UiKit.Height(UiKit.Button(card, "확인", () => { CloseOverlay(); TrySeasonStart(); }), 120);
             Save();
             Refresh();
         }
@@ -2052,6 +2068,7 @@ namespace BaseballGame
                         Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 한계는 없지만 높을수록 오르기 어려워요. 주특기(★)는 1.5배 빨리 자라요.");
                         Refresh();
                         CheckIn();
+                        TrySeasonStart();
                     });
 
                 // Registering can be left at any step; nothing is saved until 육성 시작. The X sits in the card's

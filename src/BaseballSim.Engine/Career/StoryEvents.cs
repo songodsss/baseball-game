@@ -239,7 +239,7 @@ namespace BaseballSim.Career
                 Id = "coach_extra",
                 Title = "코치의 특별 지도",
                 Text = "{coach} 타격 코치가 {name}에게 다가왔다.\n\"오늘 끝나고 30분만 더 하자. 스윙이 조금 늦어.\"",
-                Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher ? 0 : 1,
+                Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher || !Played(d) ? 0 : 1,
                 Choices =
                 {
                     new EventChoice { Label = "남아서 배운다", Result = "땀범벅이 됐지만 감이 잡혔다.", Apply = e => { e.Exp(Stat.Contact, 60); e.Fatigue(15); e.Close("coach", 2); } },
@@ -378,8 +378,8 @@ namespace BaseballSim.Career
             {
                 Id = "defense_drill",
                 Title = "펑고 100개",
-                Text = "수비 코치가 펑고 배트를 들었다.\n\"오늘 실책 하나 했지? 100개 받고 가.\"",
-                Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher ? 0 : 0.8,
+                Text = "수비 코치가 펑고 배트를 들었다.\n\"오늘 첫 발이 늦더라. 100개 받고 가.\"",
+                Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher || !Played(d) ? 0 : 0.8,
                 Choices =
                 {
                     new EventChoice { Label = "다 받는다", Result = "유니폼이 흙투성이가 됐다.", Apply = e => { e.Exp(Stat.Defense, 60); e.Fatigue(15); } },

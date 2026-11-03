@@ -428,6 +428,18 @@ namespace BaseballSim.Career
             return result;
         }
 
+        /// <summary>
+        /// Before the season's first game: the next scene that belongs there (the prologue, a winter
+        /// ceremony, spring camp, opening day), made the pending event. Call again after answering it,
+        /// until it returns null; then play the first day.
+        /// </summary>
+        public StoryEvent SeasonStartEvent()
+        {
+            if (Day != 0 || IsSeasonOver || PendingEvent != null) return PendingEvent;
+            PendingEvent = MainStory.AtSeasonStart(this) ?? StoryEvents.AtSeasonStart(this);
+            return PendingEvent;
+        }
+
         /// <summary>Applies the chosen answer to the pending story event.</summary>
         public EventOutcome ResolveEvent(int choice)
         {

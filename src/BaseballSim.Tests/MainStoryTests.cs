@@ -22,6 +22,16 @@ public class MainStoryTests
         int pick = 0;
         for (int season = 0; season < maxSeasons && !career.MustRetire; season++)
         {
+            // Scenes that belong before the first game: the prologue, winter ceremonies, opening day.
+            for (var ev = career.SeasonStartEvent(); ev != null; ev = career.SeasonStartEvent())
+            {
+                if (MainStory.IsMain(ev))
+                {
+                    Assert.DoesNotContain(ev.Id, scenes);
+                    scenes.Add(ev.Id);
+                }
+                career.ResolveEvent(pick++ % ev.Choices.Count);
+            }
             while (!career.IsSeasonOver)
             {
                 var action = career.Me.Fatigue > 60 ? DailyAction.Rest : career.TrainingChoices[career.Day % career.TrainingChoices.Count];
@@ -51,12 +61,14 @@ public class MainStoryTests
         {
             var career = NewCareer(seed, position, role, route: route);
             var scenes = PlayToRetirement(career);
-            var expected = MainStory.SceneIds.Select(id => MainStory.IdPrefix + id).Take(scenes.Count).ToList();
-            Assert.Equal(expected, scenes);
-            Assert.Equal(scenes.Count, career.Story.Seen.Count);
+            // In story order; a scene whose moment went by unplayed is skipped, never told late.
+            var order = MainStory.SceneIds.Select(id => MainStory.IdPrefix + id).ToList();
+            var positions = scenes.Select(id => order.IndexOf(id)).ToList();
+            Assert.Equal(positions.OrderBy(p => p), positions);
             Assert.Equal(scenes.Count, career.Story.Log.Count);
-            // A career that lasts to 37 has seen the whole story; any career gets past the first wall.
-            if (career.Me.Age >= 38) Assert.Equal(MainStory.SceneCount, scenes.Count);
+            Assert.Equal(new[] { "main_draft", "main_roommate", "main_camp" }, scenes.Take(3));
+            // A career that lasts to 37 sees nearly the whole story; any career gets past the first wall.
+            if (career.Me.Age >= 38) Assert.True(scenes.Count >= MainStory.SceneCount - 6, $"seed {seed}: {scenes.Count} scenes");
             Assert.True(scenes.Count >= 8, $"seed {seed}: only {scenes.Count} scenes");
         }
     }
@@ -65,12 +77,56 @@ public class MainStoryTests
     public void PrologueOpensTheFirstSeason()
     {
         var career = NewCareer(11);
-        var day = career.PlayDay(DailyAction.TrainContact);
-        Assert.Equal("main_draft", day.Event?.Id);
-        Assert.StartsWith("프롤로그", day.Event.Title);
+        var ev = career.SeasonStartEvent();
+        Assert.Equal("main_draft", ev?.Id);
+        Assert.StartsWith("프롤로그", ev.Title);
         career.ResolveEvent(0);
         Assert.Equal(new[] { "draft" }, career.Story.Seen);
         Assert.True(career.Story.BondOf(Bond.Mentor) > MainStoryState.StartBond);
+        Assert.Equal("main_roommate", career.SeasonStartEvent()?.Id);
+        career.ResolveEvent(0);
+        Assert.Equal("main_camp", career.SeasonStartEvent()?.Id);
+        career.ResolveEvent(0);
+        Assert.Equal("opening", career.SeasonStartEvent()?.Id);
+        career.ResolveEvent(0);
+        Assert.Null(career.SeasonStartEvent());
+    }
+
+    [Fact]
+    public void APrologueNotPlayedBeforeTheFirstGameIsSkippedNotToldLate()
+    {
+        var career = NewCareer(13);
+        var day = career.PlayDay(DailyAction.TrainContact);
+        Assert.False(day.Event != null && day.Event.Id.StartsWith("main_") && day.Event.Id != "main_first");
+        for (int k = 0; k < 10 && !career.IsSeasonOver; k++)
+        {
+            if (career.PendingEvent != null) career.ResolveEvent(0);
+            day = career.PlayDay(DailyAction.TrainContact);
+            Assert.False(day.Event != null && (day.Event.Id == "main_draft" || day.Event.Id == "main_camp"));
+        }
+        Assert.Contains("camp", career.Story.Seen);
+        Assert.DoesNotContain(career.Story.Log, l => l.Contains("스프링캠프"));
+    }
+
+    [Fact]
+    public void TheFirstHitSceneComesRightAfterThatGame()
+    {
+        var career = NewCareer(14, games: 144);
+        for (var ev = career.SeasonStartEvent(); ev != null; ev = career.SeasonStartEvent()) career.ResolveEvent(0);
+        while (!career.IsSeasonOver)
+        {
+            int before = career.SeasonLine.Hits;
+            var day = career.PlayDay(DailyAction.TrainContact);
+            bool firstHit = before == 0 && career.SeasonLine.Hits > 0;
+            if (firstHit)
+            {
+                Assert.Equal("main_first", day.Event?.Id);
+                return;
+            }
+            Assert.NotEqual("main_first", day.Event?.Id);
+            if (career.PendingEvent != null) career.ResolveEvent(0);
+        }
+        Assert.Fail("no hit all season");
     }
 
     [Fact]

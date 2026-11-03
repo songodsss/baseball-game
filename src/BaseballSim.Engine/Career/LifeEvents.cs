@@ -15,6 +15,9 @@ namespace BaseballSim.Career
     {
         static bool Played(DayResult d) => d.MyLine != null && d.MyLine.PlateAppearances > 0 || d.MyPitching != null;
 
+        /// <summary>Played at home today.</summary>
+        static bool HomeGame(Career c, DayResult d) => d.MyGame != null && d.MyGame.Home == c.MyTeam;
+
         static bool Active(Career c) => !c.Me.IsInjured && !c.InMilitary;
 
         /// <summary>A few weeks of games: how long before a follow-up comes back.</summary>
@@ -254,7 +257,7 @@ namespace BaseballSim.Career
                 Id = "bunt_sign",
                 Title = "번트 사인",
                 Text = "8회 무사 1루. 3루 코치가 번트 사인을 냈다.\n그런데 오늘 {name}의 방망이는 뜨겁다.",
-                Weight = (c, d) => Played(d) && !c.Me.IsPitcher && !c.InFarm ? 0.6 : 0,
+                Weight = (c, d) => PlayedWell(d) && !c.Me.IsPitcher && !c.InFarm ? 0.6 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "사인대로 번트", Result = "주자를 2루에 보냈다. 감독이 박수를 쳤다.", Apply = e => { e.Trust(2); e.Morale(-1); } },
@@ -637,11 +640,15 @@ namespace BaseballSim.Career
         // ---------- Scheduled: these come at their moment, without the daily roll ----------
 
         /// <summary>An event whose day has come (opening day, the derby after the all-star game, the last home game); null otherwise.</summary>
+        /// <summary>Opening day, told before the first pitch (after any prologue scene).</summary>
+        public static StoryEvent AtSeasonStart(Career c) =>
+            c.InMilitary || c.InFarm || c.SeenThisSeason("opening") ? null : Opening(c);
+
         public static StoryEvent Scheduled(Career c, DayResult day)
         {
             if (c.InMilitary) return null;
             int games = c.League.GamesPerSeason;
-            if (c.Day <= 3 && !c.InFarm && !c.SeenThisSeason("opening")) return Opening(c);
+            if (c.Day <= 1 && !c.InFarm && !c.SeenThisSeason("opening")) return Opening(c); // in case the season start was skipped
             if (c.Day > c.AllStarDay && c.Day <= c.AllStarDay + 3 && MadeAllStar(c) && !c.Me.IsInjured)
             {
                 var derby = c.Me.IsPitcher ? RadarDerby : HomeRunDerby;

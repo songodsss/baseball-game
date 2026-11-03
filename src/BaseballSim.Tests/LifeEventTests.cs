@@ -263,7 +263,8 @@ public class LifeEventTests
         Assert.Equal(0, ceremony.Weight(career, new DayResult()));
         career.Season++;
         career.Day = 4;
-        Assert.True(ceremony.Weight(career, new DayResult()) > 0);
+        Assert.Equal(0, ceremony.Weight(career, AwayDay(career))); // a home opening series
+        Assert.True(ceremony.Weight(career, HomeDay(career)) > 0);
         Assert.Contains(senior, ceremony.TextFor(career));
         Answer(career, ceremony, 0);
         Assert.Equal(0, ceremony.Weight(career, new DayResult()));
@@ -284,7 +285,7 @@ public class LifeEventTests
         career.Day = 2;
         Assert.Equal(0, StoryEvents.Find("senior_last_game").Weight(career, new DayResult()));
         var ceremony = StoryEvents.Find("senior_ceremony");
-        Assert.True(ceremony.Weight(career, new DayResult()) > 0);
+        Assert.True(ceremony.Weight(career, HomeDay(career)) > 0);
         Answer(career, ceremony, 1);
         Assert.True(career.HasMark("senior_retired"));
         Assert.False(career.HasMark("senior_leaving"));
@@ -421,6 +422,9 @@ public class LifeEventTests
         }
     }
 
+    static DayResult HomeDay(CareerState c) => new DayResult { MyGame = new GameResult { Home = c.MyTeam, Away = c.League.Teams.First(t => t != c.MyTeam) } };
+    static DayResult AwayDay(CareerState c) => new DayResult { MyGame = new GameResult { Away = c.MyTeam, Home = c.League.Teams.First(t => t != c.MyTeam) } };
+
     static DayResult BigDay => new DayResult { MyLine = new BattingLine { PlateAppearances = 4, AtBats = 4, Hits = 3 } };
 
     static void Step(CareerState career, string id, int choice = 0, DayResult? day = null)
@@ -454,7 +458,7 @@ public class LifeEventTests
         foreach (int choice in new[] { 0, 1 })
         {
             var career = NewCareer(31 + choice);
-            Step(career, "grandpa_fan");
+            Step(career, "grandpa_fan", 0, HomeDay(career));
             career.Season++;
             Step(career, "grandpa_banner", 0, BigDay);
             career.Season++;
@@ -467,7 +471,8 @@ public class LifeEventTests
                 Step(career, "grandpa_hospital");
                 career.Season++;
                 career.Day = 4;
-                Step(career, "grandpa_return");
+                career.Day = 2;
+                Step(career, "grandpa_return", 0, HomeDay(career));
             }
             else
             {
@@ -497,7 +502,7 @@ public class LifeEventTests
         career.Me.Age = 23;
         Step(career, "blind_date");
         career.Day += 10;
-        Step(career, "date_anniversary");
+        Step(career, "date_anniversary", 0, AwayDay(career));
         career.Day += 20;
         Step(career, "dating_news", 0);
         var proposal = StoryEvents.Find("proposal");

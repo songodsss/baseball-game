@@ -28,6 +28,9 @@ namespace BaseballSim.Sandbox
                 while (true)
                 {
                     int injuredDays = 0, events = 0;
+                    // Season-start scenes (prologue, camp, opening day), answered at random.
+                    for (var ev = career.SeasonStartEvent(); ev != null; ev = career.SeasonStartEvent())
+                        career.ResolveEvent((int)(random.NextDouble() * ev.Choices.Count));
                     while (!career.IsSeasonOver)
                     {
                         var day = career.PlayDay(Choose(me));
