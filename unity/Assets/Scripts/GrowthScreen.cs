@@ -1920,10 +1920,18 @@ namespace BaseballGame
                         CheckIn();
                     });
 
-                // Registering can be left at any step; nothing is saved until 육성 시작.
-                var leave = UiKit.Button(card, "홈으로 나가기", BackToTitle, UiKit.Background);
-                leave.GetComponentInChildren<Text>().fontSize = 28;
-                UiKit.Height(leave, 90);
+                // Registering can be left at any step; nothing is saved until 육성 시작. The X sits in the card's
+                // corner outside the layout, so a step with a lot on it can't push it off screen.
+                var close = UiKit.Button(card, "X", BackToTitle, UiKit.Warning);
+                close.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+                var rect = (RectTransform)close.transform;
+                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(1, 1);
+                rect.anchoredPosition = new Vector2(-16, -16);
+                rect.sizeDelta = new Vector2(96, 96);
+                var x = close.GetComponentInChildren<Text>();
+                x.fontSize = 44;
+                x.fontStyle = FontStyle.Bold;
+                close.transform.SetAsLastSibling();
             }
 
             void NameAndTeam(RectTransform card)
