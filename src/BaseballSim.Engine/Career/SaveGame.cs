@@ -30,7 +30,7 @@ namespace BaseballSim.Career
         /// 31: signature skills (career).
         /// 32: the arena.
         /// 33: legend stages and visits, the story's version seed; legends whose record fell on the club.
-        public const int Version = 37;
+        public const int Version = 38;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -627,6 +627,12 @@ namespace BaseballSim.Career
             w.Write(career.PostSeed);
             w.Write(career.PostGames);
             WriteList(w, career.PostDecisions, a => w.Write((int)a));
+
+            // Added in version 38: a tournament under way.
+            w.Write(career.TourSeed);
+            w.Write(career.TourGames);
+            w.Write(career.TourAuto);
+            WriteList(w, career.TourDecisions, a => w.Write((int)a));
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -848,6 +854,13 @@ namespace BaseballSim.Career
                 career.PostSeed = r.ReadInt32();
                 career.PostGames = r.ReadInt32();
                 career.PostDecisions = ReadList(r, () => (Approach)r.ReadInt32());
+            }
+            if (version >= 38)
+            {
+                career.TourSeed = r.ReadInt32();
+                career.TourGames = r.ReadInt32();
+                career.TourAuto = r.ReadBoolean();
+                career.TourDecisions = ReadList(r, () => (Approach)r.ReadInt32());
             }
             return career;
         }

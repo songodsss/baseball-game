@@ -69,6 +69,8 @@ namespace BaseballSim.Career
         public List<string> AtBatLog = new List<string>();
         /// <summary>The Asian tournament, every four years a little after midseason; null on other days.</summary>
         public TournamentResult Tournament;
+        /// <summary>Picked for Korea: the tournament starts after today and is played game by game (Career.InTournament).</summary>
+        public bool TournamentStarted;
         /// <summary>The all-star game, played on the midseason day; null on other days.</summary>
         public AllStarResult AllStar;
     }
@@ -382,6 +384,8 @@ namespace BaseballSim.Career
             PendingTrade = null;
 
             var result = new DayResult { Season = Season, Day = Day, Action = action };
+            // A tournament left unplayed (the screen plays it game by game) is played out first.
+            if (InTournament) { AutoTournament(); result.Tournament = FinishTournament(); }
             if (Me.IsInjured) result.Action = action = DailyAction.Rest;
             PendingEvent = null;
 
@@ -405,6 +409,7 @@ namespace BaseballSim.Career
         /// <summary>Answers the paused big at bat. Returns the day's result: paused again at the next big at bat, or finished.</summary>
         public DayResult ChooseApproach(Approach approach)
         {
+            if (InTournament && TournamentNow.Current?.AtBat != null) return AnswerTournament(approach);
             if (InPostseason && PostseasonNow.Current?.AtBat != null) return AnswerPostseason(approach);
             if (!IsMidGame) throw new InvalidOperationException("No at bat waiting.");
             _game.Decisions.Add(approach);
@@ -435,7 +440,7 @@ namespace BaseballSim.Career
 
             // A main story scene, when its moment has come, takes the place of the day's random event.
             // The random one is still rolled, so the story doesn't shift the rest of the day's luck.
-            if (PendingTrade == null && result.AllStar == null && result.Tournament == null)
+            if (PendingTrade == null && result.AllStar == null && result.Tournament == null && !InTournament)
             {
                 var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
                 // A romance scene whose turn has come takes the random event's place, so the count of events stays the same.
@@ -708,9 +713,12 @@ namespace BaseballSim.Career
 
         MyGameState _game;
         public bool IsMidGame => _game != null;
-        public AtBatSituation PendingAtBat => _game?.Result.AtBat ?? (InPostseason ? PostseasonNow.Current?.AtBat : null);
+        public AtBatSituation PendingAtBat => _game?.Result.AtBat ?? (InTournament ? TournamentNow.Current?.AtBat : null) ?? (InPostseason ? PostseasonNow.Current?.AtBat : null);
+        /// <summary>The side my player plays for in the paused game: Korea in the tournament, else my club.</summary>
+        public Team MidGameMyTeam => InTournament && TournamentNow.Current?.AtBat != null ? TournamentNow.Result.Korea : MyTeam;
         /// <summary>The club my team is playing in the paused game, or null.</summary>
         public Team MidGameOpponent => _game != null ? (_game.Home == MyTeam ? _game.Away : _game.Home)
+            : InTournament && TournamentNow.Current?.AtBat != null ? TournamentNow.CurrentOpponent
             : InPostseason && PostseasonNow.Current?.AtBat != null ? PostseasonNow.CurrentOpponent : null;
 
         /// <summary>Returns false if the game paused at a big at bat.</summary>

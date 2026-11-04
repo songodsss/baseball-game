@@ -27,7 +27,8 @@ namespace BaseballSim.Career
     /// <summary>
     /// The Asian tournament, every four years from 2026 in the middle of the season. The league's best
     /// hitters (my player too, if he's among them) play two group games, a semifinal and a final.
-    /// Like the all-star game, nothing counts in league stats.
+    /// The league takes a break while it's on. When my player is picked, Korea's games are played one
+    /// at a time with my big at bats; otherwise it is played at once. Nothing counts in league stats.
     /// </summary>
     public static class NationalTeam
     {
@@ -45,44 +46,122 @@ namespace BaseballSim.Career
             ("일본", 6, new[] { "사토", "스즈키", "다카하시", "다나카", "야마모토", "나카무라", "고바야시" }, new[] { "쇼타", "하루토", "료", "유토", "다이키", "겐타" }),
         };
 
-        public static TournamentResult Play(Career career, IRandom random)
+        /// <summary>Where a tournament replay stopped: before Korea's next game, at my big at bat, or at the end.</summary>
+        public class Run
         {
-            var result = new TournamentResult { Year = career.Year };
-            var sim = new GameSimulator(random);
+            public TournamentResult Result;
+            /// <summary>Korea's latest game: finished, or paused at <see cref="DayResult.AtBat"/>.</summary>
+            public DayResult Current;
+            public string CurrentStage;
+            public Team CurrentOpponent;
+            /// <summary>The next game's stage and opponent; null when the tournament is over.</summary>
+            public string NextStage;
+            public Team NextOpponent;
+            public bool Done;
+            public int GamesPlayed => Result.Games.Count;
+        }
+
+        /// <summary>
+        /// Plays the tournament from <paramref name="seed"/>: Korea's games up to <paramref name="games"/> of
+        /// them, my big at bats answered from <paramref name="decisions"/> in order; it stops at the first
+        /// unanswered one or before the next game. With <paramref name="auto"/> it plays to the end.
+        /// Same seed and answers, same tournament, so it can be played a game at a time and survive a save.
+        /// Rewards are not handed out here (see <see cref="Reward"/>).
+        /// </summary>
+        public static Run Play(Career career, int seed, IList<Approach> decisions, int games, bool auto)
+        {
+            var random = new SeededRandom(seed);
+            var run = new Run { Result = new TournamentResult { Year = career.Year } };
+            var result = run.Result;
             result.Korea = KoreaSquad(career, random, out var mine);
             result.Selected = mine != null;
             var rivals = Rivals.Select(r => RivalTeam(r, random)).ToList();
+            int asked = 0;
 
-            bool Play(string stage, Team opponent)
+            // True/false: won or lost; null: the replay stopped here.
+            bool? Play(string stage, Team opponent)
             {
+                if (!auto && result.Games.Count >= games)
+                {
+                    run.NextStage = stage;
+                    run.NextOpponent = opponent;
+                    return null;
+                }
+                var day = new DayResult { Season = career.Season, Day = career.Day, Action = DailyAction.Rest };
+                run.Current = day;
+                run.CurrentStage = stage;
+                run.CurrentOpponent = opponent;
                 GameResult game = null;
                 for (int i = 0; i < 3 && (game == null || game.IsTie); i++) // knockout ties replay
-                    game = sim.Play(opponent, result.Korea, opponent.Rotation[(int)(random.NextDouble() * opponent.Rotation.Count)], result.Korea.Rotation[result.Games.Count % result.Korea.Rotation.Count]);
+                {
+                    var theirs = opponent.Rotation[(int)(random.NextDouble() * opponent.Rotation.Count)];
+                    var ours = result.Korea.Rotation[result.Games.Count % result.Korea.Rotation.Count];
+                    var sim = new GameSimulator(new SeededRandom((int)(random.NextDouble() * int.MaxValue)));
+                    if (mine != null)
+                    {
+                        sim.DecideFor = mine;
+                        sim.Decide = s => asked < decisions.Count ? decisions[asked++] : auto ? Approach.Normal : (Approach?)null;
+                    }
+                    game = sim.Play(opponent, result.Korea, theirs, ours);
+                    var events = game?.Events ?? sim.Partial.Events;
+                    if (mine != null)
+                        day.AtBatLog = events.Where(e => (e.Batter == mine || e.Pitcher == mine) && e.Note != null)
+                            .Select(e => $"{Commentary.HalfInning(e.Inning, e.IsTopHalf)} {Commentary.Describe(e)} ({e.Note})").ToList();
+                    if (game == null)
+                    {
+                        day.AtBat = sim.Suspended;
+                        return null;
+                    }
+                }
                 bool won = game.Winner == result.Korea || game.IsTie && stage.StartsWith("조별");
                 result.Games.Add(new TournamentGame { Stage = stage, Game = game, Won = won });
-                if (mine != null && game.Batting.TryGetValue(mine, out var line)) Career.Accumulate(result.MyLine, line);
+                day.MyGame = game;
+                if (mine != null && game.Batting.TryGetValue(mine, out var line))
+                {
+                    Career.Accumulate(result.MyLine, line);
+                    day.MyLine = line;
+                    day.MyGamePlayer = mine;
+                }
                 if (mine != null && game.Pitching.TryGetValue(mine, out var arm))
                 {
                     var g = new PitcherLine();
                     g.Add(arm, career.Me.Role == PitcherRole.Starter, false, false);
                     result.MyPitching.Add(g);
+                    day.MyPitching = g;
+                    day.MyGamePlayer = mine;
                 }
                 return won;
             }
 
-            int groupWins = (Play("조별리그", rivals[0]) ? 1 : 0) + (Play("조별리그", rivals[1]) ? 1 : 0);
-            if (groupWins == 0) result.Medal = null;
-            else if (!Play("준결승", rivals[2])) result.Medal = "동메달";
-            else result.Medal = Play("결승", rivals[3]) ? Gold : "은메달";
-
-            if (mine != null)
+            var g1 = Play("조별리그 1차전", rivals[0]);
+            if (g1 == null) return run;
+            var g2 = Play("조별리그 2차전", rivals[1]);
+            if (g2 == null) return run;
+            int groupWins = (g1.Value ? 1 : 0) + (g2.Value ? 1 : 0);
+            if (groupWins > 0)
             {
-                result.Bonus = SelectionBonus + (result.Medal == Gold ? GoldBonus : result.Medal == "은메달" ? SilverBonus : result.Medal == "동메달" ? BronzeBonus : 0);
-                career.Me.Money += result.Bonus;
-                if (result.Medal == Gold) career.Me.GoldMedals++;
-                career.Me.Morale = Math.Max(-CareerPlayer.MaxMorale, Math.Min(CareerPlayer.MaxMorale, career.Me.Morale + (result.Medal == Gold ? 5 : result.Medal == null ? -2 : 1)));
+                var semi = Play("준결승", rivals[2]);
+                if (semi == null) return run;
+                if (!semi.Value) result.Medal = "동메달";
+                else
+                {
+                    var final = Play("결승", rivals[3]);
+                    if (final == null) return run;
+                    result.Medal = final.Value ? Gold : "은메달";
+                }
             }
-            return result;
+            run.Done = true;
+            return run;
+        }
+
+        /// <summary>Selection money, medal money, the medal count and the mood: handed out once, when the tournament ends.</summary>
+        public static void Reward(Career career, TournamentResult result)
+        {
+            if (!result.Selected) return;
+            result.Bonus = SelectionBonus + (result.Medal == Gold ? GoldBonus : result.Medal == "은메달" ? SilverBonus : result.Medal == "동메달" ? BronzeBonus : 0);
+            career.Me.Money += result.Bonus;
+            if (result.Medal == Gold) career.Me.GoldMedals++;
+            career.Me.Morale = Math.Max(-CareerPlayer.MaxMorale, Math.Min(CareerPlayer.MaxMorale, career.Me.Morale + (result.Medal == Gold ? 5 : result.Medal == null ? -2 : 1)));
         }
 
         /// <summary>The nine best hitters in the league by OPS, the best arms, and my player if he makes the cut.</summary>

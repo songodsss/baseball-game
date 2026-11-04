@@ -306,12 +306,19 @@ namespace BaseballSim.Career
 
         public int TournamentDay => League.GamesPerSeason * 11 / 20;
 
+        /// <summary>
+        /// Tournament day: picked for Korea, the tournament waits to be played game by game
+        /// (<see cref="InTournament"/>); not picked, it's played at once and reported in the day's result.
+        /// </summary>
         void PlayTournament(DayResult result)
         {
-            result.Tournament = NationalTeam.Play(this, _random);
-            if (result.Tournament.Selected && result.Tournament.Medal == NationalTeam.Gold) { ExemptByGold(); AddFans(300); }
-            if (result.Tournament.Selected)
-                SeasonNotes.Add($"{MonthText} {NationalTeam.Name} " + (result.Tournament.Medal ?? "대표 출전"));
+            TourSeed = 1 + (int)(_random.NextDouble() * (int.MaxValue - 1));
+            TourGames = 0;
+            TourAuto = false;
+            TourDecisions.Clear();
+            _tourRun = null;
+            if (TournamentNow.Result.Selected) { result.TournamentStarted = true; return; }
+            result.Tournament = FinishTournament();
         }
 
         void ResetSeasonMoves()

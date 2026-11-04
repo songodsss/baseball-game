@@ -124,6 +124,7 @@ namespace BaseballGame
             GameAudio.PlayAmbience(null);
 
             if (_career == null) ShowNewPlayer();
+            else if (_career.InTournament) ShowTournamentHub(); // closed the app during the tournament
             else if (_career.IsSeasonOver) BeginAutumn(); // closed the app in the postseason
             else if (_career.Day == 0 && _career.MustRetire) Retire(); // closed the app on the final season-end card
             else if (_career.Day == 0 && _career.PendingOffers.Count > 0) ShowOffers(); // closed the app mid-negotiation
@@ -455,7 +456,7 @@ namespace BaseballGame
         bool FastStops(DayResult result, DailyAction action, bool last) =>
             last || _career.IsSeasonOver || result.Move != null || result.Trade != null ||
             result.AllStar != null || result.Tournament != null || result.Milestones.Count > 0 || result.TraitOffer != null ||
-            result.Event != null || result.GotInjured || _career.GoalOffer != null ||
+            result.Event != null || result.GotInjured || _career.GoalOffer != null || _career.InTournament ||
             !_career.TrainingChoices.Contains(action) ||
             (action == DailyAction.Rest && _career.Me.Fatigue <= 0 && !_career.Me.IsInjured); // rested enough
 
@@ -477,7 +478,11 @@ namespace BaseballGame
             _club.Daily.Record(result);
             DescribeDay(result);
             ShowGameBanner(result);
-            if (_career.IsSeasonOver)
+            if (_career.InTournament)
+            {
+                ShowTournamentHub();
+            }
+            else if (_career.IsSeasonOver)
             {
                 BeginAutumn();
                 Tip("season_end", "시즌이 끝나면 성적(OPS)에 따라 연봉이 재계약돼요. 8시즌을 뛰면 FA가 되어 다른 구단으로 옮길 수 있어요. 30세부터는 은퇴해서 내 팀에 영입할 수 있어요.");
@@ -695,7 +700,7 @@ namespace BaseballGame
             inning.fontStyle = FontStyle.Bold;
             UiKit.Height(inning, 64);
             string opponent = _career.MidGameOpponent?.Name ?? "상대";
-            ScoreLine(right, _career.MyTeam.Name, s.MyRuns, s.MyRuns >= s.TheirRuns);
+            ScoreLine(right, _career.MidGameMyTeam.Name, s.MyRuns, s.MyRuns >= s.TheirRuns);
             ScoreLine(right, opponent, s.TheirRuns, s.TheirRuns >= s.MyRuns);
             string matchup = s.Stealing ? $"1루 주자 <b>{_career.Me.Name}</b>  ·  타자 {s.Batter.Name}"
                 : s.Pitching ? $"투수 <b>{_career.Me.Name}</b>  vs  타자 {s.Batter.Name}" : $"타자 <b>{_career.Me.Name}</b>  vs  투수 {s.Pitcher.Name}";
@@ -727,8 +732,8 @@ namespace BaseballGame
             header[columns + 2] = "H";
             UiKit.TableRow(table, widths, header, 24, UiKit.Muted);
 
-            string away = s.MineIsAway ? _career.MyTeam.Name : opponent;
-            string home = s.MineIsAway ? opponent : _career.MyTeam.Name;
+            string away = s.MineIsAway ? _career.MidGameMyTeam.Name : opponent;
+            string home = s.MineIsAway ? opponent : _career.MidGameMyTeam.Name;
             ScoreRow(table, widths, away, line.Away, line.AwayRuns, line.AwayHits, first, columns, s.MineIsAway, s.IsTopHalf ? s.Inning : 0);
             ScoreRow(table, widths, home, line.Home, line.HomeRuns, line.HomeHits, first, columns, !s.MineIsAway, s.IsTopHalf ? 0 : s.Inning);
         }
@@ -823,6 +828,7 @@ namespace BaseballGame
             {
                 CloseOverlay();
                 if (result.AtBat != null) ShowAtBat(result);
+                else if (_career.InTournament) AfterTournamentGame(result);
                 else if (_career.InPostseason) AfterPostseasonGame(result);
                 else if (_fastLeft > 0) ResumeFastForward(result);
                 else AfterDay(result);
@@ -959,6 +965,7 @@ namespace BaseballGame
             scene.Play(lines, () => scene.ShowEnd(changes.Length > 0 ? $"<color=#5FA8FF>{changes}</color>" : null, "확인", () =>
             {
                 CloseOverlay();
+                if (_career.InTournament) { ShowTournamentHub(); return; }
                 TrySeasonStart();
             }));
         }
@@ -993,6 +1000,77 @@ namespace BaseballGame
                 Log($"{offer.Team.Name}의 트레이드 제안을 거절했어요.");
                 CloseOverlay();
             }, UiKit.Muted), 120);
+        }
+
+        // ---------- The tournament, game by game ----------
+
+        /// <summary>
+        /// Picked for Korea: the league is on a break. Between games come the national-team scenes; each
+        /// game is played from here with my big at bats, then the medal, then the usual summary.
+        /// </summary>
+        void ShowTournamentHub()
+        {
+            var run = _career.TournamentNow;
+            if (run == null) return;
+            if (run.Current?.AtBat != null) { ShowAtBat(run.Current); return; } // reopened mid-game
+            var ev = _career.TournamentScene();
+            if (ev != null) { ShowEvent(ev); return; }
+            if (run.Done)
+            {
+                var t = _career.FinishTournament();
+                Log($"<color=#FFD24D>{NationalTeam.Name}</color> 대한민국 {t.Medal ?? "조별리그 탈락"}");
+                Save();
+                Refresh();
+                ShowTournament(t);
+                return;
+            }
+
+            var card = OpenOverlay($"{run.Result.Year} {NationalTeam.Name}");
+            UiKit.Height(UiKit.Label(card, "<color=#BAC4D8>국가대표 소집 중 · 리그는 대회 기간 동안 쉬어요</color>", 28, TextAnchor.MiddleCenter), 50);
+            var body = UiKit.ScrollList(card, 10);
+            UiKit.Height(body.parent, 0, 1);
+            foreach (var game in run.Result.Games)
+            {
+                var g = game.Game;
+                var row = UiKit.Panel(body, "Game", game.Won ? new Color(0.37f, 0.66f, 1f, 0.18f) : new Color(0.95f, 0.55f, 0.25f, 0.18f));
+                UiKit.Height(row, 110);
+                var label = UiKit.Label(row, $"<size=26><color=#BAC4D8>{game.Stage}</color></size>\n{g.Away.Name} {g.AwayScore} : {g.HomeScore} <b>대한민국</b>  {(game.Won ? "<color=#5FA8FF>승</color>" : "<color=#F28C40>패</color>")}", 32, TextAnchor.MiddleCenter);
+                UiKit.Stretch(label.rectTransform);
+            }
+            var t2 = run.Result;
+            if (t2.MyLine.PlateAppearances > 0 || t2.MyPitching.Outs > 0)
+            {
+                string mine = _career.Me.IsPitcher ? $"{t2.MyPitching.Innings}이닝 {t2.MyPitching.Runs}실점 {t2.MyPitching.Strikeouts}탈삼진"
+                    : $"{t2.MyLine.AtBats}타수 {t2.MyLine.Hits}안타 {t2.MyLine.HomeRuns}홈런 {t2.MyLine.RunsBattedIn}타점";
+                UiKit.Height(UiKit.Label(body, "대회 성적  " + mine, 30, TextAnchor.MiddleCenter, UiKit.Muted), 60);
+            }
+            string stakes = run.NextStage == "결승" ? "<color=#FFD24D>이기면 금메달!</color>"
+                : run.NextStage == "준결승" ? "<color=#F28C40>지면 동메달, 이기면 결승!</color>"
+                : "조별리그에서 1승 이상이면 준결승 진출";
+            var next = UiKit.Label(body, $"<b>{run.NextStage}</b>  vs {run.NextOpponent.Name}\n<size=30>{stakes}</size>", 38, TextAnchor.MiddleCenter);
+            UiKit.Height(next, 130);
+            var go = UiKit.Button(card, "경기 시작!", PlayTournamentGame, Gold);
+            go.GetComponentInChildren<Text>().fontSize = 40;
+            UiKit.Height(go, 130);
+            UiAnim.Pulse(go, 1.05f, 0.6f);
+            UiKit.Height(UiKit.Button(card, "남은 경기 자동 진행", () => { _career.AutoTournament(); CloseOverlay(); ShowTournamentHub(); }, UiKit.Muted), 100);
+        }
+
+        void PlayTournamentGame()
+        {
+            CloseOverlay();
+            var day = _career.NextTournamentGame();
+            if (day.AtBat != null) ShowAtBat(day);
+            else AfterTournamentGame(day);
+        }
+
+        void AfterTournamentGame(DayResult day)
+        {
+            ShowGameBanner(day);
+            var g = day.MyGame;
+            if (g != null && !g.IsTie) GameAudio.Sfx(g.Winner == SideIn(g) ? GameAudio.Win : GameAudio.Lose);
+            Save();
+            ShowTournamentHub();
         }
 
         void ShowTournament(TournamentResult t)
@@ -1040,8 +1118,8 @@ namespace BaseballGame
             var root = GetComponentInChildren<Canvas>().transform;
             // Win: blue, loss: orange, anything else (tie, 2군, no game): the plain navy card.
             var g = r.MyGame;
-            bool win = g != null && r.FarmLine == null && r.FarmPitching == null && !g.IsTie && g.Winner == _career.MyTeam;
-            bool loss = g != null && r.FarmLine == null && r.FarmPitching == null && !g.IsTie && g.Winner != _career.MyTeam;
+            bool win = g != null && r.FarmLine == null && r.FarmPitching == null && !g.IsTie && g.Winner == SideIn(g);
+            bool loss = g != null && r.FarmLine == null && r.FarmPitching == null && !g.IsTie && g.Winner != SideIn(g);
             var accent = win ? new Color(0.37f, 0.66f, 1f) : loss ? new Color(0.95f, 0.55f, 0.25f) : new Color(0.73f, 0.77f, 0.85f);
             var tint = win ? new Color(0.07f, 0.17f, 0.36f, 0.97f) : loss ? new Color(0.3f, 0.13f, 0.07f, 0.97f) : new Color(0.08f, 0.1f, 0.16f, 0.96f);
             var panel = UiKit.Panel(root, "GameBanner", tint);
@@ -1084,17 +1162,20 @@ namespace BaseballGame
             if (banner != null) Destroy(banner);
         }
 
+        /// <summary>My side in a game: my club, or Korea (always the home side) in the tournament.</summary>
+        Team SideIn(GameResult g) => g.Home == _career.MyTeam || g.Away == _career.MyTeam ? _career.MyTeam : g.Home;
+
         string GameBannerText(DayResult r)
         {
             if (r.SatOut) return null;
             string Verdict(GameResult g)
             {
                 if (g.IsTie) return "<color=#BAC4D8>무승부</color>";
-                return g.Winner == _career.MyTeam ? "<color=#5FA8FF><b>승리</b></color>" : "<color=#F28C40><b>패배</b></color>";
+                return g.Winner == SideIn(g) ? "<color=#5FA8FF><b>승리</b></color>" : "<color=#F28C40><b>패배</b></color>";
             }
             string Score(GameResult g)
             {
-                bool home = g.Home == _career.MyTeam;
+                bool home = g.Home == SideIn(g);
                 var other = home ? g.Away : g.Home;
                 int mine = home ? g.HomeScore : g.AwayScore, theirs = home ? g.AwayScore : g.HomeScore;
                 return $"{Verdict(g)}  {mine} : {theirs}  <size=32>vs {other.Name}</size>";

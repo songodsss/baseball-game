@@ -48,7 +48,7 @@ public class NationalTeamTests
         Assert.True(t.Selected, $"farm={career.InFarm} inj={career.Me.IsInjured} day={career.Day}");
         Assert.Contains(t.Korea.Lineup, p => p.Id == career.Me.Id);
         Assert.InRange(t.Games.Count, 2, 4);
-        Assert.All(t.Games.Take(2), g => Assert.Equal("조별리그", g.Stage));
+        Assert.All(t.Games.Take(2), g => Assert.StartsWith("조별리그", g.Stage));
         if (t.Medal == NationalTeam.Gold)
         {
             Assert.Equal("결승", t.Games.Last().Stage);
@@ -79,5 +79,48 @@ public class NationalTeamTests
         career.Me.GoldMedals = 2;
         var (_, loaded) = SaveGame.FromBytes(SaveGame.ToBytes(new Club(), career), new SeededRandom(1));
         Assert.Equal(2, loaded.Me.GoldMedals);
+    }
+
+    [Fact]
+    public void PickedForKoreaTheLeagueWaitsAndGamesComeOneAtATime()
+    {
+        var career = NewCareer(5, 95);
+        DayResult start = null;
+        while (!career.IsSeasonOver && start == null)
+        {
+            var day = career.PlayDay(DailyAction.Rest);
+            if (day.Trade != null) career.DeclineTrade();
+            if (day.TournamentStarted) start = day;
+        }
+        Assert.NotNull(start);
+        Assert.True(career.InTournament);
+        int leagueDay = career.Day;
+        var scenes = new System.Collections.Generic.List<string>();
+        int games = 0, asked = 0;
+        for (int guard = 0; guard < 60 && career.InTournament; guard++)
+        {
+            var ev = career.TournamentScene();
+            if (ev != null) { scenes.Add(ev.Id); career.ResolveEvent(0); continue; }
+            if (career.TournamentNow.Done) break;
+            var d = career.NextTournamentGame();
+            games++;
+            while (d.AtBat != null) { asked++; d = career.ChooseApproach(Approach.SitFastball); }
+            Assert.NotNull(d.MyGame);
+            // Mid-tournament saves replay to the same place.
+            var (_, loaded) = SaveGame.FromBytes(SaveGame.ToBytes(new Club(), career), new SeededRandom(9));
+            Assert.Equal(career.TournamentNow.GamesPlayed, loaded.TournamentNow.GamesPlayed);
+            Assert.Equal(career.TournamentNow.Result.Games.Last().Game.HomeScore, loaded.TournamentNow.Result.Games.Last().Game.HomeScore);
+        }
+        Assert.Equal(leagueDay, career.Day); // no league day went by
+        Assert.InRange(games, 2, 4);
+        Assert.Contains("nt_call", scenes);
+        Assert.Contains("nt_camp", scenes);
+        Assert.Contains(scenes, id => id == "nt_gold" || id == "nt_silver" || id == "nt_bronze" || id == "nt_out");
+        int money = career.Me.Money;
+        var t = career.FinishTournament();
+        Assert.False(career.InTournament);
+        Assert.Equal(games, t.Games.Count);
+        Assert.Equal(money + t.Bonus, career.Me.Money);
+        career.PlayDay(DailyAction.Rest);
     }
 }
