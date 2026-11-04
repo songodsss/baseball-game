@@ -2155,8 +2155,12 @@ namespace BaseballGame
             }
             else
             {
-                var count = UiKit.Label(body, $"<color=#FFD24D><b>{order}개</b></color> 수상!", 36, TextAnchor.MiddleCenter);
-                UiKit.Height(count, 60);
+                int crowns = mine.Count(a => Awards.IsStatTitle(a.Title));
+                string headline = crowns >= 2 ? $"<color=#FFD24D><b>{crowns}관왕!</b></color>" + (crowns >= 8 ? "  <size=30>전설의 시즌</size>" : "") : $"<color=#FFD24D><b>{order}개</b></color> 수상!";
+                var count = UiKit.Label(body, headline, crowns >= 2 ? 52 : 36, TextAnchor.MiddleCenter);
+                UiKit.Height(count, crowns >= 2 ? 90 : 60);
+                if (crowns >= 2) UiAnim.Pulse(count, 1.2f, 0.6f);
+                count.transform.SetSiblingIndex(0); // the crown count leads the stage
             }
 
             var others = summary.Awards.Where(a => !a.Mine && a.Title != Awards.GoldenGlove).ToList();

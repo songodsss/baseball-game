@@ -127,22 +127,28 @@ namespace BaseballGame
         void ShowLeaders()
         {
             Section("개인 순위 TOP 10");
-            var chips = UiKit.Empty(_content, "Boards");
-            UiKit.Height(chips, 80);
-            UiKit.Row(chips, 8);
-            foreach (var name in Leaderboard.Boards)
+            // Batting boards on one row, pitching on the next.
+            foreach (var group in new[] { Leaderboard.BattingBoards, Leaderboard.PitchingBoards })
             {
-                string board = name;
-                var chip = UiKit.Button(chips, board, () => { _board = board; Show(Tab.Standings); },
-                    board == _board ? UiKit.Accent : UiKit.Background);
-                chip.GetComponentInChildren<Text>().fontSize = 24;
+                var chips = UiKit.Empty(_content, "Boards");
+                UiKit.Height(chips, 76);
+                UiKit.Row(chips, 6);
+                foreach (var name in group)
+                {
+                    string board = name;
+                    var chip = UiKit.Button(chips, board, () => { _board = board; Show(Tab.Standings); },
+                        board == _board ? UiKit.Accent : UiKit.Background);
+                    chip.GetComponentInChildren<Text>().fontSize = 24;
+                }
             }
 
             var lb = Leaderboard.For(_career.League, _board, _career.Me.Id);
             if (lb.Top.Count == 0)
             {
-                Note(_board == Leaderboard.Average || _board == Leaderboard.Era
-                    ? "아직 규정 " + (_board == Leaderboard.Era ? "이닝" : "타석") + "을 채운 선수가 없어요."
+                bool arm = _board == Leaderboard.Era || _board == Leaderboard.Whip;
+                bool rate = arm || _board == Leaderboard.Average || _board == Leaderboard.Obp || _board == Leaderboard.Slg || _board == Leaderboard.Ops;
+                Note(rate
+                    ? "아직 규정 " + (arm ? "이닝" : "타석") + "을 채운 선수가 없어요."
                     : "아직 기록이 없어요.");
                 return;
             }
@@ -159,7 +165,7 @@ namespace BaseballGame
                 Row(widths, 0, true, lb.Me.Rank.ToString(), $"<color=#FFD24D>{lb.Me.Name}</color>", lb.Me.Team, lb.Me.Value);
             }
             else if (!lb.Top.Any(r => r.Mine))
-                Note(_board == Leaderboard.Average || _board == Leaderboard.Era ? "내 선수는 아직 규정 기록 미달이에요." : "내 선수는 아직 이 순위에 없어요.", TextAnchor.MiddleCenter, 70);
+                Note(_board == Leaderboard.Average || _board == Leaderboard.Era || _board == Leaderboard.Obp || _board == Leaderboard.Slg || _board == Leaderboard.Ops || _board == Leaderboard.Whip ? "내 선수는 아직 규정 기록 미달이에요." : "내 선수는 아직 이 순위에 없어요.", TextAnchor.MiddleCenter, 70);
         }
 
         void ShowMyRecord()
@@ -291,6 +297,32 @@ namespace BaseballGame
                 Header(statWidths, "승", "패", "평균자책", "이닝", "탈삼진", "완봉");
                 Row(statWidths, 0, true, $"{t.Wins}", $"{t.Losses}", t.EraText, t.Innings, $"{t.Strikeouts}", $"{t.Shutouts}");
             }
+            Header(statWidths, "경기", "선발", "피안타", "피홈런", "볼넷", "WHIP");
+            Row(statWidths, 0, true, $"{t.Games}", $"{t.Starts}", $"{t.Hits}", $"{t.HomeRuns}", $"{t.Walks}", t.Outs == 0 ? "-" : t.Whip.ToString("0.00"));
+
+            if (me.History.Count > 0)
+            {
+                Section("커리어 하이");
+                var seasons = me.History.Where(h => h.Pitching != null && h.Pitching.Outs > 0).ToList();
+                void Best(string title, IEnumerable<SeasonRecord> pool, System.Func<PitcherLine, double> key, System.Func<SeasonRecord, string> text)
+                {
+                    var best = pool.OrderByDescending(h => key(h.Pitching)).FirstOrDefault();
+                    if (best != null) Note($"{title}  <b>{text(best)}</b>  <size=24>({CareerState.YearOf(best.Season)})</size>", TextAnchor.MiddleLeft, 50);
+                }
+                var enough = seasons.Where(h => h.Pitching.Outs >= h.Games * (relief ? 1 : 3)).ToList();
+                Best("최저 평균자책", enough, x => -x.Era, h => h.Pitching.EraText);
+                if (relief)
+                {
+                    Best("최다 세이브", seasons.Where(h => h.Pitching.Saves > 0), x => x.Saves, h => $"{h.Pitching.Saves}개");
+                    Best("최다 홀드", seasons.Where(h => h.Pitching.Holds > 0), x => x.Holds, h => $"{h.Pitching.Holds}개");
+                }
+                else
+                {
+                    Best("최다승", seasons.Where(h => h.Pitching.Wins > 0), x => x.Wins, h => $"{h.Pitching.Wins}승");
+                    Best("최다 이닝", seasons, x => x.Outs, h => $"{h.Pitching.Innings}이닝");
+                }
+                Best("최다 탈삼진", seasons.Where(h => h.Pitching.Strikeouts > 0), x => x.Strikeouts, h => $"{h.Pitching.Strikeouts}개");
+            }
         }
 
         void ShowMyBatting()
@@ -305,6 +337,9 @@ namespace BaseballGame
             Header(statWidths, "타석", "안타", "2루타", "3루타", "볼넷", "삼진");
             Row(statWidths, 0, false, l.PlateAppearances.ToString(), l.Hits.ToString(), l.Doubles.ToString(),
                 l.Triples.ToString(), l.Walks.ToString(), l.Strikeouts.ToString());
+            Header(statWidths, "타수", "득점", "도루", "도루자", "루타", "볼넷/삼진");
+            Row(statWidths, 0, false, l.AtBats.ToString(), l.Runs.ToString(), l.StolenBases.ToString(), l.CaughtStealing.ToString(),
+                TotalBases(l).ToString(), l.Strikeouts == 0 ? "-" : ((double)l.Walks / l.Strikeouts).ToString("0.00"));
             var f = _career.FarmLine;
             if (f.PlateAppearances > 0)
                 Note($"2군 {_career.FarmDays}경기  타율 {Stats.Rate(Stats.Avg(f))}  {f.HomeRuns}홈런  OPS {Stats.Rate(Stats.Ops(f))}" + (_career.InFarm ? "  · 지금 2군" : ""), TextAnchor.MiddleLeft, 60);
@@ -325,7 +360,32 @@ namespace BaseballGame
             Header(statWidths, "타율", "안타", "홈런", "타점", "OPS", "볼넷");
             Row(statWidths, 0, true, Stats.Rate(Stats.Avg(t)), t.Hits.ToString(), t.HomeRuns.ToString(),
                 t.RunsBattedIn.ToString(), Stats.Rate(Stats.Ops(t)), t.Walks.ToString());
+            Header(statWidths, "경기", "득점", "2루타", "3루타", "도루", "루타");
+            Row(statWidths, 0, true, (me.History.Sum(h => h.Games) + _career.Day).ToString(), t.Runs.ToString(), t.Doubles.ToString(),
+                t.Triples.ToString(), t.StolenBases.ToString(), TotalBases(t).ToString());
+
+            // Best single seasons.
+            if (me.History.Count > 0)
+            {
+                Section("커리어 하이");
+                var seasons = me.History.Where(h => h.Line != null && h.Line.PlateAppearances > 0).ToList();
+                var qualified = seasons.Where(h => h.Line.PlateAppearances >= h.Games * 2).ToList();
+                void Best(string title, IEnumerable<SeasonRecord> pool, System.Func<BattingLine, double> key, System.Func<double, string> text)
+                {
+                    var best = pool.OrderByDescending(h => key(h.Line)).FirstOrDefault();
+                    if (best != null && key(best.Line) > 0) Note($"{title}  <b>{text(key(best.Line))}</b>  <size=24>({CareerState.YearOf(best.Season)})</size>", TextAnchor.MiddleLeft, 50);
+                }
+                Best("최고 타율", qualified, Stats.Avg, Stats.Rate);
+                Best("최다 홈런", seasons, x => x.HomeRuns, v => $"{v:0}개");
+                Best("최다 타점", seasons, x => x.RunsBattedIn, v => $"{v:0}개");
+                Best("최다 안타", seasons, x => x.Hits, v => $"{v:0}개");
+                Best("최다 득점", seasons, x => x.Runs, v => $"{v:0}개");
+                Best("최다 도루", seasons, x => x.StolenBases, v => $"{v:0}개");
+                Best("최고 OPS", qualified, Stats.Ops, Stats.Rate);
+            }
         }
+
+        static int TotalBases(BattingLine l) => l.Hits + l.Doubles + 2 * l.Triples + 3 * l.HomeRuns;
 
         /// <summary>Titles, moves, clubs and the rival: the same for hitters and pitchers.</summary>
         void ShowMoves()

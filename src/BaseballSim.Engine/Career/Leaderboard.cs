@@ -35,8 +35,19 @@ namespace BaseballSim.Career
         public const string Wins = "다승";
         public const string Saves = "세이브";
         public const string Era = "평균자책";
+        public const string Runs = "득점";
+        public const string Hits = "안타";
+        public const string Obp = "출루율";
+        public const string Slg = "장타율";
+        public const string Ops = "OPS";
+        public const string Holds = "홀드";
+        public const string Whip = "WHIP";
 
-        public static readonly string[] Boards = { Average, HomeRuns, RunsBattedIn, Wins, Era, Strikeouts, Saves };
+        public static readonly string[] BattingBoards = { Average, HomeRuns, RunsBattedIn, Runs, Hits, Obp, Slg, Ops };
+        public static readonly string[] PitchingBoards = { Wins, Era, Strikeouts, Saves, Holds, Whip };
+        public static readonly string[] Boards = BattingBoards.Concat(PitchingBoards).ToArray();
+
+        static bool IsRate(string board) => board == Average || board == Era || board == Obp || board == Slg || board == Ops || board == Whip;
 
         public static List<LeaderBoard> All(League league, string myId) => Boards.Select(b => For(league, b, myId)).ToList();
 
@@ -62,6 +73,21 @@ namespace BaseballSim.Career
                 case Era:
                     return Build(board, arms.Where(p => p.Line.Outs >= league.QualifyingOuts)
                         .Select(p => (p.Id, p.Name, p.Team.Name, Key: -p.Line.Era, Text: p.Line.EraText)), myId);
+                case Runs:
+                    return Build(board, bats.Select(b => (b.Id, b.Name, b.Team.Name, Key: (double)b.Line.Runs, Text: b.Line.Runs.ToString())), myId);
+                case Hits:
+                    return Build(board, bats.Select(b => (b.Id, b.Name, b.Team.Name, Key: (double)b.Line.Hits, Text: b.Line.Hits.ToString())), myId);
+                case Obp:
+                case Slg:
+                case Ops:
+                    Func<BattingLine, double> rate = board == Obp ? (Func<BattingLine, double>)Stats.Obp : board == Slg ? Stats.Slg : Stats.Ops;
+                    return Build(board, bats.Where(b => b.Line.PlateAppearances >= league.QualifyingPa)
+                        .Select(b => (b.Id, b.Name, b.Team.Name, Key: rate(b.Line), Text: Stats.Rate(rate(b.Line)))), myId);
+                case Holds:
+                    return Build(board, arms.Select(p => (p.Id, p.Name, p.Team.Name, Key: (double)p.Line.Holds, Text: p.Line.Holds.ToString())), myId);
+                case Whip:
+                    return Build(board, arms.Where(p => p.Line.Outs >= league.QualifyingOuts)
+                        .Select(p => (p.Id, p.Name, p.Team.Name, Key: -p.Line.Whip, Text: p.Line.Whip.ToString("0.00"))), myId);
                 default:
                     throw new ArgumentException("Unknown board: " + board);
             }
@@ -70,7 +96,7 @@ namespace BaseballSim.Career
         // Equal values share a rank (1, 2, 2, 4). A counting board leaves out zeros; nobody leads with none.
         static LeaderBoard Build(string title, IEnumerable<(string Id, string Name, string Team, double Key, string Text)> pool, string myId)
         {
-            var sorted = pool.Where(x => title == Era || title == Average || x.Key > 0).OrderByDescending(x => x.Key).ToList();
+            var sorted = pool.Where(x => IsRate(title) || x.Key > 0).OrderByDescending(x => x.Key).ToList();
             var board = new LeaderBoard { Title = title };
             int rank = 0;
             for (int i = 0; i < sorted.Count; i++)

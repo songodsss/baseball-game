@@ -27,6 +27,12 @@ namespace BaseballSim.Career
         public const string StrikeoutTitle = "탈삼진왕";
         public const string SavesTitle = "세이브왕";
         public const string HoldsTitle = "홀드왕";
+        public const string WinRateTitle = "승률 1위";
+        public const string BattingTitle = "타격왕";
+
+        /// <summary>The individual stat titles (not MVP, rookie or golden glove): what counts toward "N관왕".</summary>
+        public static bool IsStatTitle(string title) =>
+            title != Mvp && title != Rookie && title != GoldenGlove && title != Postseason.ChampionTitle;
 
         /// <summary>
         /// Rate titles need a qualifying number of plate appearances; counting titles don't.
@@ -51,11 +57,15 @@ namespace BaseballSim.Career
             }
 
             string Count(double v) => ((int)v).ToString();
-            Add("타격왕", qualified, Stats.Avg, Stats.Rate);
+            // The batting titles, as in the real league minus steals (only my player is asked to run, so it
+            // would be a title of one): a player can sweep all seven.
+            Add(BattingTitle, qualified, Stats.Avg, Stats.Rate);
             Add("홈런왕", all, l => l.HomeRuns, Count);
             Add("타점왕", all, l => l.RunsBattedIn, Count);
+            Add("득점왕", all, l => l.Runs, Count);
             Add("최다안타", all, l => l.Hits, Count);
             Add("출루율 1위", qualified, Stats.Obp, Stats.Rate);
+            Add("장타율 1위", qualified, Stats.Slg, Stats.Rate);
 
             // Pitching titles: wins and strikeouts for anyone, ERA for qualified innings only.
             var arms = league.Pitching.Values.Where(p => p.Line.Outs > 0).ToList();
@@ -69,6 +79,9 @@ namespace BaseballSim.Career
             AddArm(Wins, arms.Where(p => p.Line.Wins > 0), l => l.Wins, l => $"{l.Wins}승");
             AddArm(EraTitle, qualifiedArms, l => -l.Era, l => l.EraText);
             AddArm(StrikeoutTitle, arms.Where(p => p.Line.Strikeouts > 0), l => l.Strikeouts, l => l.Strikeouts.ToString());
+            // Win rate for a pitcher with enough decisions (10 in a full season).
+            int minWins = Math.Max(2, league.GamesPerSeason * 10 / League.FullSeason);
+            AddArm(WinRateTitle, arms.Where(p => p.Line.Wins >= minWins), l => (double)l.Wins / (l.Wins + l.Losses), l => $"{Stats.Rate((double)l.Wins / (l.Wins + l.Losses))} ({l.Wins}승 {l.Losses}패)");
             AddArm(SavesTitle, arms.Where(p => p.Line.Saves > 0), l => l.Saves, l => $"{l.Saves}세이브");
             AddArm(HoldsTitle, arms.Where(p => p.Line.Holds > 0), l => l.Holds, l => $"{l.Holds}홀드");
 
