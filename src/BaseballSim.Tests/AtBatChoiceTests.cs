@@ -21,6 +21,8 @@ public class AtBatChoiceTests
         for (int i = 0; i < 20; i++)
         {
             var day = career.PlayDay(DailyAction.Rest);
+            // Steal chances come up too; stay put and wait for a plate appearance.
+            while (day.AtBat != null && day.AtBat.Stealing) day = career.ChooseApproach(Approach.Normal);
             if (day.AtBat != null) return day;
             if (day.Trade != null) career.DeclineTrade();
         }

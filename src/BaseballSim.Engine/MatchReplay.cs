@@ -123,6 +123,13 @@ namespace BaseballSim
         static List<RunnerMove> MovesFor(GameEvent ev)
         {
             var moves = new List<RunnerMove>();
+            if (ev.Kind == EventKind.StolenBase)
+            {
+                for (int b = 2; b >= 1; b--)
+                    if (ev.BasesBefore[b] != null) moves.Add(new RunnerMove { Runner = ev.BasesBefore[b], From = b, To = b });
+                moves.Add(new RunnerMove { Runner = ev.Batter, From = 0, To = Destination(ev, ev.Batter) });
+                return moves;
+            }
             if (ev.Kind != EventKind.PlateAppearance) return moves;
 
             for (int b = 2; b >= 0; b--)

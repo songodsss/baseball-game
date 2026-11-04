@@ -57,13 +57,13 @@ namespace BaseballSim.Career
             }
 
             string Count(double v) => ((int)v).ToString();
-            // The batting titles, as in the real league minus steals (only my player is asked to run, so it
-            // would be a title of one): a player can sweep all seven.
+            // The eight batting titles, as in the real league: one player can sweep them all (8관왕).
             Add(BattingTitle, qualified, Stats.Avg, Stats.Rate);
             Add("홈런왕", all, l => l.HomeRuns, Count);
             Add("타점왕", all, l => l.RunsBattedIn, Count);
             Add("득점왕", all, l => l.Runs, Count);
             Add("최다안타", all, l => l.Hits, Count);
+            Add("도루왕", all, l => l.StolenBases, Count);
             Add("출루율 1위", qualified, Stats.Obp, Stats.Rate);
             Add("장타율 1위", qualified, Stats.Slg, Stats.Rate);
 

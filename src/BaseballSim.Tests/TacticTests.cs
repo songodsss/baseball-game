@@ -35,7 +35,7 @@ public class TacticTests
                 Assert.InRange(s.StealOdds, 0.85, 0.95);
                 return Approach.Steal;
             }, away, home);
-            foreach (var ev in game.Events.Where(e => e.Kind == EventKind.StolenBase))
+            foreach (var ev in game.Events.Where(e => e.Kind == EventKind.StolenBase && e.Batter == mine))
             {
                 tries++;
                 Assert.Same(mine, ev.Batter);
@@ -44,8 +44,8 @@ public class TacticTests
                 Assert.NotNull(Commentary.Describe(ev));
             }
             var line = game.Batting[mine];
-            Assert.Equal(game.Events.Count(e => e.Kind == EventKind.StolenBase && e.OutsAfter == e.OutsBefore), line.StolenBases);
-            Assert.True(game.Events.Count(e => e.Kind == EventKind.StolenBase) <= 2);
+            Assert.Equal(game.Events.Count(e => e.Kind == EventKind.StolenBase && e.Batter == mine && e.OutsAfter == e.OutsBefore), line.StolenBases);
+            Assert.True(game.Events.Count(e => e.Kind == EventKind.StolenBase && e.Batter == mine) <= 2);
         }
         Assert.Equal(offered, tries);
         Assert.True(tries > 20, $"only {tries} steal tries");
@@ -89,7 +89,7 @@ public class TacticTests
     public void HitAndRunNeverHitsIntoADoublePlay()
     {
         int tries = 0;
-        for (int seed = 1; seed <= 150; seed++)
+        for (int seed = 1; seed <= 300; seed++)
         {
             var (away, home) = Teams(seed);
             var mine = away.Lineup[4];
@@ -133,5 +133,29 @@ public class TacticTests
         var loaded = SaveGame.CareerFromBytes(SaveGame.CareerToBytes(career, club), club, new SeededRandom(1));
         Assert.Equal(steals, loaded.SeasonLine.StolenBases);
         Assert.Equal(steals, loaded.Me.CareerStolenBases);
+    }
+}
+
+public class AiStealTests
+{
+    [Fact]
+    public void FastRunnersStealOnTheirOwnAndSlowOnesDont()
+    {
+        int fast = 0, slow = 0;
+        for (int seed = 1; seed <= 150; seed++)
+        {
+            var random = new SeededRandom(seed);
+            var g = new RosterGenerator(random);
+            var away = g.CreateTeam("원정");
+            var home = g.CreateTeam("홈");
+            foreach (var p in away.Lineup) p.Batting.Speed = 95;
+            foreach (var p in home.Lineup) p.Batting.Speed = 30;
+            var game = new GameSimulator(random).Play(away, home, away.Rotation[0], home.Rotation[0]);
+            fast += game.Events.Count(e => e.Kind == EventKind.StolenBase && away.Lineup.Contains(e.Batter));
+            slow += game.Events.Count(e => e.Kind == EventKind.StolenBase && home.Lineup.Contains(e.Batter));
+            Assert.All(game.Events.Where(e => e.Kind == EventKind.StolenBase), e => Assert.Null(e.Note));
+        }
+        Assert.True(fast > 100, $"only {fast} steals by fast runners");
+        Assert.Equal(0, slow);
     }
 }

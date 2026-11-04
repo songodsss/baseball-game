@@ -321,8 +321,15 @@ namespace BaseballSim
         bool MaybeSteal(Side fielding)
         {
             var runner = _bases[0];
-            if (Decide == null || runner == null || runner != DecideFor || _bases[1] != null || _outs >= 2) return false;
+            if (runner == null || _bases[1] != null || _outs >= 2) return false;
             int gap = _top ? _result.AwayScore - _result.HomeScore : _result.HomeScore - _result.AwayScore;
+            if (Decide == null || runner != DecideFor)
+            {
+                // Everyone else runs on his own: only the quick ones, in a game still in reach.
+                double odds = AtBatChoice.StealOdds(runner);
+                if (Math.Abs(gap) > 3 || odds < AiStealMinOdds || !Chance(AiStealTry * (odds - AiStealMinOdds) / (0.95 - AiStealMinOdds))) return false;
+                return Steal(runner, fielding, odds, null);
+            }
             if (_stealAsks >= MaxStealDecisions || Math.Abs(gap) > 2) return false;
             _stealAsks++;
 
@@ -350,8 +357,15 @@ namespace BaseballSim
                 throw new SuspendGame();
             }
             if (approach != Approach.Steal) return false;
+            return Steal(runner, fielding, situation.StealOdds, situation);
+        }
 
-            bool safe = Chance(situation.StealOdds);
+        /// <summary>A runner on first with second open, per plate appearance: the fastest try now and then.</summary>
+        const double AiStealMinOdds = 0.58, AiStealTry = 0.9;
+
+        bool Steal(Player runner, Side fielding, double stealOdds, AtBatSituation situation)
+        {
+            bool safe = Chance(stealOdds);
             var ev = new GameEvent
             {
                 Kind = EventKind.StolenBase,
@@ -361,7 +375,8 @@ namespace BaseballSim
                 Pitcher = fielding.Pitcher,
                 OutsBefore = _outs,
                 BasesBefore = (Player[])_bases.Clone(),
-                Note = safe ? "도루 성공!" : "도루 실패",
+                // Notes mark my own calls; a runner going on his own has none.
+                Note = situation == null ? null : safe ? "도루 성공!" : "도루 실패",
             };
             _bases[0] = null;
             if (safe)

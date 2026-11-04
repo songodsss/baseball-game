@@ -23,7 +23,7 @@ namespace BaseballSim.Career
         public LeaderRow Me;
     }
 
-    /// <summary>League leaders this season. Steals stay off: only my player is asked to run, so it would be a board of one.</summary>
+    /// <summary>League leaders this season.</summary>
     public static class Leaderboard
     {
         public const int Size = 10;
@@ -37,13 +37,14 @@ namespace BaseballSim.Career
         public const string Era = "평균자책";
         public const string Runs = "득점";
         public const string Hits = "안타";
+        public const string Steals = "도루";
         public const string Obp = "출루율";
         public const string Slg = "장타율";
         public const string Ops = "OPS";
         public const string Holds = "홀드";
         public const string Whip = "WHIP";
 
-        public static readonly string[] BattingBoards = { Average, HomeRuns, RunsBattedIn, Runs, Hits, Obp, Slg, Ops };
+        public static readonly string[] BattingBoards = { Average, HomeRuns, RunsBattedIn, Runs, Hits, Steals, Obp, Slg, Ops };
         public static readonly string[] PitchingBoards = { Wins, Era, Strikeouts, Saves, Holds, Whip };
         public static readonly string[] Boards = BattingBoards.Concat(PitchingBoards).ToArray();
 
@@ -77,6 +78,8 @@ namespace BaseballSim.Career
                     return Build(board, bats.Select(b => (b.Id, b.Name, b.Team.Name, Key: (double)b.Line.Runs, Text: b.Line.Runs.ToString())), myId);
                 case Hits:
                     return Build(board, bats.Select(b => (b.Id, b.Name, b.Team.Name, Key: (double)b.Line.Hits, Text: b.Line.Hits.ToString())), myId);
+                case Steals:
+                    return Build(board, bats.Select(b => (b.Id, b.Name, b.Team.Name, Key: (double)b.Line.StolenBases, Text: b.Line.StolenBases.ToString())), myId);
                 case Obp:
                 case Slg:
                 case Ops:
