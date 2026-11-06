@@ -53,3 +53,28 @@ public class TrainingCritTests
         Assert.InRange(great, 3, 30);
     }
 }
+
+public class GradeAndHighlightTests
+{
+    [Fact]
+    public void GradesGoEveryTenAndANewOneLiftsTraining()
+    {
+        Assert.Equal("E", BaseballSim.Career.Highlights.Grade(35));
+        Assert.Equal("C", BaseballSim.Career.Highlights.Grade(55));
+        Assert.Equal("S", BaseballSim.Career.Highlights.Grade(84));
+        Assert.Equal("SSS", BaseballSim.Career.Highlights.Grade(140));
+
+        var random = new BaseballSim.SeededRandom(9);
+        var league = new BaseballSim.Career.League(new BaseballSim.RosterGenerator(random), 36);
+        var career = new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("테스트", random), league, league.Teams[0], random);
+        var stat = System.Linq.Enumerable.First(career.Me.MyStats);
+        career.Me.Ratings[stat] = 51;
+        career.Me.PeakRatings[stat] = 51;
+        var day = career.PlayDay(DailyAction.Rest);
+        while (day.AtBat != null) day = career.ChooseApproach(BaseballSim.Approach.Normal);
+        Assert.Contains(day.GradeUps, g => g.Stat == stat && g.Grade == "C");
+        var next = career.PlayDay(DailyAction.Rest);
+        while (next.AtBat != null) next = career.ChooseApproach(BaseballSim.Approach.Normal);
+        Assert.DoesNotContain(next.GradeUps, g => g.Stat == stat);
+    }
+}

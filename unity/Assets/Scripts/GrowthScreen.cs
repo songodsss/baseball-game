@@ -492,7 +492,13 @@ namespace BaseballGame
         /// <summary>After a fast skip of several days: one log entry with the days in short and their sum.</summary>
         void FinishFast()
         {
-            if (_fastDays.Count > 1) Log(FastSummary(_fastDays));
+            if (_fastDays.Count > 1)
+            {
+                Log(FastSummary(_fastDays));
+                // Grades reached on the skipped days still get their moment (the last day had its own).
+                var earlier = _fastDays.Take(_fastDays.Count - 1).SelectMany(d => d.GradeUps).ToList();
+                if (earlier.Count > 0) StartCoroutine(AfterDelay(1.8f, earlier.Select(u => (System.Action)(() => ShowGradeUp(u))).ToList()));
+            }
             _fastDays.Clear();
         }
 
@@ -611,8 +617,115 @@ namespace BaseballGame
             Save();
             Refresh();
             ShowGains(result);
-            if (result.TrainingCrit > 0) ShowTrainingCrit(result.TrainingCrit);
+            Celebrate(result);
             ShowTips();
+        }
+
+        static string GradeColor(int rating)
+        {
+            switch (Highlights.GradeIndex(rating))
+            {
+                case 0: return "#9AA3B5";
+                case 1: return "#6FD38A";
+                case 2: return "#5FA8FF";
+                case 3: return "#C58CFF";
+                case 4: return "#FF9F45";
+                case 5: return "#FFD24D";
+                default: return "#FF6B6B";
+            }
+        }
+
+        /// <summary>
+        /// The day's good news, one after another: the big moment of my game (a cut-in), a stat reaching
+        /// a new grade, a training day that clicked.
+        /// </summary>
+        void Celebrate(DayResult r)
+        {
+            var shows = new List<System.Action>();
+            var moment = Highlights.Of(r);
+            if (moment != null) shows.Add(() => ShowCutIn(moment));
+            foreach (var up in r.GradeUps) { var u = up; shows.Add(() => ShowGradeUp(u)); }
+            if (r.TrainingCrit > 0) shows.Add(() => ShowTrainingCrit(r.TrainingCrit));
+            if (shows.Count > 0) StartCoroutine(OneAfterAnother(shows));
+        }
+
+        System.Collections.IEnumerator AfterDelay(float seconds, List<System.Action> shows)
+        {
+            for (float t = 0; t < seconds; t += Time.unscaledDeltaTime) yield return null;
+            yield return OneAfterAnother(shows);
+        }
+
+        System.Collections.IEnumerator OneAfterAnother(List<System.Action> shows)
+        {
+            foreach (var show in shows)
+            {
+                show();
+                for (float t = 0; t < 1.7f; t += Time.unscaledDeltaTime) yield return null;
+            }
+        }
+
+        /// <summary>A slanted team-colour band sweeps across with the moment in big letters.</summary>
+        void ShowCutIn(Highlight h)
+        {
+            var root = GetComponentInChildren<Canvas>().transform;
+            var holder = UiKit.Panel(root, "CutIn", new Color(0, 0, 0, h.Level >= 2 ? 0.55f : 0.35f));
+            holder.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            UiKit.Stretch(holder);
+            holder.GetComponent<Image>().raycastTarget = false;
+            var band = UiKit.Panel(holder, "Band", TeamColor(_career.MyTeam.Name));
+            band.anchorMin = new Vector2(-0.2f, 0.5f);
+            band.anchorMax = new Vector2(1.2f, 0.5f);
+            band.sizeDelta = new Vector2(0, h.Level >= 2 ? 360 : 300);
+            band.localRotation = Quaternion.Euler(0, 0, 6);
+            var edge = band.gameObject.AddComponent<Outline>();
+            edge.effectColor = Gold;
+            edge.effectDistance = new Vector2(0, 8);
+            var title = UiKit.Label(band, $"<b>{h.Title}</b>\n<size=48>{h.Sub}</size>", h.Level >= 2 ? 120 : 100, TextAnchor.MiddleCenter, Color.white);
+            UiKit.Stretch(title.rectTransform);
+            title.raycastTarget = false;
+            var shadow = title.gameObject.AddComponent<Outline>();
+            shadow.effectColor = new Color(0, 0, 0, 0.8f);
+            shadow.effectDistance = new Vector2(5, -5);
+            GameAudio.Sfx(h.Title.Contains("홈런") ? GameAudio.BatHomeRun : GameAudio.BatHit, 0.9f);
+            GameAudio.Sfx(h.Level >= 2 ? GameAudio.CheerBig : GameAudio.CheerSmall, 0.8f);
+            StartCoroutine(SweepCutIn(holder.gameObject, band));
+        }
+
+        System.Collections.IEnumerator SweepCutIn(GameObject holder, RectTransform band)
+        {
+            var group = holder.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            float width = ((RectTransform)holder.transform).rect.width;
+            for (float t = 0; t < 1.6f && holder != null; t += Time.unscaledDeltaTime)
+            {
+                // In fast, a long pause in the middle, out fast.
+                float x = t < 0.2f ? Mathf.Lerp(width, 0, t / 0.2f) : t < 1.3f ? 0 : Mathf.Lerp(0, -width, (t - 1.3f) / 0.3f);
+                band.anchoredPosition = new Vector2(x, 0);
+                group.alpha = t < 1.3f ? 1 : 1 - (t - 1.3f) / 0.3f;
+                yield return null;
+            }
+            if (holder != null) Destroy(holder);
+        }
+
+        /// <summary>A stat crossing into a new grade: the letter itself, big, in its colour.</summary>
+        void ShowGradeUp(GradeUp up)
+        {
+            var root = GetComponentInChildren<Canvas>().transform;
+            var flash = UiKit.Panel(root, "GradeUp", new Color(0.05f, 0.07f, 0.12f, 0.7f));
+            flash.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            UiKit.Stretch(flash);
+            flash.GetComponent<Image>().raycastTarget = false;
+            string color = GradeColor(_career.Me.PeakRatings.TryGetValue(up.Stat, out var p) ? p : _career.Me.Ratings[up.Stat]);
+            var word = UiKit.Label(flash, $"<size=44>{StatNames[up.Stat]} 등급 상승</size>\n<color={color}><b><size=200>{up.Grade}</size></b></color>\n<size=36>{StatNames[up.Stat]} 훈련 효율 +{up.BoostPercent}% ({up.BoostDays}일) · 인기 UP</size>", 44, TextAnchor.MiddleCenter, Color.white);
+            UiKit.Stretch(word.rectTransform);
+            word.raycastTarget = false;
+            var outline = word.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0, 0, 0, 0.8f);
+            outline.effectDistance = new Vector2(4, -4);
+            UiAnim.PopIn(word, 0.4f);
+            GameAudio.Sfx(GameAudio.LevelUp);
+            GameAudio.Sfx(GameAudio.Achievement, 0.6f);
+            StartCoroutine(FadeCrit(flash.gameObject));
         }
 
         /// <summary>A training day that clicked: a flash, a big gold word in the middle, a cheer.</summary>
@@ -1427,6 +1540,8 @@ namespace BaseballGame
             foreach (var a in r.NewAchievements) lines.Add($"<color=#5FA8FF>업적 달성: {a.Name}</color>");
             if (r.ConditionStars >= 4 && !r.GotInjured)
                 lines.Add($"<color={(r.ConditionStars >= 5 ? "#FFD24D" : "#5FA8FF")}>컨디션 {CareerState.ConditionLabel(r.ConditionStars)}! 훈련 효과 +{Mathf.RoundToInt((float)(CareerState.ConditionTraining(r.ConditionStars) - 1) * 100)}%</color>");
+            foreach (var up in r.GradeUps)
+                lines.Add($"<color=#FFD24D><b>{StatNames[up.Stat]} {up.Grade}등급 달성!</b> 훈련 효율 +{up.BoostPercent}% ({up.BoostDays}일)</color>");
             if (r.TrainingCrit > 0)
                 lines.Add($"<color=#FFD24D><b>훈련 {CareerState.TrainingCritName(r.TrainingCrit)}!</b> 오늘 훈련 경험치 ×{r.TrainingCrit}</color>");
             if (r.PointsGained.Count > 0)
@@ -2950,7 +3065,7 @@ namespace BaseballGame
                 // A rating that went up since the last refresh swells for a moment.
                 if (_shownRatings.TryGetValue(stat, out int shown) && me.Ratings[stat] > shown) UiAnim.Pulse(_ratingTexts[stat]);
                 _shownRatings[stat] = me.Ratings[stat];
-                _ratingTexts[stat].text = $"<b>{me.Ratings[stat]}</b>{gear}{special}";
+                _ratingTexts[stat].text = $"<color={GradeColor(me.Ratings[stat])}><b>{Highlights.Grade(me.Ratings[stat])}</b></color> <b>{me.Ratings[stat]}</b>{gear}{special}";
                 UiKit.SetBar(_expFills[stat], maxed ? 1f : (float)me.Exp[stat] / me.ExpToNext(stat));
             }
 

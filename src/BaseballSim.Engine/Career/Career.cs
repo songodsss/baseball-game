@@ -30,6 +30,8 @@ namespace BaseballSim.Career
         public int ConditionStars;
         /// <summary>A training day that clicked: 2 (대성공) or 3 (초대성공) times the experience; 0 for an ordinary day.</summary>
         public int TrainingCrit;
+        /// <summary>Stats that reached a new grade today (E·D·C·B·A·S·SS·SSS), each with its training boost.</summary>
+        public List<GradeUp> GradeUps = new List<GradeUp>();
         /// <summary>Rating points gained today, from training and from the game.</summary>
         public Dictionary<Stat, int> PointsGained = new Dictionary<Stat, int>();
         public bool GotInjured;
@@ -339,6 +341,7 @@ namespace BaseballSim.Career
             MyTeam = myTeam;
             _random = random;
             _sim = new GameSimulator(random);
+            if (me.Ratings.Count > 0) NoteGrades();
         }
 
         public bool IsSeasonOver => Day >= League.GamesPerSeason;
@@ -437,6 +440,7 @@ namespace BaseballSim.Career
             if (!(Me.Morale > 0 && CheeredAtHome(result))) Me.Morale -= Math.Sign(Me.Morale);
             Day++;
             result.Milestones = CheckMilestones(result);
+            result.GradeUps = CheckGrades();
             ReviewRoster(result);
             if (Day == AllStarDay) PlayAllStar(result);
             if (Day == TournamentDay && NationalTeam.IsTournamentYear(Year)) PlayTournament(result);
