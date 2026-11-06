@@ -30,7 +30,7 @@ namespace BaseballSim.Career
         /// 31: signature skills (career).
         /// 32: the arena.
         /// 33: legend stages and visits, the story's version seed; legends whose record fell on the club.
-        public const int Version = 38;
+        public const int Version = 39;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -633,6 +633,13 @@ namespace BaseballSim.Career
             w.Write(career.TourGames);
             w.Write(career.TourAuto);
             WriteList(w, career.TourDecisions, a => w.Write((int)a));
+            // Added in version 39: steals on the league's batting lines, for the steals board and title.
+            WriteList(w, career.League.Batting.Values.ToList(), b =>
+            {
+                w.Write(b.Id);
+                w.Write(b.Line.StolenBases);
+                w.Write(b.Line.CaughtStealing);
+            });
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -862,6 +869,13 @@ namespace BaseballSim.Career
                 career.TourAuto = r.ReadBoolean();
                 career.TourDecisions = ReadList(r, () => (Approach)r.ReadInt32());
             }
+            if (version >= 39)
+                foreach (var (id, sb, cs) in ReadList(r, () => (r.ReadString(), r.ReadInt32(), r.ReadInt32())))
+                    if (career.League.Batting.TryGetValue(id, out var b))
+                    {
+                        b.Line.StolenBases = sb;
+                        b.Line.CaughtStealing = cs;
+                    }
             return career;
         }
 

@@ -72,6 +72,17 @@ public class SaveGameTests
     }
 
     [Fact]
+    public void LeagueStealsSurviveALoad()
+    {
+        var (club, career) = MidCareer();
+        int steals = career.League.Batting.Values.Sum(b => b.Line.StolenBases);
+        Assert.True(steals > 0);
+        var (_, loaded) = SaveGame.FromBytes(SaveGame.ToBytes(club, career), new SeededRandom(2));
+        Assert.Equal(steals, loaded.League.Batting.Values.Sum(b => b.Line.StolenBases));
+        Assert.Equal(career.League.Batting.Values.Sum(b => b.Line.CaughtStealing), loaded.League.Batting.Values.Sum(b => b.Line.CaughtStealing));
+    }
+
+    [Fact]
     public void LoadedCareerPlaysOnToNextSeason()
     {
         var (club, career) = MidCareer();

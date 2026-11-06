@@ -130,6 +130,8 @@ namespace BaseballSim
 
         bool IsWalkOff() => !_top && _inning >= 9 && _result.HomeScore > _result.AwayScore;
 
+        const double MaxFatigue = 0.45;
+
         static int MaxPitches(Side side) => side.PitcherIsStarter
             ? 60 + (int)(side.Pitcher.Pitching.Stamina * 0.6)
             : 15 + (int)(side.Pitcher.Pitching.Stamina * 0.3);
@@ -196,9 +198,10 @@ namespace BaseballSim
             batting.BattingIndex = (batting.BattingIndex + 1) % batting.Team.Lineup.Count;
             var pitcher = fielding.Pitcher;
 
-            // Past 80% of his limit a pitcher starts to lose effectiveness.
+            // Past 80% of his limit a pitcher starts to lose effectiveness, up to a floor: with the bullpen
+            // spent an arm left out there for ever still gets outs, or the half inning never ends.
             int limit = MaxPitches(fielding);
-            double fatigue = Math.Max(0, (fielding.PitchCount - limit * 0.8) / (limit * 0.2)) * 0.3;
+            double fatigue = Math.Min(MaxFatigue, Math.Max(0, (fielding.PitchCount - limit * 0.8) / (limit * 0.2)) * 0.3);
 
             var odds = PlateAppearanceModel.Compute(batter, pitcher, fielding.Defense, fatigue);
             _tactic = Approach.Normal;

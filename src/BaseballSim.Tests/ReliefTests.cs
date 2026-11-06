@@ -155,4 +155,22 @@ public class ReliefTests
         var team = DreamTeam.Build(loadedClub, new SeededRandom(2));
         Assert.StartsWith("마무리", team.Bullpen.Last().Name);
     }
+
+    [Fact]
+    public void AnArmLeftOutThereWithNoBullpenStillEndsTheGame()
+    {
+        // A worn-out pitcher with nobody behind him once gave up 3,000+ runs in one half inning.
+        var random = new SeededRandom(4);
+        var league = new League(new RosterGenerator(random), 36);
+        var sim = new GameSimulator(random);
+        var weak = league.Teams[0];
+        weak.Bullpen.Clear();
+        foreach (var p in weak.Rotation) { p.Pitching.Stamina = 1; p.Pitching.Control = 1; p.Pitching.Velocity = 1; p.Pitching.Breaking = 1; }
+        for (int g = 0; g < 50; g++)
+        {
+            var other = league.Teams[1 + g % 9];
+            var result = sim.Play(other, weak, league.NextStarter(other), league.NextStarter(weak));
+            Assert.True(result.Batting.Values.Sum(l => l.PlateAppearances) < 400, $"game {g}: {result.AwayScore}-{result.HomeScore}");
+        }
+    }
 }
