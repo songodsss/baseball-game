@@ -110,6 +110,11 @@ namespace BaseballGame
         bool _retired;
         RectTransform _overlay;
         readonly List<string> _logLines = new List<string>();
+        /// <summary>Everything logged lately (the log card shows only the newest few): tap the log to read it.</summary>
+        readonly List<string> _history = new List<string>();
+        const int HistoryLength = 60;
+        /// <summary>The days of the fast skip under way, for its summary.</summary>
+        readonly List<DayResult> _fastDays = new List<DayResult>();
 
         void Start()
         {
@@ -278,6 +283,15 @@ namespace BaseballGame
             UiKit.Stretch(_log.rectTransform);
             _log.rectTransform.offsetMin = new Vector2(24, 24);
             _log.rectTransform.offsetMax = new Vector2(-24, -24);
+            // The card shows the newest few days; a tap opens everything logged lately.
+            var logTap = logCard.gameObject.AddComponent<Button>();
+            logTap.transition = Selectable.Transition.None;
+            logTap.onClick.AddListener(ShowHistory);
+            var logHint = UiKit.Label(logCard, "눌러서 지난 기록 ›", 24, TextAnchor.UpperRight, UiKit.Muted);
+            UiKit.Stretch(logHint.rectTransform);
+            logHint.rectTransform.offsetMin = new Vector2(24, 24);
+            logHint.rectTransform.offsetMax = new Vector2(-24, -14);
+            logHint.raycastTarget = false;
 
             var bottom = UiKit.Empty(root, "Bottom");
             UiKit.Height(bottom, 110);
@@ -421,6 +435,7 @@ namespace BaseballGame
         void FastForward(DailyAction action, int days = 0, bool resume = false)
         {
             if (days <= 0) days = FastSkipDays;
+            if (!resume) _fastDays.Clear();
             // Tired is only warned about, never a stop: the player decides when to rest.
             bool warned = false;
             void WarnIfTired()
@@ -443,7 +458,8 @@ namespace BaseballGame
                     ShowAtBat(result);
                     return;
                 }
-                if (FastStops(result, action, i == days - 1)) { AfterDay(result); return; }
+                _fastDays.Add(result);
+                if (FastStops(result, action, i == days - 1)) { AfterDay(result); FinishFast(); return; }
                 _lastDay = result;
                 _club.Daily.Record(result);
                 DescribeDay(result);
@@ -465,11 +481,83 @@ namespace BaseballGame
         {
             int left = _fastLeft;
             _fastLeft = 0;
-            if (FastStops(result, _fastAction, left <= 0)) { AfterDay(result); return; }
+            _fastDays.Add(result);
+            if (FastStops(result, _fastAction, left <= 0)) { AfterDay(result); FinishFast(); return; }
             _lastDay = result;
             _club.Daily.Record(result);
             DescribeDay(result);
             FastForward(_fastAction, left, resume: true);
+        }
+
+        /// <summary>After a fast skip of several days: one log entry with the days in short and their sum.</summary>
+        void FinishFast()
+        {
+            if (_fastDays.Count > 1) Log(FastSummary(_fastDays));
+            _fastDays.Clear();
+        }
+
+        string FastSummary(List<DayResult> days)
+        {
+            int won = 0, lost = 0;
+            var bat = new BattingLine();
+            int innings3 = 0, runs = 0, pitched = 0;
+            var gained = new Dictionary<Stat, int>();
+            foreach (var r in days)
+            {
+                var g = r.MyGame;
+                if (g != null && !r.InFarm && !g.IsTie) { if (g.Winner == _career.MyTeam) won++; else lost++; }
+                var l = r.MyLine ?? r.FarmLine;
+                if (l != null) { bat.AtBats += l.AtBats; bat.Hits += l.Hits; bat.HomeRuns += l.HomeRuns; bat.RunsBattedIn += l.RunsBattedIn; }
+                var p = r.MyPitching ?? r.FarmPitching;
+                if (p != null) { pitched++; innings3 += p.Outs; runs += p.Runs; }
+                foreach (var kv in r.PointsGained) gained[kv.Key] = (gained.TryGetValue(kv.Key, out var v) ? v : 0) + kv.Value;
+            }
+            var sum = new List<string>();
+            if (won + lost > 0) sum.Add($"팀 {won}승 {lost}패");
+            if (_career.Me.IsPitcher) { if (pitched > 0) sum.Add($"{pitched}경기 {innings3 / 3}.{innings3 % 3}이닝 {runs}실점"); }
+            else if (bat.AtBats > 0) sum.Add($"{bat.AtBats}타수 {bat.Hits}안타 {bat.HomeRuns}홈런 {bat.RunsBattedIn}타점");
+            if (gained.Count > 0) sum.Add(string.Join(" ", gained.Select(kv => $"{StatNames[kv.Key]}+{kv.Value}")));
+            var lines = new List<string> { $"<b><color=#FFD24D>▶▶ 빠른 진행 {days.Count}일</color></b>  " + string.Join(" · ", sum) };
+            lines.AddRange(days.Select(DayInShort));
+            return string.Join("\n", lines);
+        }
+
+        /// <summary>One line for a day: "12일차(금) 승 5:3 vs 호랑이 · 4타수 2안타 1홈런".</summary>
+        string DayInShort(DayResult r)
+        {
+            string head = $"<size=26>{r.Day + 1}일차({CareerState.WeekdayOf(r.Day)})";
+            var g = r.MyGame;
+            if (r.SatOut) return head + " 부상 결장</size>";
+            if (g == null || r.InFarm)
+            {
+                var f = r.FarmLine;
+                if (f != null) return head + $" 2군 {f.AtBats}타수 {f.Hits}안타 {f.HomeRuns}홈런</size>";
+                if (r.FarmPitching != null) return head + $" 2군 {PitchingText(r.FarmPitching)}</size>";
+                return head + " " + Actions.First(a => a.Action == r.Action).Label + "</size>";
+            }
+            bool home = g.Home == _career.MyTeam;
+            int mine = home ? g.HomeScore : g.AwayScore, theirs = home ? g.AwayScore : g.HomeScore;
+            string verdict = mine > theirs ? "<color=#5FA8FF>승</color>" : mine < theirs ? "<color=#F28C40>패</color>" : "무";
+            string line = $"{head} {verdict} {mine}:{theirs} vs {(home ? g.Away : g.Home).Name}";
+            if (r.MyPitching != null) line += $" · {PitchingText(r.MyPitching)}";
+            else if (r.MyLine != null && r.MyLine.PlateAppearances > 0) line += $" · {r.MyLine.AtBats}타수 {r.MyLine.Hits}안타" + (r.MyLine.HomeRuns > 0 ? $" <color=#FFD24D>{r.MyLine.HomeRuns}홈런</color>" : "") + (r.MyLine.RunsBattedIn > 0 ? $" {r.MyLine.RunsBattedIn}타점" : "");
+            return line + "</size>";
+        }
+
+        /// <summary>The days logged lately, newest first.</summary>
+        void ShowHistory()
+        {
+            if (_career == null || _overlay != null) return;
+            var card = OpenOverlay("지난 기록");
+            var body = UiKit.ScrollList(card, 16);
+            UiKit.Height(body.parent, 0, 1);
+            if (_history.Count == 0) UiKit.Label(body, "아직 기록이 없어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted);
+            foreach (var entry in _history)
+            {
+                var label = UiKit.Label(body, entry, 28, TextAnchor.UpperLeft);
+                label.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            }
+            UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 100);
         }
 
         void AfterDay(DayResult result)
@@ -2560,6 +2648,7 @@ namespace BaseballGame
                         StartNewCareer(name.Trim(), games, team, position, number, role, specialties);
                         CloseOverlay();
                         _logLines.Clear();
+                        _history.Clear();
                         Log($"{CareerState.StartYear}년, {_career.Me.Name} 선수 {_career.MyTeam.Name} 입단! 훈련을 골라 하루를 시작하세요.");
                         Tip("start", "훈련을 하나 고르면 하루가 지나고 팀 경기가 열려요. 경험치 막대가 다 차면 능력치가 1 올라요. 한계는 없지만 높을수록 오르기 어려워요. 주특기(★)는 1.5배 빨리 자라요.");
                         Refresh();
@@ -2761,6 +2850,8 @@ namespace BaseballGame
         {
             _logLines.Insert(0, entry);
             if (_logLines.Count > 4) _logLines.RemoveAt(_logLines.Count - 1);
+            _history.Insert(0, entry);
+            if (_history.Count > HistoryLength) _history.RemoveAt(_history.Count - 1);
             _log.text = string.Join("\n\n", _logLines);
         }
 
