@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace BaseballSim.Career
@@ -16,6 +17,34 @@ namespace BaseballSim.Career
         public const int FanVotePopularity = 70;
         /// <summary>Sponsor money per popularity point at season end: kept small on purpose.</summary>
         const int SponsorPerPopularity = 8;
+
+        /// <summary>From here a home crowd keeps the player's good mood from fading that day.</summary>
+        public const int HomeCheerPopularity = 50;
+
+        /// <summary>Salary worth goes up a quarter of a percent per popularity point (+25% at 100).</summary>
+        public static double PopularityPay(int popularity) => 1 + popularity / 400.0;
+
+        static readonly (int From, string Name)[] Tiers =
+        {
+            (100, "국민 스타"), (80, "슈퍼스타"), (60, "스타"), (40, "인기 선수"), (20, "주목받는 선수"), (0, "무명"),
+        };
+
+        public static string PopularityTier(int popularity) => Tiers.First(t => popularity >= t.From).Name;
+
+        /// <summary>What popularity does, for the profile: each line with whether it's on yet.</summary>
+        public static List<(bool On, string Text)> PopularityPerks(int popularity) => new List<(bool, string)>
+        {
+            (true, $"시즌 끝 광고 수입 {Krw.Format(popularity * SponsorPerPopularity)} (인기 1당 {SponsorPerPopularity}만원)"),
+            (popularity > 0, $"연봉 시세 +{popularity / 4}% (인기 4당 1%, FA 제안에도 반영)"),
+            (popularity >= 20, "인기 20+ · 좋은 경기 뒤 인터뷰·팬 장면이 더 자주 와요"),
+            (popularity >= HomeCheerPopularity, $"인기 {HomeCheerPopularity}+ · 홈경기에서 뛴 날은 좋은 사기가 떨어지지 않아요"),
+            (popularity >= FanVotePopularity, $"인기 {FanVotePopularity}+ · 성적이 모자라도 팬 투표로 올스타·홈런 더비 출전"),
+            (popularity >= 100, "인기 100 · 업적 '국민 스타'"),
+        };
+
+        bool CheeredAtHome(DayResult day) =>
+            Me.Popularity >= HomeCheerPopularity && day?.MyGame != null && day.MyGame.Home == MyTeam
+            && (day.MyLine != null && day.MyLine.PlateAppearances > 0 || day.MyPitching != null);
 
         internal void AddFansFromEvent(int points) => AddFans(points);
 

@@ -54,10 +54,15 @@ namespace BaseballGame
             Radar(content);
 
             Section(content, "정보");
-            Line(content, $"연봉 {me.Salary:N0}만원 · 보유 {me.Money:N0}만원 · 인기 {me.Popularity}");
+            Line(content, $"연봉 {Krw.Format(me.Salary)} · 보유 {Krw.Format(me.Money)}");
             if (_career.ContractSeasonsLeft > 0) Line(content, $"{_career.MyTeam.Name} 계약 {_career.ContractSeasonsLeft}시즌 남음");
             if (me.Clubs.Count > 0) Line(content, "거쳐 온 구단: " + string.Join(" → ", me.Clubs));
             if (_career.Rival != null) Line(content, $"라이벌: {_career.Rival.Name} ({_career.RivalTeam?.Name})");
+
+            Section(content, $"인기 {me.Popularity} / 100 · {CareerState.PopularityTier(me.Popularity)}");
+            Line(content, "안타·홈런·승리와 타이틀로 오르고, 겨울마다 30%쯤 식어요.", UiKit.Muted);
+            foreach (var (on, text) in CareerState.PopularityPerks(me.Popularity))
+                Line(content, on ? $"<color=#FFD24D>✓</color> {text}" : $"<color=#6B7488>· {text}</color>");
 
             Section(content, $"특성 {me.Traits.Count}개");
             if (me.Traits.Count == 0) Line(content, "능력치 총합이 오르면 특성을 고를 수 있어요.", UiKit.Muted);

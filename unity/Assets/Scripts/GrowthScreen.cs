@@ -566,7 +566,7 @@ namespace BaseballGame
                 UiAnim.FloatUp(label.rectTransform, text, up > 0 ? Gold : new Color(0.55f, 0.8f, 1f), up > 0 ? 44 : 32, 0.08f * shown++);
             }
             int earned = me.Money - _moneyBefore;
-            if (earned > 0) UiAnim.FloatUp(_money.rectTransform, $"+{earned:N0}만원", Gold, 32);
+            if (earned > 0) UiAnim.FloatUp(_money.rectTransform, $"{Krw.Signed(earned)}", Gold, 32);
             // A rating going up rings out; plain experience only ticks softly.
             if (leveled) GameAudio.Sfx(GameAudio.LevelUp);
             else if (shown > 0) GameAudio.Sfx(GameAudio.Exp, 0.6f, 0.05f);
@@ -886,7 +886,7 @@ namespace BaseballGame
             foreach (var goal in _career.GoalOffer)
             {
                 var g = goal;
-                string label = $"[{SeasonGoal.TierNames[(int)g.Tier]}] {g.Text}\n<size=26>보상 {g.Money(_career.Me.Salary):N0}만원 + 모든 능력치 경험치 {g.Exp}</size>";
+                string label = $"[{SeasonGoal.TierNames[(int)g.Tier]}] {g.Text}\n<size=26>보상 {Krw.Format(g.Money(_career.Me.Salary))} + 모든 능력치 경험치 {g.Exp}</size>";
                 var color = g.Tier == GoalTier.Hard ? UiKit.Warning : g.Tier == GoalTier.Normal ? UiKit.Accent : UiKit.Muted;
                 UiKit.Height(UiKit.Button(card, label, () =>
                 {
@@ -1085,7 +1085,7 @@ namespace BaseballGame
                 ? (t.MyPitching.Outs > 0 ? $"{t.MyPitching.Innings}이닝 {t.MyPitching.Runs}실점 {t.MyPitching.Strikeouts}탈삼진" : "등판 기회가 없었어요")
                 : $"{t.MyLine.AtBats}타수 {t.MyLine.Hits}안타 {t.MyLine.HomeRuns}홈런 {t.MyLine.RunsBattedIn}타점";
             string me = t.Selected
-                ? $"국가대표로 출전! {myGames}\n<color=#5FA8FF>보너스 +{t.Bonus:N0}만원</color>"
+                ? $"국가대표로 출전! {myGames}\n<color=#5FA8FF>보너스 {Krw.Signed(t.Bonus)}</color>"
                 : _career.InFarm ? "2군에 있어서 대표팀에 뽑히지 못했어요."
                 : _career.Me.IsPitcher ? "이번엔 대표팀에 뽑히지 못했어요. 평균자책이 리그 최상위면 뽑혀요." : "이번엔 대표팀에 뽑히지 못했어요. 시즌 OPS가 리그 최상위면 뽑혀요.";
             UiKit.Height(UiKit.Label(card, $"{medal}\n\n{me}", 34, TextAnchor.MiddleCenter), 0, 1);
@@ -1227,8 +1227,8 @@ namespace BaseballGame
                 var label = UiKit.Label(row, $"{(won ? "<color=#FFD24D>★</color> " : "")}{name} <size=24><color=#BAC4D8>{e.Team} · 시즌 {e.SeasonHomeRuns}홈런</color></size>\n{scores}", 30, TextAnchor.MiddleCenter);
                 UiKit.Stretch(label.rectTransform);
             }
-            string verdict = d.MyWon ? $"<color=#FFD24D><b>홈런 더비 우승!</b></color>  <size=28>보너스 +{d.Bonus:N0}만원 · 인기 UP</size>"
-                : d.MyIn ? $"<color=#BAC4D8>{d.Winner.Name} 우승. 다음엔 내가 왕관을!</color>  <size=28>출전 보너스 +{d.Bonus:N0}만원</size>"
+            string verdict = d.MyWon ? $"<color=#FFD24D><b>홈런 더비 우승!</b></color>  <size=28>보너스 {Krw.Signed(d.Bonus)} · 인기 UP</size>"
+                : d.MyIn ? $"<color=#BAC4D8>{d.Winner.Name} 우승. 다음엔 내가 왕관을!</color>  <size=28>출전 보너스 {Krw.Signed(d.Bonus)}</size>"
                 : $"<b>{d.Winner.Name}</b> ({d.Winner.Team}) 우승";
             UiKit.Height(UiKit.Label(card, verdict, 32, TextAnchor.MiddleCenter), 110);
             UiKit.Height(UiKit.Button(card, "일요일 · 올스타전으로", () => { CloseOverlay(); ShowAllStarGame(allStar); }, Gold), 110);
@@ -1245,7 +1245,7 @@ namespace BaseballGame
                 string mine = allStar.MyPitching != null ? (_career.Me.Role == PitcherRole.Starter ? "선발 " : "구원 ") + PitchingText(allStar.MyPitching)
                     : _career.Me.IsPitcher ? "등판 기회가 없었어요" : $"{l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런 {l.RunsBattedIn}타점";
                 text += (allStar.FanVote ? $"<color=#FFD24D>팬 투표로 뽑힌 올스타!</color> (인기 {_career.Me.Popularity})" : "팬과 감독이 뽑은 올스타!") + $"\n내 성적 {mine}\n" +
-                        $"<color=#5FA8FF>보너스 +{allStar.Bonus:N0}만원 · 사기 +2</color>";
+                        $"<color=#5FA8FF>보너스 {Krw.Signed(allStar.Bonus)} · 사기 +2</color>";
             }
             else
             {
@@ -1374,7 +1374,7 @@ namespace BaseballGame
             {
                 var pay = r.Payday;
                 string label2 = _career.InMilitary ? "군 복무 수당" : "월급";
-                lines.Add($"<color=#FFD24D>{pay.Month} {label2} {pay.Salary:N0}만원" + (pay.Bonus > 0 ? $" + 성적 보너스 {pay.Bonus:N0}만원" : "") + " 입금!</color>");
+                lines.Add($"<color=#FFD24D>{pay.Month} {label2} {Krw.Format(pay.Salary)}" + (pay.Bonus > 0 ? $" + 성적 보너스 {Krw.Format(pay.Bonus)}" : "") + " 입금!</color>");
             }
             Log(string.Join("\n", lines));
         }
@@ -1667,7 +1667,7 @@ namespace BaseballGame
 
         void ShowShop()
         {
-            var card = OpenOverlay($"상점  (보유 {_career.Me.Money:N0}만원)");
+            var card = OpenOverlay($"상점  (보유 {Krw.Format(_career.Me.Money)})");
             int worn = _career.Cards.Count(id => id != null);
             UiKit.Height(UiKit.Button(card, $"훈련 카드 장착·뽑기 ({worn}/{Gacha.CardSlots} 장착 · 구단 코인 {_club.Coins:N0})",
                 () => { CloseOverlay(); GachaScreen.Open(_club, _career, Refresh); }, new Color(0.2f, 0.45f, 0.6f)), 100);
@@ -1700,7 +1700,7 @@ namespace BaseballGame
                 }
                 string bonus = string.Join(" ", next.Bonus.Select(b => $"{StatNames[_career.Me.RoleStat(b.Key)]}+{b.Value}"));
                 var item = next;
-                var buy = UiKit.Button(row, $"{item.Name}\n{bonus} · {item.Price:N0}만원", () =>
+                var buy = UiKit.Button(row, $"{item.Name}\n{bonus} · {Krw.Format(item.Price)}", () =>
                 {
                     if (_career.Buy(item.Id))
                     {
@@ -1735,7 +1735,7 @@ namespace BaseballGame
                 }
                 int price = Facilities.Price(level + 1);
                 var f = facility;
-                var upgrade = UiKit.Button(row, $"Lv.{level + 1}: {Facilities.Describe(f, level + 1)}\n{price:N0}만원", () =>
+                var upgrade = UiKit.Button(row, $"Lv.{level + 1}: {Facilities.Describe(f, level + 1)}\n{Krw.Format(price)}", () =>
                 {
                     if (_career.UpgradeFacility(f))
                     {
@@ -1760,7 +1760,7 @@ namespace BaseballGame
         /// <summary>Training tools: salary-bought, one per stat in three tiers, each making that training give more exp.</summary>
         void ShowTools()
         {
-            var card = OpenOverlay($"훈련용품  (보유 {_career.Me.Money:N0}만원)");
+            var card = OpenOverlay($"훈련용품  (보유 {Krw.Format(_career.Me.Money)})");
             UiKit.Height(UiKit.Label(card, "그 능력치를 훈련할 때 경험치가 더 들어와요. 연봉으로만 살 수 있어요.\n<size=24>훈련 카드·이벤트 효과와 더해져요.</size>", 26, TextAnchor.MiddleCenter, UiKit.Muted), 90);
             foreach (var stat in _career.Me.MyStats)
             {
@@ -1777,7 +1777,7 @@ namespace BaseballGame
                 }
                 int price = TrainingTools.Price(tier + 1);
                 var s2 = stat;
-                var buy = UiKit.Button(row, $"{TrainingTools.Name(stat, tier + 1)}\n훈련 +{TrainingTools.Bonus(tier + 1)}% · {price:N0}만원", () =>
+                var buy = UiKit.Button(row, $"{TrainingTools.Name(stat, tier + 1)}\n훈련 +{TrainingTools.Bonus(tier + 1)}% · {Krw.Format(price)}", () =>
                 {
                     if (_career.BuyTool(s2))
                     {
@@ -1808,9 +1808,7 @@ namespace BaseballGame
             UiKit.Height(body.parent, 0, 1);
             void Section(string title) => UiKit.Height(UiKit.Label(body, title, 32, TextAnchor.LowerLeft, Gold), 70);
             void Line(string text) => UiKit.Height(UiKit.Label(body, text, 28, TextAnchor.MiddleLeft), 46);
-            string Won(int manwon) => manwon >= 10000
-                ? $"{manwon / 10000}억" + (manwon % 10000 > 0 ? $" {manwon % 10000:N0}만원" : "원")
-                : $"{manwon:N0}만원";
+            string Won(int manwon) => Krw.Format(manwon);
 
             Section("장비 (부위마다 4단계)");
             var gear = EquipmentCatalog.All;
@@ -1882,7 +1880,7 @@ namespace BaseballGame
             Line(pitcher
                 ? pitching.ToString().Replace(" · ", "  ") + (pitching.BlownSaves > 0 ? $"  블론 {pitching.BlownSaves}" : "")
                 : $"타율 {Stats.Rate(Stats.Avg(line))}  {line.HomeRuns}홈런  {line.RunsBattedIn}타점  OPS {Stats.Rate(Stats.Ops(line))}");
-            Line($"인기 {summary.Popularity}  ·  광고 수입 {summary.Sponsor:N0}만원");
+            Line($"인기 {summary.Popularity}  ·  광고 수입 {Krw.Format(summary.Sponsor)}");
             Line($"<color=#FFD24D>시즌 완주 구단 코인 +{seasonCoins}</color>" + (summary.Record.Games >= League.FullSeason ? "  <size=24><color=#BAC4D8>(144경기 4배)</color></size>" : ""));
 
             if (summary.FanComments.Count > 0)
@@ -1929,7 +1927,7 @@ namespace BaseballGame
             {
                 Section("시즌 목표");
                 Line(summary.GoalMet
-                    ? $"<color=#FFD24D>달성!</color> {summary.Goal.Text}  ·  +{summary.GoalMoney:N0}만원, 모든 능력치 경험치 +{summary.Goal.Exp}"
+                    ? $"<color=#FFD24D>달성!</color> {summary.Goal.Text}  ·  {Krw.Signed(summary.GoalMoney)}, 모든 능력치 경험치 +{summary.Goal.Exp}"
                     : $"<color=#F28C40>실패</color> {summary.Goal.Text}  (기록 {summary.Goal.Progress(line, pitching)})");
             }
 
@@ -1965,10 +1963,10 @@ namespace BaseballGame
 
             Section("계약");
             if (summary.SalaryTalk != null)
-                Line($"구단 제시 연봉 {summary.OldSalary:N0} → <b>{summary.SalaryTalk.Offer:N0}</b>만원  (성적 시세 {summary.SalaryTalk.Worth:N0}만원)");
+                Line($"구단 제시 연봉 {Krw.Format(summary.OldSalary)} → <b>{Krw.Format(summary.SalaryTalk.Offer)}</b>  (성적 시세 {Krw.Format(summary.SalaryTalk.Worth)})");
             else
-                Line($"연봉 {summary.OldSalary:N0} → <b>{summary.NewSalary:N0}</b>만원" + (_career.ContractSeasonsLeft > 0 ? "  (계약 기간)" : ""));
-            if (post.Bonus > 0) Line($"가을야구 보너스 {post.Bonus:N0}만원");
+                Line($"연봉 {Krw.Format(summary.OldSalary)} → <b>{Krw.Format(summary.NewSalary)}</b>" + (_career.ContractSeasonsLeft > 0 ? "  (계약 기간)" : ""));
+            if (post.Bonus > 0) Line($"가을야구 보너스 {Krw.Format(post.Bonus)}");
             Line($"나이 {_career.Me.Age}세가 되었습니다.");
             if (summary.Veteran.Count > 0)
                 Line("<color=#7CD992>노련함: " + string.Join(", ", summary.Veteran.Select(d => $"{StatNames[d.Key]} +{d.Value}")) + "</color>");
@@ -2095,10 +2093,10 @@ namespace BaseballGame
             string leverage = talk.Worth > talk.Offer ? "<color=#5FA8FF>성적이 제시액보다 좋아요. 협상력이 있어요.</color>"
                 : "<color=#F28C40>성적이 제시액만 못해요. 무리하면 마음만 상할 수 있어요.</color>";
             UiKit.Height(UiKit.Label(card,
-                $"작년 연봉 {talk.OldSalary:N0}만원\n구단 제시 <b>{talk.Offer:N0}</b>만원\n성적 시세 {talk.Worth:N0}만원" + (talk.Titles > 0 ? $" · 타이틀 {talk.Titles}개" : "") + $"\n\n{leverage}",
+                $"작년 연봉 {Krw.Format(talk.OldSalary)}\n구단 제시 <b>{Krw.Format(talk.Offer)}</b>\n성적 시세 {Krw.Format(talk.Worth)}" + (talk.Titles > 0 ? $" · 타이틀 {talk.Titles}개" : "") + $"\n\n{leverage}",
                 34, TextAnchor.MiddleCenter), 0, 1);
             void Choice(string label, SalaryAsk ask, Color? color = null) =>
-                UiKit.Height(UiKit.Button(card, ask == SalaryAsk.Accept ? label : $"{label} {talk.Ask(ask):N0}만원  (성공 {talk.Chance(ask):P0})", () =>
+                UiKit.Height(UiKit.Button(card, ask == SalaryAsk.Accept ? label : $"{label} {Krw.Format(talk.Ask(ask))}  (성공 {talk.Chance(ask):P0})", () =>
                 {
                     var result = _career.Negotiate(ask);
                     Log($"<b>연봉 협상</b> {result.Text}");
@@ -2119,8 +2117,8 @@ namespace BaseballGame
             {
                 var o = offer;
                 string label = o.Tryout
-                    ? $"{o.Team.Name}  입단 테스트  연 {o.Salary:N0}만원"
-                    : $"{(o.Team == _career.MyTeam ? "잔류  " : "")}{o.Team.Name}  {o.Years}년  연 {o.Salary:N0}만원";
+                    ? $"{o.Team.Name}  입단 테스트  연 {Krw.Format(o.Salary)}"
+                    : $"{(o.Team == _career.MyTeam ? "잔류  " : "")}{o.Team.Name}  {o.Years}년  연 {Krw.Format(o.Salary)}";
                 UiKit.Height(UiKit.Button(parent, label, () => SignOffer(o), TeamColor(o.Team.Name)), 100);
             }
         }
@@ -2142,8 +2140,8 @@ namespace BaseballGame
             Log(offer.Tryout
                 ? $"{offer.Team.Name} 입단 테스트 합격! 2군에서 다시 시작합니다."
                 : moved
-                    ? $"FA 이적! {offer.Team.Name}와 {offer.Years}년 연 {offer.Salary:N0}만원 계약"
-                    : $"{offer.Team.Name} 잔류, {offer.Years}년 연 {offer.Salary:N0}만원 계약");
+                    ? $"FA 이적! {offer.Team.Name}와 {offer.Years}년 연 {Krw.Format(offer.Salary)} 계약"
+                    : $"{offer.Team.Name} 잔류, {offer.Years}년 연 {Krw.Format(offer.Salary)} 계약");
             Save();
             CloseOverlay();
             Refresh();
@@ -2418,7 +2416,7 @@ namespace BaseballGame
                   (retired.NumberRetiredBy != null ? $"<color=#FFD24D>{retired.NumberRetiredBy}가 등번호를 영구결번했습니다.</color>\n" : "")
                 : $"<color=#BAC4D8>명예의 전당 점수 {retired.HallOfFameScore} / {Club.HallOfFameLine}</color>\n";
             string donation = retired.Donation > 0
-                ? $"남은 돈 {retired.Donation:N0}만원을 유소년 야구에 기부 → 명예 포인트 +{retired.DonationPoints}\n"
+                ? $"남은 돈 {Krw.Format(retired.Donation)}을 유소년 야구에 기부 → 명예 포인트 +{retired.DonationPoints}\n"
                 : "";
             var arm = retired.CareerPitching;
             string totals = retired.IsPitcher
@@ -2469,7 +2467,7 @@ namespace BaseballGame
                 var l = record.Line;
                 string avg = l.AtBats == 0 ? ".000" : ((double)l.Hits / l.AtBats).ToString(".000");
                 data.Lines.Add($"타율 {avg}  {l.HomeRuns}홈런  {l.RunsBattedIn}타점");
-                data.Lines.Add($"{l.Hits}안타  OPS {CareerState.Ops(l):0.000}  연봉 {record.Salary:N0}만원");
+                data.Lines.Add($"{l.Hits}안타  OPS {CareerState.Ops(l):0.000}  연봉 {Krw.Format(record.Salary)}");
             }
             return data;
         }
@@ -2804,7 +2802,7 @@ namespace BaseballGame
                 : me.Role == PitcherRole.Closer ? $"{p.Saves}세이브 평균자책 {p.EraText}"
                 : me.Role == PitcherRole.Setup ? $"{p.Holds}홀드 평균자책 {p.EraText}"
                 : $"{p.Wins}승 {p.Losses}패 평균자책 {p.EraText}";
-            _money.text = $"{me.Money:N0}만원  <size=26><color=#BAC4D8>연봉 {me.Salary:N0}만원</color></size>";
+            _money.text = $"{Krw.Format(me.Money)}  <size=26><color=#BAC4D8>연봉 {Krw.Format(me.Salary)}</color></size>";
             _status.text = $"{season}  ·  인기 {me.Popularity}{injury}{morale}\n" +
                 $"<size=24><color=#BAC4D8>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);

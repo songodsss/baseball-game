@@ -88,6 +88,41 @@ namespace BaseballSim.Career
             Add("iron_man", "철인", "부상 없이 시즌 완주", c => c.Me.History.Any(h => h.InjuryFree));
             Add("full_season", "풀시즌", "144경기 시즌 완주", c => c.Me.History.Any(h => h.Games >= League.FullSeason));
             Add("full_season_10", "144경기의 사나이", "144경기 시즌 10번 완주", c => c.Me.History.Count(h => h.Games >= League.FullSeason) >= 10);
+
+            // Seasons to remember and the rest of the game: steals, power-speed seasons, autumn heroics, life.
+            int TitleCount(Career c, string title) => c.Me.History.Count(h => h.Titles.Contains(title));
+            bool Season(Career c, Func<SeasonRecord, bool> f) => c.Me.History.Any(f);
+            Add("first_sb", "프로 첫 도루", "프로 무대에서 첫 도루", c => Total(c).StolenBases >= 1);
+            Add("sb_30_season", "발야구", "한 시즌 30도루", c => Season(c, h => h.Line.StolenBases >= 30));
+            Add("sb_100", "대도", "통산 100도루", c => Total(c).StolenBases >= 100);
+            Add("sb_300", "베이스 위의 지배자", "통산 300도루", c => Total(c).StolenBases >= 300);
+            Add("twenty_twenty", "20-20 클럽", "한 시즌 20홈런-20도루", c => Season(c, h => h.Line.HomeRuns >= 20 && h.Line.StolenBases >= 20));
+            Add("thirty_thirty", "30-30 클럽", "한 시즌 30홈런-30도루", c => Season(c, h => h.Line.HomeRuns >= 30 && h.Line.StolenBases >= 30));
+            Add("hr_30_season", "거포의 탄생", "한 시즌 30홈런", c => Season(c, h => h.Line.HomeRuns >= 30));
+            Add("hr_50_season", "50홈런 시즌", "한 시즌 50홈런", c => Season(c, h => h.Line.HomeRuns >= 50));
+            Add("hr_300", "300홈런", "통산 300홈런", c => Total(c).HomeRuns >= 300);
+            Add("hr_400", "400홈런", "통산 400홈런", c => Total(c).HomeRuns >= 400);
+            Add("rbi_100_season", "100타점", "한 시즌 100타점", c => Season(c, h => h.Line.RunsBattedIn >= 100));
+            Add("runs_100_season", "100득점", "한 시즌 100득점", c => Season(c, h => h.Line.Runs >= 100));
+            Add("hits_200_season", "200안타", "한 시즌 200안타", c => Season(c, h => h.Line.Hits >= 200));
+            Add("hits_2000", "2000안타", "통산 2000안타", c => Total(c).Hits >= 2000);
+            Add("walks_100_season", "선구안의 정석", "한 시즌 볼넷 100개", c => Season(c, h => h.Line.Walks >= 100));
+            Add("wins_15_season", "15승 투수", "한 시즌 15승", c => Season(c, h => h.Pitching != null && h.Pitching.Wins >= 15));
+            Add("k_200_season", "닥터 K", "한 시즌 200탈삼진", c => Season(c, h => h.Pitching != null && h.Pitching.Strikeouts >= 200));
+            Add("saves_40_season", "철벽 마무리", "한 시즌 40세이브", c => Season(c, h => h.Pitching != null && h.Pitching.Saves >= 40));
+            Add("holds_30_season", "셋업의 품격", "한 시즌 30홀드", c => Season(c, h => h.Pitching != null && h.Pitching.Holds >= 30));
+            Add("k_2000", "2000탈삼진", "통산 2000탈삼진", c => Arm(c).Strikeouts >= 2000);
+            Add("multi_crown", "다관왕", "한 시즌 개인 타이틀 3개 이상", c => Season(c, h => h.Titles.Count(Awards.IsStatTitle) >= 3));
+            Add("mvp_3", "시대의 얼굴", "시즌 MVP 3회", c => TitleCount(c, Awards.Mvp) >= 3);
+            Add("ks_mvp", "가을의 영웅", "한국시리즈 MVP", c => HasTitle(c, Postseason.KsMvpTitle));
+            Add("rings_3", "왕조", "한국시리즈 우승 3회", c => TitleCount(c, Postseason.ChampionTitle) >= 3);
+            Add("golden_glove_5", "황금 장갑 수집가", "골든글러브 5회", c => TitleCount(c, Awards.GoldenGlove) >= 5);
+            Add("all_star_5", "단골 올스타", "올스타전 5회 출전", c => c.Me.AllStarSelections >= 5);
+            Add("legend_surpass", "전설을 넘어", "레전드의 기록을 넘기", c => Legends.All.Any(l => c.StageOf(l.Id) == LegendStage.Surpassed));
+            Add("legend_surpass_3", "새로운 전설", "레전드 3명의 기록을 넘기", c => Legends.All.Count(l => c.StageOf(l.Id) == LegendStage.Surpassed) >= 3);
+            Add("moved", "새 유니폼", "다른 구단으로 이적", c => c.Me.Clubs.Count > 0);
+            Add("married", "평생의 짝", "결혼", c => c.HasMark("married"));
+            Add("one_club", "원클럽맨", "한 구단에서만 10시즌", c => c.Me.Clubs.Count == 0 && c.Me.History.Count >= 10);
             return list;
         }
     }

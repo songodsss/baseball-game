@@ -431,7 +431,8 @@ namespace BaseballSim.Career
                 result.OffDayNext = true;
                 Me.Fatigue = Math.Max(0, Me.Fatigue - OffDayRecovery);
             }
-            Me.Morale -= Math.Sign(Me.Morale);
+            // A loud home crowd keeps a good mood from fading.
+            if (!(Me.Morale > 0 && CheeredAtHome(result))) Me.Morale -= Math.Sign(Me.Morale);
             Day++;
             result.Milestones = CheckMilestones(result);
             ReviewRoster(result);
@@ -892,6 +893,7 @@ namespace BaseballSim.Career
             // A signed deal holds the salary until it runs out.
             double ops = Form(SeasonLine, SeasonPitching);
             double worth = MinSalary * Math.Exp((ops - 0.650) * 7);
+            worth *= PopularityPay(summary.Popularity); // a star sells tickets: the club pays for that too
             bool underContract = ContractSeasonsLeft > 0;
             bool served = InMilitary;
             Released = !served && ShouldRelease(underContract);

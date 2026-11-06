@@ -60,7 +60,7 @@ namespace BaseballSim.Career
                 if (Titles.Count > 0) lines.Add($"타이틀 {Titles.Count}개의 기억이 전광판을 채웠다.");
                 if (NumberRetiredBy != null) lines.Add($"{NumberRetiredBy}이(가) 그의 {(Number > 0 ? Number + "번" : "등번호")}을 영구결번으로 지정했다. 유니폼이 외야 펜스 위에 걸렸다.");
                 if (HallOfFame) lines.Add("그리고 명예의 전당 헌액 소식이 전해졌다.");
-                lines.Add(Donation > 0 ? $"그는 남은 {Donation:N0}만원을 유소년 야구에 기부하며 그라운드를 떠났다." : "그는 모자를 벗어 인사하고 그라운드를 떠났다.");
+                lines.Add(Donation > 0 ? $"그는 남은 {Krw.Format(Donation)}을 유소년 야구에 기부하며 그라운드를 떠났다." : "그는 모자를 벗어 인사하고 그라운드를 떠났다.");
                 return lines;
             }
         }

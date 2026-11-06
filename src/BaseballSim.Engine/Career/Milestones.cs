@@ -66,9 +66,9 @@ namespace BaseballSim.Career
 
         /// <summary>What the stadium does for a big milestone.</summary>
         public static string MilestoneCeremony(string milestone, string name) =>
-            $"{milestone} 달성! 리그에서도 손꼽히는 기록이다. 전광판에 {name}의 이름이 떠오르고 관중이 모두 일어나 박수를 보냈다. 구단이 기념 상금 {MilestoneBonus:N0}만원을 전달했다.";
+            $"{milestone} 달성! 리그에서도 손꼽히는 기록이다. 전광판에 {name}의 이름이 떠오르고 관중이 모두 일어나 박수를 보냈다. 구단이 기념 상금 {Krw.Format(MilestoneBonus)}을 전달했다.";
 
         /// <summary>A log line for a smaller round number.</summary>
-        public static string MinorMilestoneLine(string milestone) => $"{milestone}. 전광판에 짧게 축하 문구가 떴다. (+{MinorMilestoneBonus}만원)";
+        public static string MinorMilestoneLine(string milestone) => $"{milestone}. 전광판에 짧게 축하 문구가 떴다. ({Krw.Signed(MinorMilestoneBonus)})";
     }
 }

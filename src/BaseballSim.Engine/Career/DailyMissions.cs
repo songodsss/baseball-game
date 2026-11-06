@@ -256,7 +256,7 @@ namespace BaseballSim.Career
         {
             switch (kind)
             {
-                case RewardKind.Money: return $"{amount:N0}만원";
+                case RewardKind.Money: return $"{Krw.Format(amount)}";
                 case RewardKind.RecoveryTicket: return $"피로 회복권 {amount}장";
                 case RewardKind.Coins: return $"코인 {amount}";
                 default: return $"명예 포인트 {amount}";

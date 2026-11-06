@@ -123,7 +123,7 @@ namespace BaseballSim.Career
         public void Money(int delta)
         {
             Me.Money = Math.Max(0, Me.Money + delta);
-            Outcome.Changes.Add($"보유금 {Signed(delta)}만원");
+            Outcome.Changes.Add($"보유금 {Krw.Signed(delta)}");
         }
 
         public void Morale(int delta)

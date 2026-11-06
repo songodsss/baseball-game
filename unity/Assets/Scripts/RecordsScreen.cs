@@ -441,7 +441,7 @@ namespace BaseballGame
                 foreach (var st in stints)
                     Note($"{CareerState.YearOf(st.From)}–{CareerState.YearOf(st.To)}  {st.Club}", TextAnchor.MiddleLeft, 60);
                 if (_career.ContractSeasonsLeft > 0)
-                    Note($"현재 {_career.MyTeam.Name} 계약 {_career.ContractSeasonsLeft}시즌 남음 · 연 {me.Salary:N0}만원", TextAnchor.MiddleLeft, 60);
+                    Note($"현재 {_career.MyTeam.Name} 계약 {_career.ContractSeasonsLeft}시즌 남음 · 연 {Krw.Format(me.Salary)}", TextAnchor.MiddleLeft, 60);
             }
 
             if (_career.Rival != null)

@@ -70,20 +70,20 @@ namespace BaseballSim.Career
             var talk = PendingSalary ?? throw new InvalidOperationException("No salary offer to answer.");
             PendingSalary = null;
             if (ask == SalaryAsk.Accept)
-                return new SalaryResult { Granted = true, Salary = Me.Salary, Text = $"{Me.Salary:N0}만원에 도장을 찍었어요." };
+                return new SalaryResult { Granted = true, Salary = Me.Salary, Text = $"{Krw.Format(Me.Salary)}에 도장을 찍었어요." };
 
             int asked = talk.Ask(ask);
             if (_random.NextDouble() < talk.Chance(ask))
             {
                 Me.Salary = asked;
-                return new SalaryResult { Granted = true, Salary = asked, Text = $"구단이 요구를 받아들였어요! 연봉 {asked:N0}만원." };
+                return new SalaryResult { Granted = true, Salary = asked, Text = $"구단이 요구를 받아들였어요! 연봉 {Krw.Format(asked)}." };
             }
 
             int morale = ask == SalaryAsk.AskBig ? -3 : -1;
             Me.Morale = Math.Max(-CareerPlayer.MaxMorale, Me.Morale + morale);
             string text = ask == SalaryAsk.AskBig
-                ? $"협상이 길어졌지만 구단은 끝내 {talk.Offer:N0}만원을 고수했어요. 마음이 상했어요."
-                : $"구단이 원래 제시액 {talk.Offer:N0}만원을 고수했어요.";
+                ? $"협상이 길어졌지만 구단은 끝내 {Krw.Format(talk.Offer)}을 고수했어요. 마음이 상했어요."
+                : $"구단이 원래 제시액 {Krw.Format(talk.Offer)}을 고수했어요.";
             return new SalaryResult { Granted = false, Salary = Me.Salary, MoraleChange = morale, Text = text };
         }
     }
