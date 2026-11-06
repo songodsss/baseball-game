@@ -72,7 +72,7 @@ namespace BaseballSim.Career
             {
                 Id = "trade_rumor",
                 Title = "트레이드 루머",
-                Text = $"아침 스포츠면에 내 이름이 실렸다. '{c.TradeRumor}, {{name}} 영입 추진설.'\n훈련장 분위기가 어색하다. 감독은 눈을 마주치지 않았고, {{junior}}이(가) 조심스레 물었다. \"선배님, 진짜 가세요?\"\n트레이드 마감까지 며칠 남지 않았다.",
+                Text = $"아침 스포츠면에 내 이름이 실렸다. '{c.TradeRumor}, {{name}} 영입 추진설.'\n훈련장 분위기가 어색하다. 감독은 눈을 마주치지 않았고, {{junior}}가 조심스레 물었다. \"선배님, 진짜 가세요?\"\n트레이드 마감까지 며칠 남지 않았다.",
                 Weight = (_, __) => 0,
                 Choices =
                 {
@@ -107,12 +107,12 @@ namespace BaseballSim.Career
         {
             Id = "club_dinner",
             Title = "새 팀 첫 회식",
-            Text = "원정 숙소 근처 고깃집. {junior}이(가) 쭈뼛거리며 물었다.\n\"선배님, 전 팀에선 어떤 분위기였어요?\" 테이블이 조용해졌다. 다들 궁금했던 모양이다.",
+            Text = "원정 숙소 근처 고깃집. {junior}가 쭈뼛거리며 물었다.\n\"선배님, 전 팀에선 어떤 분위기였어요?\" 테이블이 조용해졌다. 다들 궁금했던 모양이다.",
             Weight = (_, __) => 0,
             Choices =
             {
                 new EventChoice { Label = "옛 팀 이야기를 웃기게 풀어 준다", Result = "전 팀 감독 성대모사에 다들 숨이 넘어갔다. 그날부터 '우리 팀 사람'이 됐다.", Apply = e => { e.Morale(5); e.Close("junior", 2); e.Close("veteran", 1); } },
-                new EventChoice { Label = "\"이제 여기가 내 팀이야\"", Result = "잔이 부딪쳤다. {junior}이(가) 제일 크게 외쳤다. \"우리 팀!\"", Apply = e => { e.Morale(4); e.Close("junior", 1); e.Trust(1); e.Fans(20); } },
+                new EventChoice { Label = "\"이제 여기가 내 팀이야\"", Result = "잔이 부딪쳤다. {junior}가 제일 크게 외쳤다. \"우리 팀!\"", Apply = e => { e.Morale(4); e.Close("junior", 1); e.Trust(1); e.Fans(20); } },
             },
         };
 

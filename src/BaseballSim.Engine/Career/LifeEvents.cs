@@ -350,11 +350,11 @@ namespace BaseballSim.Career
             {
                 Id = "trust_high",
                 Title = "감독실 호출",
-                Text = "감독이 {name}을 감독실로 불렀다.\n\"요즘 네가 하는 걸 다 보고 있다. 중요한 경기는 너한테 맡기겠다.\"",
+                Text = "감독이 {name}을 감독실로 불렀다. 책상 위에 내 기록지가 펼쳐져 있었다.\n\"앉아라.\" 한참 기록지를 넘기던 감독이 입을 열었다.\n\"요즘 네가 하는 걸 다 보고 있다. 아침에 누가 제일 먼저 나오는지, 지고 나서 누가 끝까지 남는지.\"\n감독이 기록지를 덮었다. \"중요한 경기는 너한테 맡기겠다. 대신 핑계는 없다.\"",
                 Weight = (c, d) => c.Me.ManagerTrust >= 4 && !c.SeenThisSeason("trust_high") ? 4 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "\"믿음에 보답하겠습니다\"", Result = "문을 나서는데 가슴이 뜨거웠다.", Apply = e => { e.Morale(8); e.Fans(30); } },
+                    new EventChoice { Label = "\"믿음에 보답하겠습니다\"", Result = "\"말은 됐고, 경기장에서 보자.\" 문을 나서는데 가슴이 뜨거웠다. 그날부터 훈련장 불을 제일 늦게 껐다.", Apply = e => { e.Morale(6); e.Trust(1); e.Boost(Stat.Contact, 20, 15, "감독의 믿음"); e.Fans(20); } },
                     new EventChoice { Label = "\"하나만 가르쳐 주십시오\"", Result = "감독이 직접 옛날 노트를 꺼내 보여 줬다.", Apply = e => { e.Exp(Stat.Eye, 60); e.Boost(Stat.Eye, 25, 10, "감독의 노트"); e.Morale(3); } },
                 },
             });
@@ -363,11 +363,11 @@ namespace BaseballSim.Career
             {
                 Id = "trust_low",
                 Title = "감독 면담",
-                Text = "감독이 팔짱을 끼고 말했다.\n\"요즘 네 마음대로더라. 팀이 먼저야, 알겠나?\"",
+                Text = "감독이 팔짱을 끼고 말했다.\n\"요즘 네 마음대로더라. 사인 무시하고, 미팅엔 늦고.\"\n잠깐의 침묵. \"너 잘하는 거 안다. 그래서 더 화가 나는 거다. 팀이 먼저야, 알겠나?\"",
                 Weight = (c, d) => c.Me.ManagerTrust <= -4 && !c.SeenThisSeason("trust_low") ? 4 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "고개 숙여 사과한다", Result = "\"알면 됐다.\" 분위기가 조금 풀렸다.", Apply = e => { e.Trust(4); e.Morale(-2); } },
+                    new EventChoice { Label = "고개 숙여 사과한다", Result = "\"알면 됐다.\" 감독이 커피 한 잔을 밀어 줬다. \"내일부터 다시 보자.\"", Apply = e => { e.Trust(4); e.Morale(-1); e.Exp(Stat.Eye, 30); } },
                     new EventChoice { Label = "실력으로 보여 드린다", Result = "그날 밤 혼자 남아 훈련했다.", Apply = e => { e.Exp(Stat.Contact, 50); e.Fatigue(15); e.Trust(1); } },
                 },
             });

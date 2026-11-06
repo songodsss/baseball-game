@@ -150,3 +150,31 @@ public class StoryEventTests
     static void SetPending(CareerState career, StoryEvent ev) =>
         typeof(CareerState).GetProperty(nameof(CareerState.PendingEvent))!.SetValue(career, ev);
 }
+
+public class BothKindnessesTests
+{
+    [Fact]
+    public void APaidKindnessAndAFreeOneCanBothBeChosen()
+    {
+        var ev = new StoryEvent
+        {
+            Id = "t", Title = "t", Text = "t", Weight = (_, __) => 0,
+            Choices =
+            {
+                new EventChoice { Label = "쉬는 날 찾아간다", Result = "A", Apply = e => e.Morale(2) },
+                new EventChoice { Label = "사인볼 한 상자를 보낸다 (100만원)", Result = "B", Apply = e => e.Money(-100) },
+            },
+        };
+        var both = StoryEvents.WithBoth(ev);
+        Assert.Equal(2, ev.Choices.Count); // the shared event is untouched
+        Assert.Equal(3, both.Choices.Count);
+        Assert.Equal("둘 다 한다 (100만원)", both.Choices[2].Label);
+
+        var refusal = new StoryEvent { Id = "u", Title = "u", Text = "u", Weight = (_, __) => 0, Choices =
+        {
+            new EventChoice { Label = "투자한다 (1,000만원)", Result = "", Apply = e => { } },
+            new EventChoice { Label = "정중히 거절한다", Result = "", Apply = e => { } },
+        } };
+        Assert.Same(refusal, StoryEvents.WithBoth(refusal));
+    }
+}

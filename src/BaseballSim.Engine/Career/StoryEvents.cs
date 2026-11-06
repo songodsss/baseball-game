@@ -130,7 +130,16 @@ namespace BaseballSim.Career
             int before = Me.Morale;
             Me.Morale = Math.Max(-CareerPlayer.MaxMorale, Math.Min(CareerPlayer.MaxMorale, Me.Morale + delta));
             if (Me.Morale != before) Outcome.Changes.Add($"사기 {Signed(Me.Morale - before)}");
+            // A good moment doesn't vanish with the next day's morale: it carries into training for a while.
+            if (delta >= GoodMoment)
+            {
+                var main = Me.MyStats.OrderByDescending(s => Me.Ratings[s]).First();
+                Boost(main, delta * 2, delta * 2, "좋은 흐름");
+            }
         }
+
+        /// <summary>Morale this big from a scene also lifts training a little (2% and 2 days per point).</summary>
+        public const int GoodMoment = 4;
 
         public void ShortenInjury(int days)
         {
@@ -226,6 +235,35 @@ namespace BaseballSim.Career
         public static StoryEvent Find(string id) => All.Find(e => e.Id == id);
 
         /// <summary>Weighted pick among events possible today; null if none.</summary>
+        static readonly System.Text.RegularExpressions.Regex PaidLabel = new System.Text.RegularExpressions.Regex(@"\(([\d,]+)만원\)");
+        /// <summary>Choices that are a different path, not a second kindness: never paired with a paid one.</summary>
+        static readonly string[] NotAKindness = { "거절", "실력으로", "다짐", "우승한다", "천천히", "혼자", "모른 척", "현실적", "훈련", "쉰다", "넘어간다" };
+
+        /// <summary>
+        /// A kind act that costs money next to one that costs time ("사인볼 한 상자를 보낸다 (100만원)" and
+        /// "쉬는 날 찾아간다") shouldn't make the player pick one: a third choice does both, at the price.
+        /// Returns a copy; the shared event is left alone.
+        /// </summary>
+        public static StoryEvent WithBoth(StoryEvent ev)
+        {
+            // Main-story and romance scenes record the path taken: their choices stay as written.
+            if (ev == null || ev.Choices.Count > 3 || MainStory.IsMain(ev) || ev.Id.StartsWith("her_") || ev.Choices.Any(ch => ch.Label.StartsWith("둘 다"))) return ev;
+            var paid = ev.Choices.Where(ch => PaidLabel.IsMatch(ch.Label)).ToList();
+            if (paid.Count != 1) return ev;
+            var money = paid[0];
+            var other = ev.Choices.FirstOrDefault(ch => ch != money && !PaidLabel.IsMatch(ch.Label) && !ch.Label.Contains("만원") && !NotAKindness.Any(w => ch.Label.Contains(w)));
+            if (other == null) return ev;
+            string cost = PaidLabel.Match(money.Label).Groups[1].Value;
+            var copy = new StoryEvent { Id = ev.Id, Title = ev.Title, Text = ev.Text, Weight = ev.Weight, Choices = ev.Choices.ToList() };
+            copy.Choices.Add(new EventChoice
+            {
+                Label = $"둘 다 한다 ({cost}만원)",
+                Result = other.Result + "\n" + money.Result,
+                Apply = e => { other.Apply?.Invoke(e); money.Apply?.Invoke(e); },
+            });
+            return copy;
+        }
+
         public static StoryEvent Pick(Career career, DayResult day, IRandom random)
         {
             var options = All.Where(e => !AboutSomeoneLeftBehind(career, e)).Select(e => (Event: e, Weight: e.Weight(career, day))).Where(o => o.Weight > 0).ToList();

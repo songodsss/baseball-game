@@ -101,7 +101,8 @@ namespace BaseballSim.Career
         }
 
         static StoryEvent Meet(Career c, Legend l) => Card(c, IdPrefix + l.Id, "레전드의 방문",
-            $"'{l.Nickname}' {l.Name}({l.Years}).\n{l.Record}의 전설이 오늘 훈련장을 찾았다.\n\"{l.Line}\"" + Goal(c, l),
+            $"'{l.Nickname}' {l.Name}({l.Years}).\n{l.Record}의 전설이 오늘 훈련장을 찾았다.\n\"{l.Line}\"\n\n" +
+            $"{{name}}가 굳은 채로 인사하자 {l.Name}{Josa.After(l.Name, "이")} 손사래를 쳤다.\n\"{l.Record}? 그거 다 옛날 얘기다. 기록은 깨라고 있는 거야.\"\n그러더니 내 눈을 똑바로 봤다. \"너라면 할 수 있을 것 같아서 왔다.\"" + Goal(c, l),
             ($"{Stats.Name(l.Speciality)} 비법을 배운다", l.Lesson, e => { Mark(c, l, LegendStage.Met); e.Exp(l.Speciality, 80); e.Boost(l.Speciality, 30, 10, "레전드 " + l.Name); e.Fatigue(10); }),
             ("옛날 이야기를 듣는다", l.Story + "\n\n이야기 사이사이에 몸에 밴 습관 몇 가지가 들어 있었다. 잊기 전에 노트에 적었다.", e => { Mark(c, l, LegendStage.Met); e.Exp(l.Speciality, 60); e.Boost(l.Speciality, 20, 15, "레전드 " + l.Name + "의 이야기"); e.Morale(4); }));
 

@@ -152,7 +152,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_great_cover", Title = "잡지 표지 모델",
-                        Text = $"{year} 시즌 {line}.\n스포츠 잡지가 {{name}}을(를) 신년호 표지로 골랐다.\n'올해의 얼굴' 인터뷰 요청도 함께 왔다.",
+                        Text = $"{year} 시즌 {line}.\n스포츠 잡지가 {{name}}를 신년호 표지로 골랐다.\n'올해의 얼굴' 인터뷰 요청도 함께 왔다.",
                         Choices =
                         {
                             new EventChoice { Label = "화보 촬영까지 한다 (+300만원)", Result = "어색한 포즈였지만 사진은 근사하게 나왔다.", Apply = e => { e.Money(300); e.Fans(100); } },
@@ -208,7 +208,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_mixed_debate", Title = "엇갈린 평가",
-                        Text = $"{year} 시즌 {line}.\n'성장 중' vs '정체기'. 팬 커뮤니티에서 {{name}}을(를) 두고 토론이 붙었다.",
+                        Text = $"{year} 시즌 {line}.\n'성장 중' vs '정체기'. 팬 커뮤니티에서 {{name}}를 두고 토론이 붙었다.",
                         Choices =
                         {
                             new EventChoice { Label = "약점을 콕 집어 보완한다", Result = "영상으로 지난 시즌을 처음부터 다시 봤다.", Apply = e => { e.Exp(stat, 70); e.Morale(-1); } },

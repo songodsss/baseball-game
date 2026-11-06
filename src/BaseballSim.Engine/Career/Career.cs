@@ -447,7 +447,7 @@ namespace BaseballSim.Career
                 var random = _random.NextDouble() < Math.Min(0.5, EventChancePerDay * DayWeight) ? StoryEvents.Pick(this, result, _random) : null;
                 // A romance scene whose turn has come takes the random event's place, so the count of events stays the same.
                 if (random != null) random = Romance.Moment(this, result) ?? random;
-                PendingEvent = StoryEvents.Urgent(this, result) ?? MainStory.Next(this, result) ?? StoryEvents.Scheduled(this, result) ?? random;
+                PendingEvent = StoryEvents.WithBoth(StoryEvents.Urgent(this, result) ?? MainStory.Next(this, result) ?? StoryEvents.Scheduled(this, result) ?? random);
             }
             result.Event = PendingEvent;
             result.NewAchievements = Achievements.Check(this);
@@ -468,7 +468,7 @@ namespace BaseballSim.Career
         public StoryEvent SeasonStartEvent()
         {
             if (Day != 0 || IsSeasonOver || PendingEvent != null) return PendingEvent;
-            PendingEvent = MainStory.AtSeasonStart(this) ?? StoryEvents.AtSeasonStart(this);
+            PendingEvent = StoryEvents.WithBoth(MainStory.AtSeasonStart(this) ?? StoryEvents.AtSeasonStart(this));
             return PendingEvent;
         }
 
