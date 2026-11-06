@@ -41,6 +41,7 @@ namespace BaseballSim.Career
                     case "name": word = career.Me.Name; break;
                     case "team": word = career.MyTeam.Name; break;
                     case "lover": word = Romance.LoverName(career); break;
+                    case "spouse": word = Romance.Lover(career)?.Name ?? "아내"; break;
                     case "senior": case "mate": case "veteran": case "junior": case "coach": case "exveteran": case "excoach": word = career.BondName(key); break;
                     default:
                         if (!key.StartsWith("story:")) return m.Value;
@@ -521,6 +522,7 @@ namespace BaseballSim.Career
 
             AddLifeEvents(list);
             AddSideStories(list);
+            AddSpouseStories(list);
             AddSerialStories(list);
             return list;
         }
