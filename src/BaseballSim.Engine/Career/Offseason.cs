@@ -7,6 +7,9 @@ namespace BaseballSim.Career
     /// <summary>How the fans took last season.</summary>
     public enum FanMood { Bad, Mixed, Good, Great, Hurt }
 
+    /// <summary>How the club's season ended: the fans judge that too.</summary>
+    public enum TeamFate { Champion, Autumn, Missed }
+
     /// <summary>
     /// The winter between seasons, so no two feel the same: what the fans say about last season, a
     /// winter plan picked from a few offers that change every year, and one winter happening. They
@@ -16,14 +19,25 @@ namespace BaseballSim.Career
     {
         // ---------- How last season went ----------
 
+        public static TeamFate FateOf(SeasonRecord r) =>
+            r.Titles.Contains(Postseason.ChampionTitle) ? TeamFate.Champion
+            : r.Postseason != null && r.Postseason.Count > 0 && r.Postseason[0].StartsWith("진출 실패") ? TeamFate.Missed
+            : TeamFate.Autumn;
+
+        /// <summary>
+        /// The fans' verdict: the player's own season, tempered by the club's. A great year on a club
+        /// that missed the autumn is only "good": nobody throws a parade for that.
+        /// </summary>
         public static FanMood Mood(SeasonRecord r)
         {
             int games = Math.Max(1, r.Games);
             double form = r.Pitching != null ? Career.PitchingForm(r.Pitching) : Career.Ops(r.Line);
             bool champion = r.Titles.Contains(Postseason.ChampionTitle);
-            bool titled = r.Titles.Any(t => t != Postseason.ChampionTitle);
+            bool titled = r.Titles.Any(t => t != Postseason.ChampionTitle && t != Postseason.KsMvpTitle);
+            bool missed = FateOf(r) == TeamFate.Missed;
             if (r.InjuryDays > games / 4) return FanMood.Hurt;
-            if (champion || titled || form >= 0.900) return FanMood.Great;
+            if (champion || (titled || form >= 0.900) && !missed) return FanMood.Great;
+            if (missed && (titled || form >= 0.900)) return FanMood.Good;
             if (r.FarmDays > games / 3 || form < 0.640) return FanMood.Bad;
             if (form >= 0.780) return FanMood.Good;
             return FanMood.Mixed;
@@ -63,10 +77,25 @@ namespace BaseballSim.Career
             },
         };
 
-        /// <summary>A few fan comments about the season just finished, for the season-end card.</summary>
+        static readonly Dictionary<TeamFate, string[]> TeamGood = new Dictionary<TeamFate, string[]>
+        {
+            [TeamFate.Champion] = new[] { "우승 반지 축하합니다!! 평생 잊지 못할 가을", "우승 주역 {name}! 퍼레이드 때 목 쉬었다", "이 맛에 야구 본다. 우승이다!!" },
+            [TeamFate.Autumn] = new[] { "가을야구까지 온 건 잘했다. 우승은 내년에!", "포스트시즌에서 진 건 아쉽지만 수고했다", "가을에 한 번 더 보고 싶었는데..." },
+            [TeamFate.Missed] = new[] { "개인 성적은 좋은데 팀 순위 보면 한숨만 나온다", "혼자 잘하면 뭐하나. 가을야구 좀 가자", "{name} 혼자 고생했다. 구단은 선수 좀 사 와라" },
+        };
+        static readonly Dictionary<TeamFate, string[]> TeamBad = new Dictionary<TeamFate, string[]>
+        {
+            [TeamFate.Champion] = new[] { "팀은 우승했는데 {name}은 묻어 간 느낌", "우승은 기쁜데 {name} 내년엔 몫을 해 줘야지" },
+            [TeamFate.Autumn] = new[] { "팀이 가을야구 간 게 다행이다", "다른 선수들이 멱살 잡고 끌고 갔다" },
+            [TeamFate.Missed] = new[] { "팀도 개인도 최악의 해", "순위표 보기도 싫다. 다 같이 반성해라", "올해는 그냥 잊고 싶다" },
+        };
+
+        /// <summary>A few fan comments about the season just finished, for the season-end card: the player's year and one about the club's.</summary>
         public static List<string> FanComments(Career c, SeasonRecord r, int count = 3)
         {
-            var pool = Comments[Mood(r)];
+            var mood = Mood(r);
+            var team = (mood == FanMood.Great || mood == FanMood.Good ? TeamGood : TeamBad)[FateOf(r)];
+            var pool = Comments[mood];
             int seed = Seed(c, 11);
             var picked = new List<string>();
             for (int k = 0; picked.Count < Math.Min(count, pool.Length); k++)
@@ -75,7 +104,19 @@ namespace BaseballSim.Career
                 if (!picked.Contains(line)) picked.Add(line);
                 if (k > 50) break;
             }
+            if (picked.Count > 0) picked[picked.Count - 1] = team[seed % team.Length];
             return picked.Select(t => StoryEvent.Fill(t, c)).ToList();
+        }
+
+        /// <summary>A line on how the club did, for the fan scene before opening day.</summary>
+        static string TeamLine(SeasonRecord r)
+        {
+            switch (FateOf(r))
+            {
+                case TeamFate.Champion: return "\n우승 퍼레이드의 여운이 아직 거리에 남아 있다.";
+                case TeamFate.Missed: return "\n하지만 팀은 가을야구에 나가지 못했다. 팬들의 마음도 복잡하다.";
+                default: return "\n팀은 가을야구에 갔지만 우승은 다음으로 미뤘다.";
+            }
         }
 
         // ---------- The season-start sequence ----------
@@ -141,7 +182,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_great_parade", Title = "팬들의 환호",
-                        Text = $"{year} 시즌 {line}.\n구단 SNS에 올라간 {{name}}의 하이라이트 영상이 하루 만에 100만 회를 넘었다.\n댓글창이 온통 하트다.",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n구단 SNS에 올라간 {{name}}의 하이라이트 영상이 하루 만에 100만 회를 넘었다.\n댓글창이 온통 하트다.",
                         Choices =
                         {
                             new EventChoice { Label = "팬들에게 감사 영상을 올린다", Result = "\"여러분 덕분입니다.\" 진심이 담긴 영상에 팬들이 또 한 번 울었다.", Apply = e => { e.Fans(80); e.Morale(5); } },
@@ -152,7 +193,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_great_cover", Title = "잡지 표지 모델",
-                        Text = $"{year} 시즌 {line}.\n스포츠 잡지가 {{name}}를 신년호 표지로 골랐다.\n'올해의 얼굴' 인터뷰 요청도 함께 왔다.",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n스포츠 잡지가 {{name}}를 신년호 표지로 골랐다.\n'올해의 얼굴' 인터뷰 요청도 함께 왔다.",
                         Choices =
                         {
                             new EventChoice { Label = "화보 촬영까지 한다 (+300만원)", Result = "어색한 포즈였지만 사진은 근사하게 나왔다.", Apply = e => { e.Money(300); e.Fans(100); } },
@@ -163,7 +204,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_great_kids", Title = "꼬마 팬의 편지",
-                        Text = $"{year} 시즌 {line}.\n구단으로 삐뚤빼뚤한 글씨의 편지가 왔다.\n'저도 {{name}} 선수처럼 될 거예요. 내년에도 꼭 이겨 주세요!'",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n구단으로 삐뚤빼뚤한 글씨의 편지가 왔다.\n'저도 {{name}} 선수처럼 될 거예요. 내년에도 꼭 이겨 주세요!'",
                         Choices =
                         {
                             new EventChoice { Label = "답장과 사인 배트를 보낸다", Result = "며칠 뒤, 배트를 안고 웃는 아이 사진이 SNS에 올라왔다.", Apply = e => { e.Fans(70); e.Morale(5); } },
@@ -175,7 +216,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_good_expect", Title = "커지는 기대",
-                        Text = $"{year} 시즌 {line}.\n팬 커뮤니티 인기 글: '{{name}}, 내년엔 진짜 터진다'.\n기대가 커진 만큼 부담도 조금 생겼다.",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n팬 커뮤니티 인기 글: '{{name}}, 내년엔 진짜 터진다'.\n기대가 커진 만큼 부담도 조금 생겼다.",
                         Choices =
                         {
                             new EventChoice { Label = "\"기대에 꼭 보답하겠습니다\"", Result = "말해 놓고 나니 오히려 마음이 단단해졌다.", Apply = e => { e.Morale(4); e.Fans(40); } },
@@ -185,7 +226,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_good_nickname", Title = "별명이 생겼다",
-                        Text = $"{year} 시즌 {line}.\n팬들이 {{name}}에게 별명을 붙였다. 중계 캐스터까지 따라 부른다.\n마음에 드는 별명은?",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n팬들이 {{name}}에게 별명을 붙였다. 중계 캐스터까지 따라 부른다.\n마음에 드는 별명은?",
                         Choices =
                         {
                             new EventChoice { Label = "'승부사'", Result = "중요한 순간마다 그 별명이 들리기 시작했다.", Apply = e => { e.Morale(4); e.Fans(50); } },
@@ -196,7 +237,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_good_jersey", Title = "유니폼 판매 순위",
-                        Text = $"{year} 시즌 {line}.\n구단 스토어 유니폼 판매 순위에 {{name}}의 이름이 처음으로 상위권에 올랐다.",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n구단 스토어 유니폼 판매 순위에 {{name}}의 이름이 처음으로 상위권에 올랐다.",
                         Choices =
                         {
                             new EventChoice { Label = "스토어에 깜짝 방문한다", Result = "줄이 가게 밖까지 늘어섰다.", Apply = e => { e.Fans(80); e.Morale(3); } },
@@ -208,7 +249,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_mixed_debate", Title = "엇갈린 평가",
-                        Text = $"{year} 시즌 {line}.\n'성장 중' vs '정체기'. 팬 커뮤니티에서 {{name}}를 두고 토론이 붙었다.",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n'성장 중' vs '정체기'. 팬 커뮤니티에서 {{name}}를 두고 토론이 붙었다.",
                         Choices =
                         {
                             new EventChoice { Label = "약점을 콕 집어 보완한다", Result = "영상으로 지난 시즌을 처음부터 다시 봤다.", Apply = e => { e.Exp(stat, 70); e.Morale(-1); } },
@@ -219,7 +260,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_mixed_column", Title = "칼럼 한 편",
-                        Text = $"{year} 시즌 {line}.\n한 야구 기자가 칼럼을 썼다. '{{name}}, 재능은 충분하다. 문제는 기복이다.'",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n한 야구 기자가 칼럼을 썼다. '{{name}}, 재능은 충분하다. 문제는 기복이다.'",
                         Choices =
                         {
                             new EventChoice { Label = "기사를 출력해서 붙여 둔다", Result = "매일 아침 그 문장을 보며 이를 악물었다.", Apply = e => { e.Morale(3); e.Exp(stat, 40); } },
@@ -229,7 +270,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_mixed_fanclub", Title = "팬클럽 회장의 메시지",
-                        Text = $"{year} 시즌 {line}.\n팬클럽 회장이 긴 메시지를 보냈다.\n'올해 아쉬웠던 거 알아요. 그래도 우리는 끝까지 {{name}} 편이에요.'",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n팬클럽 회장이 긴 메시지를 보냈다.\n'올해 아쉬웠던 거 알아요. 그래도 우리는 끝까지 {{name}} 편이에요.'",
                         Choices =
                         {
                             new EventChoice { Label = "고맙다고 전화한다", Result = "목소리가 떨렸다. 내년엔 꼭 웃게 해 주고 싶다.", Apply = e => { e.Morale(5); e.Fans(30); } },
@@ -241,7 +282,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_bad_comments", Title = "싸늘한 여론",
-                        Text = $"{year} 시즌 {line}.\n'{{name}}, 이대로면 자리 없다.' 기사 댓글창이 싸늘하다.\n휴대폰을 쥔 손에 힘이 들어갔다.",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n'{{name}}, 이대로면 자리 없다.' 기사 댓글창이 싸늘하다.\n휴대폰을 쥔 손에 힘이 들어갔다.",
                         Choices =
                         {
                             new EventChoice { Label = "댓글을 끝까지 다 읽는다", Result = "아팠다. 하지만 하나도 잊지 않기로 했다.", Apply = e => { e.Morale(-4); e.Exp(stat, 90); } },
@@ -252,7 +293,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_bad_banner", Title = "구단 앞 현수막",
-                        Text = $"{year} 시즌 {line}.\n구단 사무실 앞에 현수막이 걸렸다. '응원도 지친다. 달라진 모습 보여 달라.'\n이름은 없지만 누굴 말하는지 안다.",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n구단 사무실 앞에 현수막이 걸렸다. '응원도 지친다. 달라진 모습 보여 달라.'\n이름은 없지만 누굴 말하는지 안다.",
                         Choices =
                         {
                             new EventChoice { Label = "현수막 앞에서 고개 숙인다", Result = "지나가던 팬 몇 명이 말없이 어깨를 두드렸다.", Apply = e => { e.Fans(40); e.Morale(-2); e.Trust(1); } },
@@ -262,7 +303,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_bad_radio", Title = "야구 라디오",
-                        Text = $"{year} 시즌 {line}.\n택시 라디오에서 야구 프로그램이 나온다.\n\"{{name}}은(는) 솔직히 올해 기대 이하였죠. 내년이 마지막 기회일 수도 있어요.\"",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n택시 라디오에서 야구 프로그램이 나온다.\n\"{{name}}은(는) 솔직히 올해 기대 이하였죠. 내년이 마지막 기회일 수도 있어요.\"",
                         Choices =
                         {
                             new EventChoice { Label = "기사님께 \"제가 그 선수예요\"", Result = "기사님이 껄껄 웃었다. \"내년엔 잘해요! 나 팬 할게.\"", Apply = e => { e.Morale(4); e.Fans(20); } },
@@ -272,7 +313,7 @@ namespace BaseballSim.Career
                     options.Add(new StoryEvent
                     {
                         Id = "fans_bad_oldfan", Title = "오래된 팬",
-                        Text = $"{year} 시즌 {line}.\n악플 사이에 눈에 띄는 댓글 하나. '데뷔 때부터 봤어요. 이번 겨울만 잘 버텨요. 다들 금방 다시 좋아할 거예요.'",
+                        Text = $"{year} 시즌 {line}.{TeamLine(r)}\n악플 사이에 눈에 띄는 댓글 하나. '데뷔 때부터 봤어요. 이번 겨울만 잘 버텨요. 다들 금방 다시 좋아할 거예요.'",
                         Choices =
                         {
                             new EventChoice { Label = "그 댓글에 '좋아요'를 누른다", Result = "작은 하트 하나가 오래 마음에 남았다.", Apply = e => { e.Morale(5); } },

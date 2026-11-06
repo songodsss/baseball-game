@@ -110,3 +110,23 @@ public class MoraleReadTests
         Assert.Equal(8, me.ForGame(new SeededRandom(1)).Morale);
     }
 }
+
+public class FanMoodTests
+{
+    static SeasonRecord Year(double hits, string autumn, params string[] titles) => new SeasonRecord
+    {
+        Season = 1, Games = 144,
+        Line = new BattingLine { PlateAppearances = 600, AtBats = 520, Hits = (int)hits, HomeRuns = 35, Doubles = 30, Walks = 70 },
+        Titles = new System.Collections.Generic.List<string>(titles),
+        Postseason = new System.Collections.Generic.List<string> { autumn },
+    };
+
+    [Fact]
+    public void AGreatYearOnAClubThatMissedTheAutumnIsOnlyGood()
+    {
+        Assert.Equal(FanMood.Great, Offseason.Mood(Year(170, "준플레이오프 탈락 · A 우승")));
+        Assert.Equal(FanMood.Good, Offseason.Mood(Year(170, "진출 실패 · A 우승")));
+        Assert.Equal(FanMood.Great, Offseason.Mood(Year(120, "우승!", Postseason.ChampionTitle)));
+        Assert.Equal(TeamFate.Missed, Offseason.FateOf(Year(170, "진출 실패 · A 우승")));
+    }
+}
