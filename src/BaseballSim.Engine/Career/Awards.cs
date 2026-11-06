@@ -45,11 +45,14 @@ namespace BaseballSim.Career
             var all = league.Batting.Values.Where(b => b.Line.PlateAppearances > 0).ToList();
             var qualified = all.Where(b => b.Line.PlateAppearances >= league.QualifyingPa).ToList();
             var awards = new List<SeasonAward>();
+            var crowns = new Dictionary<string, int>(); // stat titles by player id, for the MVP vote
+            void Crown(string id) => crowns[id] = (crowns.TryGetValue(id, out var n) ? n : 0) + 1;
 
             void Add(string title, IEnumerable<BatterSeason> pool, Func<BattingLine, double> key, Func<double, string> format)
             {
                 var best = pool.OrderByDescending(b => key(b.Line)).ThenBy(b => b.Line.PlateAppearances).FirstOrDefault();
                 if (best == null || key(best.Line) <= 0) return;
+                Crown(best.Id);
                 awards.Add(new SeasonAward
                 {
                     Title = title, Winner = best.Name, Team = best.Team.Name, Value = format(key(best.Line)), Mine = best.Id == myId,
@@ -74,6 +77,7 @@ namespace BaseballSim.Career
             {
                 var best = pool.OrderByDescending(p => key(p.Line)).ThenByDescending(p => p.Line.Outs).FirstOrDefault();
                 if (best == null) return;
+                Crown(best.Id);
                 awards.Add(new SeasonAward { Title = title, Winner = best.Name, Team = best.Team.Name, Value = format(best.Line), Mine = best.Id == myId });
             }
             AddArm(Wins, arms.Where(p => p.Line.Wins > 0), l => l.Wins, l => $"{l.Wins}승");
@@ -85,11 +89,31 @@ namespace BaseballSim.Career
             AddArm(SavesTitle, arms.Where(p => p.Line.Saves > 0), l => l.Saves, l => $"{l.Saves}세이브");
             AddArm(HoldsTitle, arms.Where(p => p.Line.Holds > 0), l => l.Holds, l => $"{l.Holds}홀드");
 
-            // MVP: best OPS among qualified hitters, a little extra for playing on a winning team. A
-            // qualified pitcher counts on the same scale from his ERA, and needs a little more to win it.
-            double WinBonus(Team t) => 0.1 * league.Standings[t].WinPct;
-            var mvp = qualified.Select(b => (b.Id, b.Name, b.Team, Score: Stats.Ops(b.Line) + WinBonus(b.Team), Value: "OPS " + Stats.Rate(Stats.Ops(b.Line))))
-                .Concat(qualifiedArms.Select(p => (p.Id, p.Name, p.Team, Score: Career.PitchingForm(p.Line) - 0.05 + WinBonus(p.Team), Value: $"{p.Line.Wins}승 · 평균자책 {p.Line.EraText}")))
+            // MVP, as the writers vote: the whole season counts, not one number. A hitter's value over an
+            // average bat across his playing time, his home runs and RBI, the titles he took and how his
+            // team did; a pitcher the same from runs saved, wins, strikeouts and saves.
+            double scale = (double)League.FullSeason / league.GamesPerSeason;
+            int Crowns(string id) => crowns.TryGetValue(id, out var n) ? n : 0;
+            double TeamBonus(Team t) => 2.0 * league.Standings[t].WinPct;
+            double HitterVote(BatterSeason b)
+            {
+                var l = b.Line;
+                return (Stats.Ops(l) - 0.700) * l.PlateAppearances * scale / 600 * 12
+                    + l.HomeRuns * scale * 0.05 + l.RunsBattedIn * scale * 0.015 + l.StolenBases * scale * 0.01
+                    + Crowns(b.Id) * 0.6 + TeamBonus(b.Team);
+            }
+            double PitcherVote(PitcherSeason p)
+            {
+                var l = p.Line;
+                double innings = l.Outs / 3.0 * scale;
+                return (4.50 - l.Era) * innings / 100 * 1.0 + l.Wins * scale * 0.12 + l.Strikeouts * scale * 0.004 + l.Saves * scale * 0.035
+                    + Crowns(p.Id) * 0.6 + TeamBonus(p.Team) - 0.6;
+            }
+            string HitterLine(BatterSeason b) => $"타율 {Stats.Rate(Stats.Avg(b.Line))} · {b.Line.HomeRuns}홈런 · {b.Line.RunsBattedIn}타점" + (Crowns(b.Id) >= 2 ? $" · {Crowns(b.Id)}관왕" : "");
+            string PitcherLineText(PitcherSeason p) => (p.Line.Saves > p.Line.Wins ? $"{p.Line.Saves}세이브" : $"{p.Line.Wins}승") + $" · 평균자책 {p.Line.EraText} · {p.Line.Strikeouts}탈삼진" + (Crowns(p.Id) >= 2 ? $" · {Crowns(p.Id)}관왕" : "");
+            var relievers = arms.Where(p => p.Line.Saves >= 20 / scale && !qualifiedArms.Contains(p));
+            var mvp = qualified.Select(b => (b.Id, b.Name, b.Team, Score: HitterVote(b), Value: HitterLine(b)))
+                .Concat(qualifiedArms.Concat(relievers).Select(p => (p.Id, p.Name, p.Team, Score: PitcherVote(p), Value: PitcherLineText(p))))
                 .OrderByDescending(x => x.Score)
                 .FirstOrDefault();
             if (mvp.Name != null)

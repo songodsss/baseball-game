@@ -125,3 +125,28 @@ public class AllStarTests
         Assert.Equal(1, loaded.Me.AllStarMvps);
     }
 }
+
+public class HomeRunDerbyTests
+{
+    [Fact]
+    public void TheBreakFallsOnAMondayAndTheDerbyCrownsOneOfEight()
+    {
+        var random = new BaseballSim.SeededRandom(3);
+        var league = new BaseballSim.Career.League(new BaseballSim.RosterGenerator(random), 144);
+        var career = new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("t", random), league, league.Teams[0], random);
+        Assert.Equal(0, career.AllStarDay % 6); // the day after a Sunday game
+        BaseballSim.Career.DayResult star = null;
+        while (star == null)
+        {
+            var d = career.PlayDay(BaseballSim.Career.DailyAction.Rest);
+            while (d.AtBat != null) d = career.ChooseApproach(BaseballSim.Approach.Normal);
+            if (d.AllStar != null) star = d;
+            if (career.PendingEvent != null) career.ResolveEvent(0);
+        }
+        var derby = star.AllStar.Derby;
+        Assert.Equal(8, derby.Entrants.Count);
+        Assert.Contains(derby.Winner, derby.Entrants);
+        Assert.Equal(3, derby.Winner.Rounds.Count);
+        Assert.Equal(4, derby.Entrants.Count(e => e.Rounds.Count >= 2));
+    }
+}

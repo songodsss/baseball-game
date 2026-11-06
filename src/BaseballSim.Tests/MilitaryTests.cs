@@ -66,6 +66,7 @@ public class MilitaryTests
     public void PlayerCanGoEarly()
     {
         var career = NewCareer(2, 20);
+        career.Season = 2; // 2027: no tournament gold to exempt him
         var summary = PlaySeason(career); // 21
         Assert.True(summary.CanEnlist);
         career.Enlist();
@@ -110,6 +111,7 @@ public class MilitaryTests
     public void ServiceSurvivesSaving()
     {
         var career = NewCareer(6, 21);
+        career.Season = 2; // 2027: no tournament gold to exempt him
         PlaySeason(career);
         career.Enlist();
         var (_, loaded) = SaveGame.FromBytes(SaveGame.ToBytes(new Club(), career), new SeededRandom(1));

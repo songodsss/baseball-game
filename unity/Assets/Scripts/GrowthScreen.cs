@@ -1202,10 +1202,38 @@ namespace BaseballGame
             (p.Wins > 0 ? " <color=#5FA8FF>승</color>" : p.Losses > 0 ? " <color=#F28C40>패</color>" : "") +
             (p.Saves > 0 ? " <color=#5FA8FF>세이브</color>" : p.Holds > 0 ? " <color=#5FA8FF>홀드</color>" : p.BlownSaves > 0 ? " <color=#F28C40>블론세이브</color>" : "");
 
+        /// <summary>The All-Star break: Saturday's home run derby, then Sunday's game.</summary>
         void ShowAllStar(AllStarResult allStar)
         {
+            if (allStar.Derby == null) { ShowAllStarGame(allStar); return; }
+            var d = allStar.Derby;
+            var card = OpenOverlay(d.MyWon ? "홈런 더비 우승!" : "토요일 · 홈런 더비");
+            GameAudio.Sfx(d.MyWon ? GameAudio.CheerBig : GameAudio.Popup);
+            var body = UiKit.ScrollList(card, 8);
+            UiKit.Height(body.parent, 0, 1);
+            UiKit.Height(UiKit.Label(body, "올스타 브레이크 첫날, 전반기 홈런 상위 8명이 아웃 10개 안에 담장을 넘겨요.\n<size=26>8강 → 4강 → 결승</size>", 30, TextAnchor.MiddleCenter, UiKit.Muted), 110);
+            string[] rounds = { "8강", "4강", "결승" };
+            foreach (var e in d.Entrants.OrderByDescending(x => x.Rounds.Count).ThenByDescending(x => x.Rounds.Last()))
+            {
+                bool won = e == d.Winner;
+                var row = UiKit.Panel(body, "Entrant", won ? new Color(1f, 0.82f, 0.3f, 0.22f) : e.Mine ? new Color(0.37f, 0.66f, 1f, 0.16f) : UiKit.Background);
+                UiKit.Height(row, 86);
+                string name = e.Mine ? $"<b><color=#FFD24D>{e.Name}</color></b>" : e.Name;
+                string scores = string.Join("  ", e.Rounds.Select((n, i) => $"<size=24><color=#BAC4D8>{rounds[i]}</color></size> <b>{n}</b>"));
+                var label = UiKit.Label(row, $"{(won ? "<color=#FFD24D>★</color> " : "")}{name} <size=24><color=#BAC4D8>{e.Team} · 시즌 {e.SeasonHomeRuns}홈런</color></size>\n{scores}", 30, TextAnchor.MiddleCenter);
+                UiKit.Stretch(label.rectTransform);
+            }
+            string verdict = d.MyWon ? $"<color=#FFD24D><b>홈런 더비 우승!</b></color>  <size=28>보너스 +{d.Bonus:N0}만원 · 인기 UP</size>"
+                : d.MyIn ? $"<color=#BAC4D8>{d.Winner.Name} 우승. 다음엔 내가 왕관을!</color>  <size=28>출전 보너스 +{d.Bonus:N0}만원</size>"
+                : $"<b>{d.Winner.Name}</b> ({d.Winner.Team}) 우승";
+            UiKit.Height(UiKit.Label(card, verdict, 32, TextAnchor.MiddleCenter), 110);
+            UiKit.Height(UiKit.Button(card, "일요일 · 올스타전으로", () => { CloseOverlay(); ShowAllStarGame(allStar); }, Gold), 110);
+        }
+
+        void ShowAllStarGame(AllStarResult allStar)
+        {
             var g = allStar.Game;
-            var card = OpenOverlay(allStar.MyMvp ? "올스타전 MVP!" : "올스타전");
+            var card = OpenOverlay(allStar.MyMvp ? "올스타전 MVP!" : "일요일 · 동군 vs 서군 올스타전");
             string text = $"{g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}\nMVP {allStar.Mvp}\n\n";
             if (allStar.Selected)
             {
@@ -1333,6 +1361,7 @@ namespace BaseballGame
             if (r.AllStar != null)
             {
                 var g = r.AllStar.Game;
+                if (r.AllStar.Derby?.Winner != null) lines.Add($"<color=#FFD24D>홈런 더비</color> {r.AllStar.Derby.Winner.Name} 우승");
                 lines.Add($"<color=#FFD24D>올스타전</color> {g.Away.Name} {g.AwayScore} : {g.HomeScore} {g.Home.Name}  MVP {r.AllStar.Mvp}");
             }
             if (r.OffDayNext) lines.Add($"<color=#7CD992>내일은 월요일, 경기 없는 날. 푹 쉬어서 피로 -{CareerState.OffDayRecovery}</color>");

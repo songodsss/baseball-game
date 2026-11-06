@@ -640,6 +640,7 @@ namespace BaseballSim.Career
                 w.Write(b.Line.StolenBases);
                 w.Write(b.Line.CaughtStealing);
             });
+            w.Write(career.Me.HomeRunDerbyWins);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -876,6 +877,7 @@ namespace BaseballSim.Career
                         b.Line.StolenBases = sb;
                         b.Line.CaughtStealing = cs;
                     }
+            if (version >= 39) career.Me.HomeRunDerbyWins = r.ReadInt32();
             return career;
         }
 

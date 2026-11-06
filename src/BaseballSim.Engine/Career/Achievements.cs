@@ -64,6 +64,7 @@ namespace BaseballSim.Career
             Add("facilities", "나만의 훈련 센터", "개인 시설을 모두 3단계 이상으로", c => Facilities.All.All(f => c.Me.FacilityLevel(f) >= 3));
             Add("all_star", "올스타", "올스타전 출전", c => c.Me.AllStarSelections >= 1);
             Add("all_star_mvp", "별 중의 별", "올스타전 MVP", c => c.Me.AllStarMvps >= 1);
+            Add("derby_king", "홈런 더비 킹", "홈런 더비 우승", c => c.Me.HomeRunDerbyWins >= 1);
             Add("reads", "수싸움의 달인", "찬스 타석 노림수 30번 적중", c => c.Me.ReadsRight >= 30);
             Add("gold", "금메달", "아시아 야구 대회 금메달", c => c.Me.GoldMedals >= 1);
             Add("golden_glove", "골든글러브", "골든글러브 수상", c => HasTitle(c, Awards.GoldenGlove));

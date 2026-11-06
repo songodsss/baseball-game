@@ -293,11 +293,29 @@ namespace BaseballSim.Career
                 .ToList();
         }
 
-        public int AllStarDay => League.GamesPerSeason / 2;
+        /// <summary>
+        /// The All-Star break, after the first Sunday past the halfway mark: Saturday's home run derby and
+        /// Sunday's 동군 v 서군 game, before the second half starts on the Tuesday.
+        /// </summary>
+        public int AllStarDay
+        {
+            get
+            {
+                int day = League.GamesPerSeason / 2;
+                while (day % 6 != 0) day++;
+                return day;
+            }
+        }
 
         void PlayAllStar(DayResult result)
         {
             result.AllStar = AllStar.Play(this, _sim);
+            var derby = result.AllStar.Derby = HomeRunDerby.Play(this, result.AllStar.Selected ? Me.ForGame(new SeededRandom(Season)) : null, _random);
+            if (derby.MyIn)
+            {
+                SeasonNotes.Add(derby.MyWon ? $"{MonthText} 홈런 더비 우승" : $"{MonthText} 홈런 더비 출전");
+                if (derby.MyWon) { Me.HomeRunDerbyWins++; AddFans(150); }
+            }
             if (!result.AllStar.Selected) return;
             SeasonNotes.Add(result.AllStar.MyMvp ? $"{MonthText} 올스타전 MVP" : result.AllStar.FanVote ? $"{MonthText} 팬 투표 올스타" : $"{MonthText} 올스타 선정");
             AddFans(result.AllStar.MyMvp ? 200 : 100);

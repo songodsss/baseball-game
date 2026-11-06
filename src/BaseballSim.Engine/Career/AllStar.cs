@@ -18,10 +18,12 @@ namespace BaseballSim.Career
         public string Mvp;
         public bool MyMvp;
         public int Bonus;
+        /// <summary>Saturday's home run derby, the day before the game.</summary>
+        public DerbyResult Derby;
     }
 
     /// <summary>
-    /// Midseason exhibition: the league splits into 동군 and 서군, each fielding its nine best hitters
+    /// Sunday of the All-Star break (the derby is Saturday). The league splits into 동군 and 서군, each fielding its nine best hitters
     /// by OPS and its best arms. Doesn't count in the standings or anyone's season line.
     /// </summary>
     public static class AllStar

@@ -81,6 +81,7 @@ namespace BaseballSim.Career
         /// <summary>Steals over the whole career (season lines in history don't keep them).</summary>
         public int CareerStolenBases;
         public int AllStarMvps;
+        public int HomeRunDerbyWins;
         /// <summary>Big at bats where the pitch I sat on came.</summary>
         public int ReadsRight;
         public int GoldMedals;
