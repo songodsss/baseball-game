@@ -30,7 +30,7 @@ namespace BaseballSim.Career
         /// 31: signature skills (career).
         /// 32: the arena.
         /// 33: legend stages and visits, the story's version seed; legends whose record fell on the club.
-        public const int Version = 39;
+        public const int Version = 40;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -641,6 +641,8 @@ namespace BaseballSim.Career
                 w.Write(b.Line.CaughtStealing);
             });
             w.Write(career.Me.HomeRunDerbyWins);
+            // Added in version 40.
+            w.Write(career.Me.WbcTitles);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -878,6 +880,7 @@ namespace BaseballSim.Career
                         b.Line.CaughtStealing = cs;
                     }
             if (version >= 39) career.Me.HomeRunDerbyWins = r.ReadInt32();
+            if (version >= 40) career.Me.WbcTitles = r.ReadInt32();
             return career;
         }
 

@@ -92,7 +92,7 @@ namespace BaseballGame
                 [_career.AllStarDay] = "올스타전",
                 [_career.TradeDeadline] = "트레이드 마감",
             };
-            if (NationalTeam.IsTournamentYear(_career.Year)) days[_career.TournamentDay] = NationalTeam.Name;
+            if (NationalTeam.IsTournamentYear(_career.Year)) days[_career.TournamentDay] = NationalTeam.NameOf(_career.Year);
             days[_career.League.GamesPerSeason - 1] = "정규시즌 최종전";
             return days;
         }

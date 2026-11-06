@@ -87,6 +87,7 @@ namespace BaseballGame
             }
             if (me.AllStarSelections > 0) Line(content, $"올스타 {me.AllStarSelections}회" + (me.AllStarMvps > 0 ? $" (MVP {me.AllStarMvps}회)" : ""));
             if (me.GoldMedals > 0) Line(content, $"{NationalTeam.Name} 금메달 {me.GoldMedals}개");
+            if (me.WbcTitles > 0) Line(content, $"WBC 우승 {me.WbcTitles}회");
 
             UiKit.Height(UiKit.Button(root, "닫기", () => Destroy(gameObject), UiKit.Muted), 110);
         }

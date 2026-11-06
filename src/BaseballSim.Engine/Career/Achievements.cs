@@ -67,6 +67,7 @@ namespace BaseballSim.Career
             Add("derby_king", "홈런 더비 킹", "홈런 더비 우승", c => c.Me.HomeRunDerbyWins >= 1);
             Add("reads", "수싸움의 달인", "찬스 타석 노림수 30번 적중", c => c.Me.ReadsRight >= 30);
             Add("gold", "금메달", "아시아 야구 대회 금메달", c => c.Me.GoldMedals >= 1);
+            Add("wbc", "세계 정상", "WBC 우승", c => c.Me.WbcTitles >= 1);
             Add("golden_glove", "골든글러브", "골든글러브 수상", c => HasTitle(c, Awards.GoldenGlove));
             PitcherLine Arm(Career c) => Stats.CareerPitching(c);
             Add("first_win", "프로 첫 승", "프로 무대에서 첫 승리", c => Arm(c).Wins >= 1);

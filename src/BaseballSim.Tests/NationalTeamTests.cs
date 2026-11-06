@@ -33,6 +33,8 @@ public class NationalTeamTests
         Assert.True(NationalTeam.IsTournamentYear(2026));
         Assert.False(NationalTeam.IsTournamentYear(2027));
         Assert.True(NationalTeam.IsTournamentYear(2030));
+        Assert.True(NationalTeam.IsWbcYear(2028));
+        Assert.False(NationalTeam.IsAsiaYear(2028));
 
         var career = NewCareer(1, 60);
         Assert.NotNull(PlaySeasonFindingTournament(career));
@@ -70,6 +72,25 @@ public class NationalTeamTests
         Assert.False(t.Selected);
         Assert.Equal(0, t.Bonus);
         Assert.Equal(0, t.MyLine.PlateAppearances);
+    }
+
+    [Fact]
+    public void TheWbcIsAgainstTheWorldAndGivesNoExemption()
+    {
+        var career = NewCareer(6, 95);
+        career.Season = 3; // 2028
+        var t = PlaySeasonFindingTournament(career);
+        Assert.True(t.Wbc);
+        Assert.Equal("WBC", t.Name);
+        Assert.True(t.Selected);
+        Assert.All(t.Games.Take(3), g => Assert.StartsWith("1라운드", g.Stage));
+        Assert.InRange(t.Games.Count, 3, 6);
+        var opponents = t.Games.Select(g => g.Game.Away.Name).ToList();
+        Assert.Contains("일본", opponents);
+        Assert.False(career.MilitaryDone && career.Me.GoldMedals > 0);
+        Assert.Equal(0, career.Me.GoldMedals);
+        Assert.Equal(t.Medal == NationalTeam.WbcChampion ? 1 : 0, career.Me.WbcTitles);
+        Assert.Contains(career.SeasonNotes, n => n.Contains("WBC"));
     }
 
     [Fact]

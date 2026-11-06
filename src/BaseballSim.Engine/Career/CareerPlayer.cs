@@ -85,6 +85,7 @@ namespace BaseballSim.Career
         /// <summary>Big at bats where the pitch I sat on came.</summary>
         public int ReadsRight;
         public int GoldMedals;
+        public int WbcTitles;
         public Position Position = Position.CenterField;
         /// <summary>Jersey number, 1-99; 0 = none picked.</summary>
         public int Number;

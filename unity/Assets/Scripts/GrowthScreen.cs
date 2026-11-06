@@ -1018,14 +1018,14 @@ namespace BaseballGame
             if (run.Done)
             {
                 var t = _career.FinishTournament();
-                Log($"<color=#FFD24D>{NationalTeam.Name}</color> 대한민국 {t.Medal ?? "조별리그 탈락"}");
+                Log($"<color=#FFD24D>{t.Name}</color> 대한민국 {NationalTeam.Finish(t)}");
                 Save();
                 Refresh();
                 ShowTournament(t);
                 return;
             }
 
-            var card = OpenOverlay($"{run.Result.Year} {NationalTeam.Name}");
+            var card = OpenOverlay($"{run.Result.Year} {run.Result.Name}");
             UiKit.Height(UiKit.Label(card, "<color=#BAC4D8>국가대표 소집 중 · 리그는 대회 기간 동안 쉬어요</color>", 28, TextAnchor.MiddleCenter), 50);
             var body = UiKit.ScrollList(card, 10);
             UiKit.Height(body.parent, 0, 1);
@@ -1044,9 +1044,11 @@ namespace BaseballGame
                     : $"{t2.MyLine.AtBats}타수 {t2.MyLine.Hits}안타 {t2.MyLine.HomeRuns}홈런 {t2.MyLine.RunsBattedIn}타점";
                 UiKit.Height(UiKit.Label(body, "대회 성적  " + mine, 30, TextAnchor.MiddleCenter, UiKit.Muted), 60);
             }
-            string stakes = run.NextStage == "결승" ? "<color=#FFD24D>이기면 금메달!</color>"
-                : run.NextStage == "준결승" ? "<color=#F28C40>지면 동메달, 이기면 결승!</color>"
-                : "조별리그에서 1승 이상이면 준결승 진출";
+            bool wbc = run.Result.Wbc;
+            string stakes = run.NextStage == "결승" ? (wbc ? "<color=#FFD24D>이기면 세계 정상!</color>" : "<color=#FFD24D>이기면 금메달!</color>")
+                : run.NextStage == "준결승" ? (wbc ? "<color=#F28C40>지면 4강, 이기면 결승!</color>" : "<color=#F28C40>지면 동메달, 이기면 결승!</color>")
+                : run.NextStage == "8강" ? "<color=#F28C40>지면 탈락, 이기면 4강!</color>"
+                : wbc ? "1라운드 3경기 중 2승이면 8강 진출" : "조별리그에서 1승 이상이면 준결승 진출";
             var next = UiKit.Label(body, $"<b>{run.NextStage}</b>  vs {run.NextOpponent.Name}\n<size=30>{stakes}</size>", 38, TextAnchor.MiddleCenter);
             UiKit.Height(next, 130);
             var go = UiKit.Button(card, "경기 시작!", PlayTournamentGame, Gold);
@@ -1075,8 +1077,10 @@ namespace BaseballGame
 
         void ShowTournament(TournamentResult t)
         {
-            var card = OpenOverlay($"{t.Year} {NationalTeam.Name}");
-            string medal = t.Medal == null ? "메달 없이 조별리그 탈락" : $"<color=#FFD24D><b>대한민국 {t.Medal}!</b></color>";
+            var card = OpenOverlay($"{t.Year} {t.Name}");
+            string medal = t.Medal == null ? (t.Wbc ? "1라운드 탈락" : "메달 없이 조별리그 탈락")
+                : NationalTeam.Won(t) ? $"<color=#FFD24D><b>대한민국 {(t.Wbc ? "WBC 우승" : t.Medal)}!</b></color>"
+                : $"<color=#FFD24D><b>대한민국 {NationalTeam.Finish(t)}</b></color>";
             string myGames = _career.Me.IsPitcher
                 ? (t.MyPitching.Outs > 0 ? $"{t.MyPitching.Innings}이닝 {t.MyPitching.Runs}실점 {t.MyPitching.Strikeouts}탈삼진" : "등판 기회가 없었어요")
                 : $"{t.MyLine.AtBats}타수 {t.MyLine.Hits}안타 {t.MyLine.HomeRuns}홈런 {t.MyLine.RunsBattedIn}타점";
@@ -1357,8 +1361,8 @@ namespace BaseballGame
             foreach (var m in r.MinorMilestones) lines.Add($"<color=#BAC4D8>{CareerState.MinorMilestoneLine(m)}</color>");
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
             if (r.Tournament != null)
-                lines.Add($"<color=#FFD24D>{NationalTeam.Name}</color> 대한민국 {r.Tournament.Medal ?? "조별리그 탈락"}" + (r.Tournament.Selected ? " (국가대표 출전)" : "") +
-                    (r.Tournament.Selected && r.Tournament.Medal == NationalTeam.Gold ? "  <color=#5FA8FF>병역 면제!</color>" : ""));
+                lines.Add($"<color=#FFD24D>{r.Tournament.Name}</color> 대한민국 {NationalTeam.Finish(r.Tournament)}" + (r.Tournament.Selected ? " (국가대표 출전)" : "") +
+                    (r.Tournament.Selected && !r.Tournament.Wbc && r.Tournament.Medal == NationalTeam.Gold ? "  <color=#5FA8FF>병역 면제!</color>" : ""));
             if (r.AllStar != null)
             {
                 var g = r.AllStar.Game;
@@ -1947,9 +1951,9 @@ namespace BaseballGame
             }
             else if (summary.CanEnlist)
             {
-                int chances = Enumerable.Range(_career.Year, CareerState.EnlistByAge - _career.Me.Age).Count(NationalTeam.IsTournamentYear);
+                int chances = Enumerable.Range(_career.Year, CareerState.EnlistByAge - _career.Me.Age).Count(NationalTeam.IsAsiaYear);
                 Section("병역");
-                Line($"{CareerState.EnlistByAge}세 전에 군 복무를 해야 해요. 남은 국제대회 {chances}번 (금메달이면 면제)");
+                Line($"{CareerState.EnlistByAge}세 전에 군 복무를 해야 해요. 남은 아시아 야구 대회 {chances}번 (금메달이면 면제)");
                 UiKit.Height(UiKit.Button(body, $"다음 시즌 {CareerState.MilitaryClub} 입대", () =>
                 {
                     _career.Enlist();

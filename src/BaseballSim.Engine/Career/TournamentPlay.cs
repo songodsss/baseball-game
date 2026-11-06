@@ -58,8 +58,9 @@ namespace BaseballSim.Career
             var run = NationalTeam.Play(this, TourSeed, TourDecisions, TourGames, true);
             var t = run.Result;
             NationalTeam.Reward(this, t);
-            if (t.Selected && t.Medal == NationalTeam.Gold) { ExemptByGold(); AddFans(300); }
-            if (t.Selected) SeasonNotes.Add($"{MonthText} {NationalTeam.Name} " + (t.Medal ?? "대표 출전"));
+            if (t.Selected && !t.Wbc && t.Medal == NationalTeam.Gold) { ExemptByGold(); AddFans(300); }
+            if (t.Selected && t.Wbc && t.Medal == NationalTeam.WbcChampion) AddFans(500);
+            if (t.Selected) SeasonNotes.Add($"{MonthText} {t.Name} " + (t.Medal == null ? "대표 출전" : NationalTeam.Finish(t)));
             TourSeed = 0;
             TourGames = 0;
             TourAuto = false;
