@@ -278,18 +278,24 @@ public class PopularityTests
 public class MilestoneTests
 {
     [Fact]
-    public void TheHundredthHitIsCelebrated()
+    public void SmallMarksAreALineAndBigOnesACeremony()
     {
         var random = new SeededRandom(6);
         var league = new League(new RosterGenerator(random), 36);
         var career = new CareerState(CareerState.NewPlayer("테스트", random), league, league.Teams[0], random);
         foreach (var stat in CareerPlayer.AllStats) career.Me.Ratings[stat] = career.Me.Potential[stat] = 80;
-        career.Me.History.Add(new SeasonRecord { Season = 1, Games = 36, Line = new BattingLine { Hits = 99, AtBats = 300, PlateAppearances = 330 }, Ratings = career.Me.Snapshot() });
+        career.Me.History.Add(new SeasonRecord { Season = 1, Games = 36, Line = new BattingLine { Hits = 499, AtBats = 1600, PlateAppearances = 1800 }, Ratings = career.Me.Snapshot() });
         DayResult day = null;
+        for (int i = 0; i < 30 && (day == null || day.MinorMilestones.Count == 0); i++) day = career.PlayDay(DailyAction.Rest);
+        Assert.Contains("통산 500안타", day.MinorMilestones);
+        Assert.Empty(day.Milestones); // no ceremony for 500
+
+        career.Me.History[0].Line.Hits = 999 - career.SeasonLine.Hits;
+        day = null;
         for (int i = 0; i < 30 && (day == null || day.Milestones.Count == 0); i++) day = career.PlayDay(DailyAction.Rest);
-        Assert.Contains("통산 100안타", day.Milestones);
-        Assert.Contains(career.SeasonNotes, n => n.Contains("통산 100안타"));
-        Assert.Contains("100안타", CareerState.MilestoneCeremony(day.Milestones[0], career.Me.Name));
+        Assert.Contains("통산 1,000안타", day.Milestones);
+        Assert.Contains(career.SeasonNotes, n => n.Contains("통산 1,000안타"));
+        Assert.Contains("1,000안타", CareerState.MilestoneCeremony(day.Milestones[0], career.Me.Name));
     }
 }
 

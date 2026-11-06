@@ -135,23 +135,22 @@ public class LifeEventTests
         Assert.Equal("프로 첫 개막전", opening.Title);
         Answer(career, opening, 0);
         Assert.Null(StoryEvents.Scheduled(career, new DayResult()));
-        career.Day = 34;
+        int last = StoryEvents.LastHomeDay(career);
+        Assert.True(career.League.Matchups(last).Any(m => m.Home == career.MyTeam));
+        career.Day = last; // the last home game hasn't been played yet
+        Assert.Null(StoryEvents.Scheduled(career, new DayResult()));
+        career.Day = last + 1;
         Assert.Equal("last_home", StoryEvents.Scheduled(career, new DayResult()).Id);
     }
 
     [Fact]
-    public void AllStarsGetTheDerbyTheDayAfter()
+    public void HittersGetTheRealDerbyNotAStoryCard()
     {
         var career = NewCareer(9);
         career.Day = career.AllStarDay + 1;
-        Assert.Null(StoryEvents.Scheduled(career, new DayResult()));
         career.SeasonNotes.Add("7월 올스타 선정");
-        var derby = StoryEvents.Scheduled(career, new DayResult());
-        Assert.Equal("hr_derby", derby.Id);
-        var outcome = Answer(career, derby, 0);
-        Assert.Contains("홈런", outcome.Text);
-        Assert.True(career.Me.DerbyBest >= 0);
-        Assert.Null(StoryEvents.Scheduled(career, new DayResult()));
+        var ev = StoryEvents.Scheduled(career, new DayResult());
+        Assert.True(ev == null || ev.Id != "hr_derby"); // the derby is played at the break itself
     }
 
     [Fact]

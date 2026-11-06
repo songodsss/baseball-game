@@ -248,6 +248,7 @@ namespace BaseballSim.Career
             MyTeam = to;
             if (League.Batting.TryGetValue(Me.Id, out var season)) season.Team = to;
             if (League.Pitching.TryGetValue(Me.Id, out var arm)) arm.Team = to;
+            KeepRivalAway();
         }
 
         public RosterMove AcceptTrade()

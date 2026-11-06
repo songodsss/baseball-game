@@ -456,7 +456,8 @@ namespace BaseballSim.Career
                 Id = "mentee",
                 Title = "신인의 질문",
                 Text = "후배 {junior}가 쭈뼛거리며 다가왔다.\n\"선배님처럼 하려면 뭐부터 해야 해요?\"",
-                Weight = (c, d) => c.Me.Age >= 26 && !c.HasMark("mentee") && !c.SeenThisSeason("mentee") ? 0.6 : 0,
+                // Only while {junior} is still a rookie: once he's a regular (or the captain) this would make no sense.
+                Weight = (c, d) => c.Me.Age >= 26 && !c.HasMark("mentee") && !c.SeenThisSeason("mentee") && !c.Seen("junior_rise") && !c.Seen("mentee_first") ? 0.6 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "직접 가르친다", Result = "가르치다 보니 내 기본기도 다시 보였다.", Apply = e => { e.Mark("mentee"); e.Exp(Stat.Defense, 30); e.Fatigue(10); e.Morale(2); e.Close("junior", 2); } },
@@ -469,7 +470,7 @@ namespace BaseballSim.Career
                 Id = "mentee_first",
                 Title = "후배의 첫 홈런 공",
                 Text = "가르쳤던 {junior}가 데뷔 첫 홈런을 쳤다.\n경기가 끝나자 그 공을 들고 {name}에게 왔다.\n\"선배님이 가지세요.\"",
-                Weight = (c, d) => Due(c, "mentee", Gap(c)) ? 4 : 0,
+                Weight = (c, d) => Due(c, "mentee", Gap(c)) && !c.Seen("junior_rise") && !c.Seen("mentee_first") ? 4 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "\"네가 간직해\"", Result = "후배가 공을 꼭 쥐고 고개를 숙였다.", Apply = e => { e.Unmark("mentee"); e.Morale(6); e.Trust(1); e.Close("junior", 1); } },
@@ -647,19 +648,25 @@ namespace BaseballSim.Career
         public static StoryEvent Scheduled(Career c, DayResult day)
         {
             if (c.InMilitary) return null;
-            int games = c.League.GamesPerSeason;
             if (c.Day <= 1 && !c.InFarm && !c.SeenThisSeason("opening")) return Opening(c); // in case the season start was skipped
-            if (c.Day > c.AllStarDay && c.Day <= c.AllStarDay + 3 && MadeAllStar(c) && !c.Me.IsInjured)
-            {
-                var derby = c.Me.IsPitcher ? RadarDerby : HomeRunDerby;
-                if (!c.SeenThisSeason(derby.Id)) return derby;
-            }
+            // Right after my club's last home game of the year (it comes first: it can't wait for another day).
+            if (!c.InFarm && !c.SeenThisSeason("last_home") && c.Day - 1 >= LastHomeDay(c) && c.Day - 1 <= LastHomeDay(c) + 2) return LastHome;
+            // Hitters get the real home run derby at the break; pitchers have their own fun.
+            if (c.Day > c.AllStarDay && c.Day <= c.AllStarDay + 3 && MadeAllStar(c) && !c.Me.IsInjured && c.Me.IsPitcher && !c.SeenThisSeason(RadarDerby.Id))
+                return RadarDerby;
             var bond = BondMoment(c);
             if (bond != null) return bond;
             var serial = SerialMoment(c, day);
             if (serial != null) return serial;
-            if (c.Day >= games - 3 && !c.InFarm && !c.SeenThisSeason("last_home")) return LastHome;
             return null;
+        }
+
+        /// <summary>The day of my club's last home game this season.</summary>
+        public static int LastHomeDay(Career c)
+        {
+            for (int d = c.League.GamesPerSeason - 1; d >= 0; d--)
+                if (c.League.Matchups(d).Any(m => m.Home == c.MyTeam)) return d;
+            return -1;
         }
 
         static StoryEvent Opening(Career c) => new StoryEvent
@@ -692,58 +699,6 @@ namespace BaseballSim.Career
 
         // ---------- The all-star home run derby ----------
 
-        static readonly StoryEvent HomeRunDerby = new StoryEvent
-        {
-            Id = "hr_derby",
-            Title = "홈런 더비",
-            Text = "올스타 휴식기 이벤트, 홈런 더비에 초대받았다!\n아웃 10개 안에 몇 개나 넘길까. 어떻게 칠까?",
-            Weight = (_, __) => 0,
-            Choices =
-            {
-                new EventChoice { Label = "전부 당겨서 크게", Result = "", Apply = e => Derby(e, swing: true) },
-                new EventChoice { Label = "가볍게 정확하게", Result = "", Apply = e => Derby(e, swing: false) },
-            },
-        };
-
-        /// <summary>
-        /// Ten outs; every swing that isn't a homer is an out. A big swing homers more often with power
-        /// but tires; a light swing is steadier for a contact hitter.
-        /// </summary>
-        static void Derby(EventEffects e, bool swing)
-        {
-            var me = e.Career.Me;
-            double power = e.Rating(Stat.Power), contact = e.Rating(Stat.Contact);
-            double p = swing ? 0.12 + power * 0.0055 : 0.15 + power * 0.0025 + contact * 0.0015;
-            p = Math.Min(0.75, p);
-            int homers = 0;
-            for (int outs = 0; outs < 10;)
-            {
-                if (e.Chance(p)) homers++;
-                else outs++;
-                if (homers > 40) break;
-            }
-            int best = 4 + (int)(e.Roll() * 7); // the best of the other sluggers: 4 to 10
-            e.Say($"홈런 {homers}개! (다른 선수 최고 {best}개)");
-            if (homers > best)
-            {
-                e.Say("홈런 더비 우승! 트로피를 높이 들었다.");
-                e.Money(500);
-                e.Fans(150);
-                e.Morale(6);
-                e.Career.SeasonNotes.Add($"{e.Career.MonthText} 홈런 더비 우승");
-            }
-            else
-            {
-                e.Fans(homers * 8);
-                e.Morale(2);
-            }
-            if (homers > me.DerbyBest)
-            {
-                if (me.DerbyBest > 0) e.Say($"개인 최고 기록 경신! ({me.DerbyBest}개 → {homers}개)");
-                me.DerbyBest = homers;
-            }
-            if (swing) e.Fatigue(15);
-        }
 
         static readonly StoryEvent RadarDerby = new StoryEvent
         {

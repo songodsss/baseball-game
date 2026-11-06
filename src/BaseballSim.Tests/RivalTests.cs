@@ -37,6 +37,19 @@ public class RivalTests
     }
 
     [Fact]
+    public void JoiningTheRivalsClubSendsHimElsewhere()
+    {
+        var career = NewCareer(3);
+        PlaySeason(career);
+        var his = career.RivalTeam;
+        career.Sign(new ContractOffer { Team = his, Salary = career.Me.Salary, Years = 1 });
+        Assert.Same(his, career.MyTeam);
+        Assert.NotSame(career.MyTeam, career.RivalTeam);
+        Assert.Single(career.League.Teams.SelectMany(t => t.Lineup), p => p.Id == RivalState.PlayerId);
+        Assert.All(career.League.Teams, t => Assert.Equal(9, t.Lineup.Count));
+    }
+
+    [Fact]
     public void RivalPlaysGrowsAndIsCompared()
     {
         var career = NewCareer(2);

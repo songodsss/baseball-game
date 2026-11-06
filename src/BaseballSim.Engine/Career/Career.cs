@@ -40,6 +40,8 @@ namespace BaseballSim.Career
         public PitcherLine MyPitching;
         /// <summary>Career milestones reached today, e.g. "통산 100안타".</summary>
         public List<string> Milestones = new List<string>();
+        /// <summary>Smaller round numbers reached today ("통산 500안타"): a log line, no ceremony.</summary>
+        public List<string> MinorMilestones = new List<string>();
         /// <summary>A pitcher resting between starts while his club played.</summary>
         public bool BetweenStarts;
         /// <summary>Money paid today: only on a payday (see <see cref="Payday"/>).</summary>

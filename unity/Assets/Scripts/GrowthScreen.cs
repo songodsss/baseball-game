@@ -1354,6 +1354,7 @@ namespace BaseballGame
                 lines.Add($"<color={(up ? "#5FA8FF" : "#F28C40")}>타순 변경: {CareerState.SlotName(r.OldSlot.Value)} → {CareerState.SlotName(_career.LineupSlot)}</color>");
             }
             foreach (var m in r.Milestones) lines.Add($"<color=#FFD24D>{m} 달성!</color>");
+            foreach (var m in r.MinorMilestones) lines.Add($"<color=#BAC4D8>{CareerState.MinorMilestoneLine(m)}</color>");
             if (r.Move != null) lines.Add($"<color=#FFD24D>{r.Move.Text}</color>");
             if (r.Tournament != null)
                 lines.Add($"<color=#FFD24D>{NationalTeam.Name}</color> 대한민국 {r.Tournament.Medal ?? "조별리그 탈락"}" + (r.Tournament.Selected ? " (국가대표 출전)" : "") +

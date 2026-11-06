@@ -42,6 +42,25 @@ namespace BaseballSim.Career
             club.Lineup[(int)(_random.NextDouble() * club.Lineup.Count)] = player;
         }
 
+        /// <summary>
+        /// The rival is always on another club: if my player joins his, the rival is traded away the
+        /// same day for a regular of a third club.
+        /// </summary>
+        void KeepRivalAway()
+        {
+            var team = RivalTeam;
+            if (team == null || team != MyTeam) return;
+            var clubs = League.Teams.Where(t => t != MyTeam).ToList();
+            var other = clubs[(int)(_random.NextDouble() * clubs.Count)];
+            int mine = team.Lineup.FindIndex(p => p.Id == RivalState.PlayerId);
+            int theirs = (int)(_random.NextDouble() * other.Lineup.Count);
+            var rival = team.Lineup[mine];
+            team.Lineup[mine] = other.Lineup[theirs];
+            other.Lineup[theirs] = rival;
+            if (League.Batting.TryGetValue(RivalState.PlayerId, out var r)) r.Team = other;
+            if (League.Batting.TryGetValue(team.Lineup[mine].Id, out var b)) b.Team = team;
+        }
+
         /// <summary>Between seasons: the rival closes part of the gap to his potential while young, and declines from 32 like anyone.</summary>
         void AgeRival()
         {
