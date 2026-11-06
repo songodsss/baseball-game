@@ -62,6 +62,12 @@ namespace BaseballSim.Career
 
         int ReviewEvery => Math.Max(3, League.GamesPerSeason / 12);
         public int TradeDeadline => League.GamesPerSeason * 3 / 5;
+
+        /// <summary>A few games before the deadline the papers start talking: the club whose name is in the rumor ("" = none).</summary>
+        public string TradeRumor = "";
+        /// <summary>Whether the rumored deal really goes through on deadline day.</summary>
+        public bool TradeRumorReal;
+        public int RumorDay => Math.Max(1, TradeDeadline - Math.Max(3, League.GamesPerSeason / 24));
         public string MonthText => MonthOf(Day, League.GamesPerSeason);
         /// <summary>The month a season day falls in: April to September.</summary>
         public static string MonthOf(int day, int games) => $"{Math.Min(9, 4 + day * 6 / games)}월";
@@ -152,6 +158,7 @@ namespace BaseballSim.Career
         void ReviewRoster(DayResult result)
         {
             if (InMilitary) return;
+            if (Day == RumorDay && !TradedThisSeason && Season > 1) StartRumor();
             if (Day == TradeDeadline && !TradedThisSeason && Season > 1) TradeDeadlineDay(result);
             if (Day % ReviewEvery == 0 && !InFarm) result.OldSlot = UpdateBattingOrder();
             if (result.Move != null || Day < League.GamesPerSeason / 6 || Day % ReviewEvery != 0 || Me.IsInjured) return;
@@ -195,6 +202,18 @@ namespace BaseballSim.Career
         /// </summary>
         void TradeDeadlineDay(DayResult result)
         {
+            string rumor = TradeRumor;
+            bool real = TradeRumorReal;
+            TradeRumor = "";
+            TradeRumorReal = false;
+            var rumored = League.Teams.FirstOrDefault(t => t.Name == rumor);
+            if (real && rumored != null && rumored != MyTeam)
+            {
+                result.Move = Trade(rumored, $"트레이드! {MyTeam.Name} → {rumored.Name}. 소문은 사실이었어요.");
+                return;
+            }
+            if (rumored != null) return; // the rumor came to nothing; no other deal this year
+
             var ranked = League.Ranked().Select(s => s.Team).ToList();
             bool losing = ranked.IndexOf(MyTeam) >= ranked.Count / 2;
             double ops = Form(SeasonLine, SeasonPitching);
@@ -202,21 +221,10 @@ namespace BaseballSim.Career
             bool star = !InFarm && sample >= League.GamesPerSeason && ops >= 0.850;
             bool struggling = InFarm || sample >= League.GamesPerSeason && ops < 0.650;
 
-            double forced = 0.05;
-            if (star && losing && Me.Age >= 25) forced += 0.12;
-            if (struggling && Me.Age >= 24) forced += 0.10;
-
             var others = ranked.Where(t => t != MyTeam).ToList();
             var contenders = others.Take(4).ToList();
             Team PickFrom(List<Team> teams) => teams[(int)(_random.NextDouble() * teams.Count)];
-
-            if (_random.NextDouble() < forced)
-            {
-                var to = PickFrom(star ? contenders : others);
-                string why = star ? "우승을 노리는 구단이 당신을 원했어요" : "구단이 분위기 쇄신을 위해 결정했어요";
-                result.Move = Trade(to, $"트레이드! {MyTeam.Name} → {to.Name}. {why}.");
-                return;
-            }
+            // (Forced trades are decided at the rumor, a few games earlier: see StartRumor.)
 
             double asked = 0.12 + (losing ? 0.15 : 0) + (InFarm ? 0.15 : 0);
             if (_random.NextDouble() < asked)
@@ -244,11 +252,37 @@ namespace BaseballSim.Career
         void MoveTo(Team to)
         {
             if (to == MyTeam) return;
+            var from = MyTeam;
             Me.Clubs.Add(to.Name);
             MyTeam = to;
+            LeaveClubPeople(from);
             if (League.Batting.TryGetValue(Me.Id, out var season)) season.Team = to;
             if (League.Pitching.TryGetValue(Me.Id, out var arm)) arm.Team = to;
             KeepRivalAway();
+        }
+
+        /// <summary>
+        /// A few games before the deadline: a forced trade is decided now and leaks to the papers first,
+        /// so it never comes out of the blue. Some rumors are only rumors.
+        /// </summary>
+        void StartRumor()
+        {
+            TradeRumor = "";
+            TradeRumorReal = false;
+            var ranked = League.Ranked().Select(s => s.Team).ToList();
+            bool losing = ranked.IndexOf(MyTeam) >= ranked.Count / 2;
+            double ops = Form(SeasonLine, SeasonPitching);
+            int sample = Sample(SeasonLine, SeasonPitching);
+            bool star = !InFarm && sample >= League.GamesPerSeason * 3 / 4 && ops >= 0.850;
+            bool struggling = InFarm || sample >= League.GamesPerSeason * 3 / 4 && ops < 0.650;
+            double forced = 0.05;
+            if (star && losing && Me.Age >= 25) forced += 0.12;
+            if (struggling && Me.Age >= 24) forced += 0.10;
+            var others = ranked.Where(t => t != MyTeam).ToList();
+            var pool = star ? others.Take(4).ToList() : others;
+            var team = pool[(int)(_random.NextDouble() * pool.Count)];
+            if (_random.NextDouble() < forced) { TradeRumor = team.Name; TradeRumorReal = true; }
+            else if (_random.NextDouble() < 0.06) TradeRumor = team.Name; // just talk
         }
 
         public RosterMove AcceptTrade()
@@ -347,6 +381,8 @@ namespace BaseballSim.Career
             StintPitching = new PitcherLine();
             FarmDays = 0;
             TradedThisSeason = false;
+            TradeRumor = "";
+            TradeRumorReal = false;
             StintLine = new BattingLine();
             StintDays = 0;
             SeasonNotes = new List<string>();

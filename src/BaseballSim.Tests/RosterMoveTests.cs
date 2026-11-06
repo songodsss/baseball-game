@@ -156,3 +156,67 @@ public class RosterMoveTests
         Assert.True(offer.Tryout);
     }
 }
+
+public class ClubChangeTests
+{
+    static CareerState NewCareer(int seed)
+    {
+        var random = new SeededRandom(seed);
+        var league = new League(new RosterGenerator(random), 36);
+        var career = new CareerState(CareerState.NewPlayer("테스트", random), league, league.Teams[0], random);
+        foreach (var stat in CareerPlayer.AllStats) career.Me.Ratings[stat] = career.Me.Potential[stat] = 60;
+        return career;
+    }
+
+    [Fact]
+    public void AForcedTradeLeaksFirstAndThenHappens()
+    {
+        var career = NewCareer(11);
+        career.Season = 2;
+        var target = career.League.Teams[5];
+        while (career.Day < career.RumorDay - 1)
+        {
+            var d = career.PlayDay(DailyAction.Rest);
+            while (d.AtBat != null) d = career.ChooseApproach(Approach.Normal);
+            if (d.Trade != null) career.DeclineTrade();
+        }
+        DayResult day = null;
+        while (career.Day < career.TradeDeadline)
+        {
+            // Pin the rumor once it has been rolled, so the deal is certain.
+            if (career.Day >= career.RumorDay) { career.TradeRumor = target.Name; career.TradeRumorReal = true; }
+            day = career.PlayDay(DailyAction.Rest);
+            while (day.AtBat != null) day = career.ChooseApproach(Approach.Normal);
+            if (career.PendingEvent != null) career.ResolveEvent(career.PendingEvent.Id == "trade_rumor" ? 1 : 0);
+        }
+        Assert.Equal(RosterMoveKind.Traded, day.Move?.Kind);
+        Assert.Same(target, career.MyTeam);
+        Assert.True(career.Me.StoryMarks.ContainsKey("seen:trade_rumor"));
+    }
+
+    [Fact]
+    public void TheOldClubhousePeopleStayBehind()
+    {
+        var career = NewCareer(12);
+        string junior = career.JuniorName, veteran = career.VeteranName;
+        career.Me.StoryMarks["close:junior"] = 4;
+        career.Me.StoryMarks["seen:senior_roommate"] = career.Stamp;
+        string senior = career.SeniorName;
+        var from = career.MyTeam;
+        career.Sign(new ContractOffer { Team = career.League.Teams[4], Salary = career.Me.Salary, Years = 1 });
+
+        Assert.Equal(from.Name, career.FormerClub);
+        Assert.NotEqual(junior, career.JuniorName);
+        Assert.NotEqual(veteran, career.VeteranName);
+        Assert.Equal(4, career.Closeness("oldjunior"));
+        Assert.Equal(0, career.Closeness("junior"));
+        Assert.Equal(senior, career.SeniorName); // still a friend, just not in the clubhouse
+        Assert.DoesNotContain(StoryEvents.All.Where(e => e.Text != null && e.Text.Contains("{senior}")),
+            e => e.Weight(career, new DayResult()) > 0 && StoryEvents.Pick(career, new DayResult(), new SeededRandom(1)) == e);
+
+        career.Me.StoryMarks["seen:opening"] = career.Stamp;
+        var d = career.PlayDay(DailyAction.Rest);
+        while (d.AtBat != null) d = career.ChooseApproach(Approach.Normal);
+        Assert.Equal("club_arrival", StoryEvents.Scheduled(career, d)?.Id);
+    }
+}

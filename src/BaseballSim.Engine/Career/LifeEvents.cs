@@ -645,6 +645,9 @@ namespace BaseballSim.Career
         public static StoryEvent AtSeasonStart(Career c) =>
             Offseason.Next(c) ?? (c.InMilitary || c.InFarm || c.SeenThisSeason("opening") ? null : Opening(c));
 
+        /// <summary>Scenes that can't wait a day for the main story: the trade rumor before the deadline.</summary>
+        public static StoryEvent Urgent(Career c, DayResult day) => c.InMilitary ? null : RumorMoment(c);
+
         public static StoryEvent Scheduled(Career c, DayResult day)
         {
             if (c.InMilitary) return null;
@@ -654,6 +657,8 @@ namespace BaseballSim.Career
             // Hitters get the real home run derby at the break; pitchers have their own fun.
             if (c.Day > c.AllStarDay && c.Day <= c.AllStarDay + 3 && MadeAllStar(c) && !c.Me.IsInjured && c.Me.IsPitcher && !c.SeenThisSeason(RadarDerby.Id))
                 return RadarDerby;
+            var moved = ClubChangeMoment(c, day);
+            if (moved != null) return moved;
             var bond = BondMoment(c);
             if (bond != null) return bond;
             var serial = SerialMoment(c, day);

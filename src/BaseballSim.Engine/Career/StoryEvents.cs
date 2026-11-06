@@ -228,7 +228,7 @@ namespace BaseballSim.Career
         /// <summary>Weighted pick among events possible today; null if none.</summary>
         public static StoryEvent Pick(Career career, DayResult day, IRandom random)
         {
-            var options = All.Select(e => (Event: e, Weight: e.Weight(career, day))).Where(o => o.Weight > 0).ToList();
+            var options = All.Where(e => !AboutSomeoneLeftBehind(career, e)).Select(e => (Event: e, Weight: e.Weight(career, day))).Where(o => o.Weight > 0).ToList();
             double total = options.Sum(o => o.Weight);
             if (total <= 0) return null;
             double roll = random.NextDouble() * total;

@@ -643,6 +643,8 @@ namespace BaseballSim.Career
             w.Write(career.Me.HomeRunDerbyWins);
             // Added in version 40.
             w.Write(career.Me.WbcTitles);
+            w.Write(career.TradeRumor ?? "");
+            w.Write(career.TradeRumorReal);
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -880,7 +882,12 @@ namespace BaseballSim.Career
                         b.Line.CaughtStealing = cs;
                     }
             if (version >= 39) career.Me.HomeRunDerbyWins = r.ReadInt32();
-            if (version >= 40) career.Me.WbcTitles = r.ReadInt32();
+            if (version >= 40)
+            {
+                career.Me.WbcTitles = r.ReadInt32();
+                career.TradeRumor = r.ReadString();
+                career.TradeRumorReal = r.ReadBoolean();
+            }
             return career;
         }
 
