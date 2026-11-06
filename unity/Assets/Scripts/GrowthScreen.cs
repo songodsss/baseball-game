@@ -2436,7 +2436,7 @@ namespace BaseballGame
             UiKit.Height(UiKit.Label(card, text, 30, TextAnchor.UpperCenter), 0, 1);
             var career = _career;
             UiKit.Height(UiKit.Button(card, MainStory.EndingTitle(retired.Ending) + " 보기",
-                () => StoryScreen.OpenEnding(MainStory.EndingTitle(retired.Ending), MainStory.EndingLines(career, retired)), UiKit.Accent), 110);
+                () => StoryScreen.OpenEnding(MainStory.EndingTitle(retired.Ending), MainStory.EndingLines(career, retired), EndingVoices.For(career)), UiKit.Accent), 110);
             UiKit.Height(UiKit.Button(card, "커리어 카드 보기", () => CareerCard.Show(_canvas.transform, RetiredCard(retired)), UiKit.Muted), 100);
             UiKit.Height(UiKit.Button(card, "새 선수 육성 시작", ShowNewPlayer), 110);
             UiKit.Height(UiKit.Button(card, "홈으로", BackToTitle, UiKit.Muted), 100);

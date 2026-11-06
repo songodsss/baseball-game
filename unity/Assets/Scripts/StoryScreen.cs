@@ -21,8 +21,8 @@ namespace BaseballGame
             screen.ShowProgress(career);
         }
 
-        /// <summary>The ending told at retirement.</summary>
-        public static void OpenEnding(string title, List<string> lines)
+        /// <summary>The ending told at retirement, then the people of the career saying goodbye one by one.</summary>
+        public static void OpenEnding(string title, List<string> lines, List<EndingVoice> voices = null)
         {
             var screen = new GameObject("StoryScreen").AddComponent<StoryScreen>();
             screen.Build(title);
@@ -33,6 +33,35 @@ namespace BaseballGame
                 label.horizontalOverflow = HorizontalWrapMode.Wrap;
                 label.verticalOverflow = VerticalWrapMode.Overflow;
                 UiKit.Height(label, headline ? 110 : 130);
+            }
+            if (voices != null && voices.Count > 0) screen.StartCoroutine(screen.Voices(voices));
+        }
+
+        /// <summary>Each goodbye in its own speech card, appearing after the one before, as if said aloud.</summary>
+        System.Collections.IEnumerator Voices(List<EndingVoice> voices)
+        {
+            var head = UiKit.Label(_content, "그리고, 함께한 사람들", 34, TextAnchor.MiddleCenter, Gold);
+            head.fontStyle = FontStyle.Bold;
+            UiKit.Height(head, 100);
+            var scroll = _content.GetComponentInParent<ScrollRect>();
+            foreach (var v in voices)
+            {
+                for (float t = 0; t < 1.3f; t += Time.unscaledDeltaTime) yield return null;
+                if (this == null) yield break;
+                var card = UiKit.Panel(_content, "Voice", new Color(1, 1, 1, 0.06f));
+                UiKit.Column(card, 22, 6);
+                var who = UiKit.Label(card, $"<b>{v.Who}</b>  <size=24><color=#BAC4D8>{v.Role}</color></size>", 30, TextAnchor.MiddleLeft, Gold);
+                UiKit.Height(who, 44);
+                var said = UiKit.Label(card, $"\"{v.Line}\"", 30, TextAnchor.UpperLeft);
+                said.horizontalOverflow = HorizontalWrapMode.Wrap;
+                said.verticalOverflow = VerticalWrapMode.Overflow;
+                float lineHeight = 42 * Mathf.Max(1, Mathf.CeilToInt((v.Line.Length + 2) / 26f));
+                UiKit.Height(said, lineHeight);
+                UiKit.Height(card, 44 + lineHeight + 22 * 2 + 6);
+                UiAnim.FadeIn(card, 0.5f);
+                UiAnim.PopIn(card, 0.3f);
+                GameAudio.Sfx(GameAudio.Popup);
+                if (scroll != null) { Canvas.ForceUpdateCanvases(); scroll.verticalNormalizedPosition = 0; }
             }
         }
 

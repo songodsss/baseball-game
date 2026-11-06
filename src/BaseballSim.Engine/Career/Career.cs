@@ -262,7 +262,7 @@ namespace BaseballSim.Career
                 case "veteran": return VeteranName;
                 case "junior": return JuniorName;
                 case "coach": return CoachName;
-                case "exveteran": case "excoach":
+                case "exveteran": case "excoach": case "oldveteran": case "oldjunior": case "oldcoach":
                     var ex = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(who + ":"));
                     return ex != null ? ex.Substring(who.Length + 1) : who;
                 default: return who.StartsWith("story:") ? who.Substring("story:".Length) : who;

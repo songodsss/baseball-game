@@ -516,3 +516,24 @@ public class MainStoryTests
         Assert.Contains("최강훈 감독이 직접", MainStory.Preview(career, "last_game").Text);
     }
 }
+
+public class EndingVoicesTests
+{
+    [Fact]
+    public void ThePeopleMetSayGoodbyeAndTheFansSpeakLast()
+    {
+        var random = new SeededRandom(21);
+        var league = new League(new RosterGenerator(random), 36);
+        var career = new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("테스트", random), league, league.Teams[0], random);
+        career.Me.StoryMarks["seen:senior_roommate"] = career.Stamp;
+        career.Me.StoryMarks["close:junior"] = 5;
+        string junior = career.JuniorName;
+        career.Me.ManagerTrust = 5;
+        var voices = EndingVoices.For(career);
+        Assert.Contains(voices, v => v.Who == career.SeniorName);
+        Assert.Contains(voices, v => v.Who == junior);
+        Assert.Contains(voices, v => v.Who == "감독님");
+        Assert.Equal("팬클럽 회장", voices.Last().Who);
+        Assert.All(voices, v => Assert.DoesNotContain("{", v.Line));
+    }
+}
