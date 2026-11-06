@@ -9,6 +9,8 @@ namespace BaseballSim.Career
         public Team High; // better seed
         public Team Low;
         public int HighWins, LowWins;
+        /// <summary>Wins the better seed starts with (the wild card's 4th seed has one).</summary>
+        public int HeadStart;
         public List<GameResult> Games = new List<GameResult>();
         public Team Winner => HighWins > LowWins ? High : Low;
         public Team Loser => Winner == High ? Low : High;
@@ -27,11 +29,17 @@ namespace BaseballSim.Career
         /// <summary>Postseason games my club has played, for a pitcher's turn: he starts every fourth.</summary>
         public int MyTeamGames;
         public int Bonus;
+        /// <summary>The Korean Series MVP: the champion's best player of the series. Empty if no series was played.</summary>
+        public string KsMvp = "";
+        public string KsMvpLine = "";
+        public bool KsMvpMine;
     }
 
     /// <summary>
-    /// Autumn baseball: the top four play semifinals (1 v 4, 2 v 3, best of three), then a best-of-five final.
-    /// My club's games are played one at a time, with my big at bats asked about like in the season.
+    /// Autumn baseball, as in the KBO: the top five go in a step ladder. 4th v 5th in the wild card
+    /// (4th starts a win up, every game at 4th's park), then the semi playoff (3rd, best of five), the
+    /// playoff (2nd, best of five) and the Korean Series (1st, best of seven). No ties: extra innings
+    /// go on until somebody wins. My club's games are played one at a time, my big at bats asked about.
     /// </summary>
     public static class Postseason
     {
@@ -41,15 +49,26 @@ namespace BaseballSim.Career
             var lines = new List<string>();
             var lost = post.Series.FirstOrDefault(s => s.Loser == myTeam);
             lines.Add(post.MyTeamWon ? "우승!"
+                : lost != null && lost.Name == KoreanSeries ? $"준우승 · {post.Champion?.Name} 우승"
                 : lost != null ? $"{lost.Name} 탈락 · {post.Champion?.Name} 우승"
                 : $"진출 실패 · {post.Champion?.Name} 우승");
             foreach (var s in post.Series) lines.Add($"{s.Name}  {s.High.Name} {s.HighWins} : {s.LowWins} {s.Low.Name}");
+            if (!string.IsNullOrEmpty(post.KsMvp)) lines.Add($"{KsMvpTitle}  {post.KsMvp}");
             return lines;
         }
 
-        public const int Teams = 4;
-        public const string ChampionTitle = "챔피언 결정전 우승";
-        const int MaxGamesPerSeries = 9; // ties replay, but never forever
+        public const int Teams = 5;
+        public const string ChampionTitle = "한국시리즈 우승";
+        /// <summary>The old name of the title, still in saves from before the KBO format.</summary>
+        public const string OldChampionTitle = "챔피언 결정전 우승";
+        public const string KsMvpTitle = "한국시리즈 MVP";
+        public const string WildCard = "와일드카드 결정전", SemiPlayoff = "준플레이오프", Playoff = "플레이오프", KoreanSeries = "한국시리즈";
+        const int MaxGamesPerSeries = 9; // a tie (only past the innings cap) replays, but never forever
+        /// <summary>Postseason games have no tie: this is only a safety cap.</summary>
+        public const int PostseasonMaxInnings = 30;
+
+        /// <summary>Wins a club needs to take the series, counting the 4th seed's head start in the wild card.</summary>
+        public static int WinsNeeded(string series) => series == KoreanSeries ? 4 : series == WildCard ? 2 : 3;
 
         /// <summary>
         /// Where a postseason replay stopped: before my club's next game, at a big at bat in it, or at the end.
@@ -83,13 +102,13 @@ namespace BaseballSim.Career
             var run = new Run { Result = new PostseasonResult { MyTeamIn = seeds.Contains(career.MyTeam) } };
             var ctx = new Ctx { Career = career, Master = master, Decisions = decisions, MyGames = myGames, Auto = auto, Run = run };
 
-            var semi1 = Series(ctx, "준결승", seeds[0], seeds[3], 2);
-            if (semi1 == null) return run;
-            var semi2 = Series(ctx, "준결승", seeds[1], seeds[2], 2);
-            if (semi2 == null) return run;
-            // The better regular-season team hosts the final.
-            var finalists = new[] { semi1.Winner, semi2.Winner }.OrderBy(t => seeds.IndexOf(t)).ToList();
-            var final = Series(ctx, "챔피언 결정전", finalists[0], finalists[1], 3);
+            var wild = Series(ctx, WildCard, seeds[3], seeds[4], headStart: 1);
+            if (wild == null) return run;
+            var semi = Series(ctx, SemiPlayoff, seeds[2], wild.Winner);
+            if (semi == null) return run;
+            var po = Series(ctx, Playoff, seeds[1], semi.Winner);
+            if (po == null) return run;
+            var final = Series(ctx, KoreanSeries, seeds[0], po.Winner);
             if (final == null) return run;
 
             var result = run.Result;
@@ -101,8 +120,63 @@ namespace BaseballSim.Career
                 double share = result.MyTeamWon ? 0.15 : final.Loser == career.MyTeam ? 0.08 : 0.04;
                 result.Bonus = (int)(career.Me.Salary * share);
             }
+            PickKsMvp(final, career, result);
             run.Done = true;
             return run;
+        }
+
+        /// <summary>The champion's best of the Korean Series: big hits and runs for a batter, outs and few runs for an arm.</summary>
+        static void PickKsMvp(PlayoffSeries final, Career career, PostseasonResult result)
+        {
+            var champ = final.Winner;
+            var scores = new Dictionary<string, (string Name, double Score, string Line)>();
+            var bats = new Dictionary<string, BattingLine>();
+            var arms = new Dictionary<string, PitchingLine>();
+            foreach (var g in final.Games)
+            {
+                bool Ours(string id) => champ.Lineup.Any(p => p.Id == id) || id == career.Me.Id && career.MyTeam == champ;
+                foreach (var b in g.Batting.Where(b => Ours(b.Key.Id)))
+                {
+                    if (!bats.TryGetValue(b.Key.Id, out var line)) bats[b.Key.Id] = line = new BattingLine();
+                    Career.Accumulate(line, b.Value);
+                    scores[b.Key.Id] = (b.Key.Name, 0, "");
+                }
+                var staff = champ.Rotation.Concat(champ.Bullpen).Select(p => p.Id).ToList();
+                foreach (var a in g.Pitching.Where(a => staff.Contains(a.Key.Id) || a.Key.Id == career.Me.Id && career.MyTeam == champ))
+                {
+                    if (!arms.TryGetValue(a.Key.Id, out var line)) arms[a.Key.Id] = line = new PitchingLine();
+                    line.OutsRecorded += a.Value.OutsRecorded;
+                    line.Runs += a.Value.Runs;
+                    line.Strikeouts += a.Value.Strikeouts;
+                    line.Saves += a.Value.Saves;
+                    scores[a.Key.Id] = (a.Key.Name, 0, "");
+                }
+            }
+            string best = null;
+            double top = double.MinValue;
+            foreach (var id in scores.Keys.ToList())
+            {
+                double score = 0;
+                string text = "";
+                if (bats.TryGetValue(id, out var b) && b.PlateAppearances > 0)
+                {
+                    int singles = b.Hits - b.Doubles - b.Triples - b.HomeRuns;
+                    score += singles + 2 * b.Doubles + 3 * b.Triples + 4.5 * b.HomeRuns + 0.6 * b.Walks + 1.2 * b.RunsBattedIn + 0.8 * b.Runs - 0.25 * (b.AtBats - b.Hits);
+                    text = $"타율 {(b.AtBats == 0 ? 0 : (double)b.Hits / b.AtBats):.000} {b.HomeRuns}홈런 {b.RunsBattedIn}타점";
+                }
+                if (arms.TryGetValue(id, out var a) && a.OutsRecorded > 0)
+                {
+                    score += a.OutsRecorded * 0.55 - a.Runs * 2.2 + a.Strikeouts * 0.3 + a.Saves * 2;
+                    string arm = $"{a.OutsRecorded / 3}.{a.OutsRecorded % 3}이닝 {a.Runs}실점 {a.Strikeouts}탈삼진" + (a.Saves > 0 ? $" {a.Saves}세이브" : "");
+                    text = text == "" ? arm : text + " / " + arm;
+                }
+                scores[id] = (scores[id].Name, score, text);
+                if (score > top) { top = score; best = id; }
+            }
+            if (best == null) return;
+            result.KsMvp = scores[best].Name;
+            result.KsMvpLine = scores[best].Line;
+            result.KsMvpMine = best == career.Me.Id;
         }
 
         class Ctx
@@ -126,15 +200,17 @@ namespace BaseballSim.Career
         }
 
         /// <summary>Plays a series; null if the replay stopped in it (the series so far is still listed).</summary>
-        static PlayoffSeries Series(Ctx ctx, string name, Team high, Team low, int winsNeeded)
+        static PlayoffSeries Series(Ctx ctx, string name, Team high, Team low, int headStart = 0)
         {
-            var series = new PlayoffSeries { Name = name, High = high, Low = low };
+            int winsNeeded = WinsNeeded(name);
+            var series = new PlayoffSeries { Name = name, High = high, Low = low, HighWins = headStart, HeadStart = headStart };
             ctx.Run.Result.Series.Add(series);
             var me = ctx.Career.MyTeam;
             while (series.HighWins < winsNeeded && series.LowWins < winsNeeded && series.Games.Count < MaxGamesPerSeries)
             {
-                // The better seed is at home in odd games.
-                bool highHome = series.Games.Count % 2 == 0;
+                // The better seed hosts: every wild card game, games 1, 2 and 5 of a best of five, 1, 2, 6 and 7 of the Korean Series.
+                int n = series.Games.Count + 1;
+                bool highHome = name == WildCard || n <= 2 || (name == KoreanSeries ? n >= 6 : n == 5);
                 var home = highHome ? high : low;
                 var away = highHome ? low : high;
                 bool mine = home == me || away == me;
@@ -155,8 +231,8 @@ namespace BaseballSim.Career
                 if (game.Winner == high) series.HighWins++;
                 else if (game.Winner == low) series.LowWins++;
             }
-            // Still level after the cap: the better seed goes through.
-            if (series.HighWins == series.LowWins) series.HighWins++;
+            // Still level after the cap (or a wild card tie): the better seed goes through.
+            if (series.HighWins <= series.LowWins && series.HighWins < winsNeeded && series.LowWins < winsNeeded) series.HighWins = series.LowWins + 1;
             return series;
         }
 
@@ -165,7 +241,7 @@ namespace BaseballSim.Career
             var career = ctx.Career;
             int gameSeed = (int)(ctx.Master.NextDouble() * int.MaxValue);
             bool mine = away == career.MyTeam || home == career.MyTeam;
-            if (!mine) return new GameSimulator(new SeededRandom(gameSeed)).Play(away, home, awayStarter, homeStarter);
+            if (!mine) return new GameSimulator(new SeededRandom(gameSeed)) { MaxInnings = PostseasonMaxInnings }.Play(away, home, awayStarter, homeStarter);
 
             ctx.Played++;
             var result = ctx.Run.Result;
@@ -174,13 +250,14 @@ namespace BaseballSim.Career
             if (career.Me.IsInjured)
             {
                 day.SatOut = true;
-                day.MyGame = new GameSimulator(new SeededRandom(gameSeed)).Play(away, home, awayStarter, homeStarter);
+                day.MyGame = new GameSimulator(new SeededRandom(gameSeed)) { MaxInnings = PostseasonMaxInnings }.Play(away, home, awayStarter, homeStarter);
                 return day.MyGame;
             }
 
             var gamePlayer = career.Me.ForGame(ctx.Master);
             var sim = new GameSimulator(new SeededRandom(gameSeed))
             {
+                MaxInnings = PostseasonMaxInnings,
                 DecideFor = gamePlayer,
                 Decide = s => ctx.Asked < ctx.Decisions.Count ? ctx.Decisions[ctx.Asked++] : ctx.Auto ? Approach.Normal : (Approach?)null,
             };
@@ -199,7 +276,7 @@ namespace BaseballSim.Career
                 if (result.MyTeamGames++ % 4 != 0)
                 {
                     day.BetweenStarts = true;
-                    day.MyGame = new GameSimulator(new SeededRandom(gameSeed)).Play(away, home, awayStarter, homeStarter);
+                    day.MyGame = new GameSimulator(new SeededRandom(gameSeed)) { MaxInnings = PostseasonMaxInnings }.Play(away, home, awayStarter, homeStarter);
                     return day.MyGame;
                 }
                 staff = career.MyTeam.Rotation;

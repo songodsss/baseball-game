@@ -34,12 +34,12 @@ namespace BaseballSim.Career
         public Func<Career, string> Goal;
         /// <summary>How far the player has come toward it: 1 or more means broken.</summary>
         public Func<Career, double> Progress;
-        /// <summary>The return visit: halfway there (or a first MVP, for 오세찬).</summary>
+        /// <summary>The return visit: halfway there (or a first ring, for 오세찬).</summary>
         public Func<Career, bool> Halfway = c => false;
         /// <summary>Whether this player can chase the record at all (the pitchers' depend on role).</summary>
         public Func<Career, bool> Chases = c => true;
 
-        /// <summary>Its moments are award ceremonies (오세찬's MVPs): they're told before the next season starts.</summary>
+        /// <summary>Its moments come at season's end (오세찬's rings): they're told before the next season starts.</summary>
         public bool AtSeasonStart;
         /// <summary>Extra condition for the day the record falls (민경호's average: the last game of a season).</summary>
         public Func<Career, DayResult, bool> SurpassWhen;
@@ -83,11 +83,11 @@ namespace BaseballSim.Career
 
         static int Seasons(Career c) => c.Me.History.Count + 1;
 
-        static int Mvps(Career c) => c.Me.History.Count(h => h.Titles.Contains(Awards.Mvp));
+        static int Rings(Career c) => c.Me.History.Count(h => h.Titles.Contains(Postseason.ChampionTitle));
 
-        public const int JangHomeRuns = 452, HanWalks = 1488, SeoSteals = 979, OhMvps = 3, YoonWins = 319, MaSaves = 650, NohHolds = 640;
-        public const double MinAverage = 0.319;
-        public const int AverageSeasons = 10;
+        public const int JangHomeRuns = 452, HanWalks = 1488, SeoSteals = 979, OhRings = 2, YoonWins = 319, MaSaves = 650, NohHolds = 640;
+        public const double MinAverage = 0.330;
+        public const int AverageSeasons = 12;
 
         public static readonly List<Legend> All = new List<Legend>
         {
@@ -110,11 +110,11 @@ namespace BaseballSim.Career
             },
             new Legend
             {
-                Id = "min", Name = "민경호", Nickname = "안타 제조기", Years = "1990~2009", Record = "통산 타율 .319", Speciality = Stat.Contact,
-                Story = "통산 타율 1위(.319), 2,318안타. 낡은 타격 노트를 늘 들고 다니는 잔소리꾼. 1999년 시즌 타율 .397, 4할에 3리가 모자랐던 그해를 아직도 이야기한다.",
+                Id = "min", Name = "민경호", Nickname = "안타 제조기", Years = "1990~2009", Record = "통산 타율 .330", Speciality = Stat.Contact,
+                Story = "통산 타율 1위(.330), 2,318안타. 낡은 타격 노트를 늘 들고 다니는 잔소리꾼. 1999년 시즌 타율 .397, 4할에 3리가 모자랐던 그해를 아직도 이야기한다.",
                 Line = "안타는 세게 치는 게 아니라 빈 데로 보내는 거다.",
                 Lesson = "밀어치는 요령을 배웠다. 수비 사이로 공이 빠져나가는 그림이 보인다.",
-                Goal = c => $"통산 타율 .319 넘기 ({AverageSeasons}시즌 이상)",
+                Goal = c => $"통산 타율 .330 넘기 ({AverageSeasons}시즌 이상)",
                 SurpassWhen = (c, d) => c.Day >= c.League.GamesPerSeason,
                 Progress = c => Seasons(c) < AverageSeasons ? Math.Min(0.99, Average(c) / (MinAverage + 0.001)) : Average(c) / (MinAverage + 0.001),
                 Halfway = c => Seasons(c) >= 5 && Average(c) >= 0.300,
@@ -162,20 +162,20 @@ namespace BaseballSim.Career
             },
             new Legend
             {
-                Id = "oh", Name = "오세찬", Nickname = "철벽 유격수", Years = "1992~2010", Record = "MVP 투표 2위 3회", Speciality = Stat.Defense,
-                Story = "수비상 9회에 통산 타율 .305, 2,104안타를 친 공수 겸장 유격수. 그런데 MVP 투표에서는 늘 2위였다. 세 번 모두 장태산에게 밀렸다. 과묵하고 성실하며, 장태산과는 지금도 티격태격한다.",
+                Id = "oh", Name = "오세찬", Nickname = "철벽 유격수", Years = "1992~2010", Record = "우승 반지 0개", Speciality = Stat.Defense,
+                Story = "수비상 9회에 통산 타율 .305, 2,104안타를 친 공수 겸장 유격수. 그런데 19년 동안 한국시리즈 우승은 한 번도 없었다. 준우승만 네 번. MVP 투표도 늘 장태산에게 밀려 2위였다. 과묵하고 성실하며, 장태산과는 지금도 티격태격한다.",
                 Line = "글러브 말고 발로 잡는 거야. 펑고 몇 개만 쳐 줄게.",
                 Lesson = "타구 방향을 미리 읽는 스텝을 배웠다. 공이 글러브로 빨려 들어온다.",
-                Goal = c => $"MVP {OhMvps}회 (오세찬이 2위 했던 만큼)",
+                Goal = c => $"한국시리즈 우승 {OhRings}회 (오세찬이 끝내 못 끼어 본 반지)",
                 AtSeasonStart = true,
-                Progress = c => (double)Mvps(c) / OhMvps,
-                Halfway = c => Mvps(c) >= 1,
-                ReturnText = "첫 MVP 트로피를 받은 다음 날, 오세찬이 찾아왔다.\n\"축하한다. ...나는 끝내 못 받아 봤다. 세 번 다 그 덩치한테 밀렸지.\"\n트로피를 오래 바라보다가 말했다. \"한 번은 운일 수 있다. 세 번은 실력이다.\"",
+                Progress = c => (double)Rings(c) / OhRings,
+                Halfway = c => Rings(c) >= 1,
+                ReturnText = "첫 우승 반지를 받은 다음 날, 오세찬이 찾아왔다.\n\"축하한다. ...나는 끝내 못 껴 봤다. 준우승만 네 번이었지.\"\n반지를 오래 바라보다가 말했다. \"한 번은 운일 수 있다. 두 번은 팀을 이끈 거다.\"",
                 ReturnLabelA = "같이 펑고를 받는다", ReturnResultA = "오세찬은 쉰이 넘었는데도 펑고가 날카로웠다. 마지막 공을 잡자 짧게 \"됐다\"고 했다.",
-                ReturnLabelB = "\"세 번 받겠습니다\"", ReturnResultB = "\"말은 쉽지.\" 오세찬이 돌아섰다. 어깨가 조금 웃고 있었다.",
-                SurpassText = "세 번째 MVP. 시상식 무대 아래 오세찬이 앉아 있었다.\n\n무대에서 내려오자 오세찬이 손을 내밀었다.\n\"내가 2위만 세 번 했던 상을, 네가 세 번 받았다. 이걸로 내 몫은 끝났다.\"\n처음 보는 환한 얼굴이었다.",
-                SurpassLabel = "트로피를 오세찬에게 건넨다", SurpassResult = "오세찬은 트로피를 한 번 들어 보고 돌려줬다. \"무겁네. 이런 거였구나.\"",
-                NearMiss = "오세찬은 '그 정도면 2위 세 번보다 낫다'며 어깨를 두드려 줬다.",
+                ReturnLabelB = "\"한 번 더 끼겠습니다\"", ReturnResultB = "\"말은 쉽지.\" 오세찬이 돌아섰다. 어깨가 조금 웃고 있었다.",
+                SurpassText = "두 번째 우승. 헹가래가 끝나고 더그아웃으로 돌아오니 오세찬이 서 있었다.\n\n오세찬이 손을 내밀었다.\n\"내가 19년 동안 못 낀 반지를, 네가 두 개나 꼈다. 이걸로 내 몫은 끝났다.\"\n처음 보는 환한 얼굴이었다.",
+                SurpassLabel = "반지를 오세찬에게 끼워 본다", SurpassResult = "오세찬은 반지를 한 번 껴 보고 돌려줬다. \"무겁네. 이런 거였구나.\"",
+                NearMiss = "오세찬은 '반지 하나면 나보다 낫다'며 어깨를 두드려 줬다.",
                 Ceremony = "오세찬이 맨 앞자리에서 일어나 박수를 쳤다. 그 옆자리의 장태산이 무언가 투덜거렸다.",
             },
             new Legend

@@ -62,7 +62,7 @@ namespace BaseballSim.Career
             return null;
         }
 
-        /// <summary>Before a season's first game: a ceremony-type legend's visit (오세찬 after an MVP).</summary>
+        /// <summary>Before a season's first game: a ceremony-type legend's visit (오세찬 after a ring).</summary>
         public static StoryEvent AtSeasonStart(Career c)
         {
             if (c.InMilitary || c.Day != 0) return null;
@@ -103,16 +103,28 @@ namespace BaseballSim.Career
         static StoryEvent Meet(Career c, Legend l) => Card(c, IdPrefix + l.Id, "레전드의 방문",
             $"'{l.Nickname}' {l.Name}({l.Years}).\n{l.Record}의 전설이 오늘 훈련장을 찾았다.\n\"{l.Line}\"" + Goal(c, l),
             ($"{Stats.Name(l.Speciality)} 비법을 배운다", l.Lesson, e => { Mark(c, l, LegendStage.Met); e.Exp(l.Speciality, 80); e.Boost(l.Speciality, 30, 10, "레전드 " + l.Name); e.Fatigue(10); }),
-            ("옛날 이야기를 듣는다", l.Story, e => { Mark(c, l, LegendStage.Met); e.Morale(6); }));
+            ("옛날 이야기를 듣는다", l.Story + "\n\n이야기 사이사이에 몸에 밴 습관 몇 가지가 들어 있었다. 잊기 전에 노트에 적었다.", e => { Mark(c, l, LegendStage.Met); e.Exp(l.Speciality, 60); e.Boost(l.Speciality, 20, 15, "레전드 " + l.Name + "의 이야기"); e.Morale(4); }));
 
         static StoryEvent Return(Career c, Legend l) => Card(c, IdPrefix + l.Id + "_2", "레전드의 재방문",
             $"'{l.Nickname}' {l.Name}\n\n" + l.ReturnText + Goal(c, l),
             (l.ReturnLabelA, l.ReturnResultA, e => { Mark(c, l, LegendStage.Returned); e.Exp(l.Speciality, 120); e.Boost(l.Speciality, 40, 15, "레전드 " + l.Name); e.Fatigue(10); }),
-            (l.ReturnLabelB, l.ReturnResultB, e => { Mark(c, l, LegendStage.Returned); e.Morale(8); e.Fans(20); }));
+            (l.ReturnLabelB, l.ReturnResultB, e => { Mark(c, l, LegendStage.Returned); e.Exp(l.Speciality, 80); e.Boost(l.Speciality, 25, 20, "레전드와의 약속"); e.Fans(20); }));
 
         static StoryEvent Surpass(Career c, Legend l) => Card(c, IdPrefix + l.Id + "_3", "레전드를 넘어서",
             $"'{l.Nickname}' {l.Name} · {l.Record}\n\n" + l.SurpassText,
-            (l.SurpassLabel, l.SurpassResult, e => { Mark(c, l, LegendStage.Surpassed); e.Morale(10); e.Fans(100); }));
+            (l.SurpassLabel, l.SurpassResult, e =>
+            {
+                // The biggest moment of a career pays like one: the legend's own touch stays for good.
+                Mark(c, l, LegendStage.Surpassed);
+                e.Raise(l.Speciality, SurpassPoints);
+                e.Boost(l.Speciality, 50, 30, "레전드 계승");
+                e.Money(SurpassBonus);
+                e.Fans(150);
+                e.Morale(10);
+            }));
+
+        /// <summary>Breaking a record: the speciality goes up for good, plus a club bonus (만원).</summary>
+        public const int SurpassPoints = 5, SurpassBonus = 5000;
 
         static StoryEvent Duo(Career c) => Card(c, DuoId, "두 전설",
             "장태산과 오세찬이 함께 훈련장에 나타났다. 둘이 같이 온 건 처음이다.\n\n" +

@@ -2133,7 +2133,7 @@ namespace BaseballGame
             var run = _career.StartPostseason();
             if (!run.Result.MyTeamIn || _career.Me.IsInjured) { ShowSeasonEnd(); return; }
             ShowPostseason();
-            Tip("postseason", "정규시즌 4위 안에 들면 가을야구! 준결승(2선승)과 챔피언 결정전(3선승)을 한 경기씩 직접 치르고, 찬스 타석에선 노림수를 골라요.");
+            Tip("postseason", "정규시즌 5위 안에 들면 가을야구! 와일드카드(4위 vs 5위) → 준플레이오프(3위) → 플레이오프(2위) → 한국시리즈(1위, 4선승) 순서로 올라가요. 무승부 없이 끝날 때까지 연장이에요.");
         }
 
         void ShowPostseason()
@@ -2146,18 +2146,7 @@ namespace BaseballGame
             var body = UiKit.ScrollList(card, 10);
             UiKit.Height(body.parent, 0, 1);
 
-            // The bracket so far.
-            foreach (var series in run.Result.Series)
-            {
-                bool mine = series.High == me || series.Low == me;
-                bool live = series == run.NextSeries;
-                var row = UiKit.Panel(body, "Series", mine ? new Color(1f, 0.82f, 0.3f, 0.16f) : UiKit.Background);
-                UiKit.Height(row, 120);
-                string Name(Team t) => t == me ? $"<b><color=#FFD24D>{t.Name}</color></b>" : t.Name;
-                string state = live ? "  <size=24><color=#5FA8FF>진행 중</color></size>" : series.Games.Count == 0 ? "  <size=24><color=#BAC4D8>대기</color></size>" : "";
-                var label = UiKit.Label(row, $"<size=26><color=#BAC4D8>{series.Name}</color></size>{state}\n{Name(series.High)}  <b>{series.HighWins} : {series.LowWins}</b>  {Name(series.Low)}", 34, TextAnchor.MiddleCenter);
-                UiKit.Stretch(label.rectTransform);
-            }
+            Bracket(body, run);
 
             var post = run.Result;
             if (post.MyLine.PlateAppearances > 0 || post.MyPitching.Games > 0)
@@ -2167,10 +2156,13 @@ namespace BaseballGame
             {
                 var s = run.NextSeries;
                 int wins = s.High == me ? s.HighWins : s.LowWins, losses = s.High == me ? s.LowWins : s.HighWins;
-                int need = s.Name == "챔피언 결정전" ? 3 : 2;
-                string stakes = wins == need - 1 && losses == need - 1 ? "<color=#F28C40>이기면 진출, 지면 탈락!</color>"
-                    : wins == need - 1 ? (s.Name == "챔피언 결정전" ? "<color=#FFD24D>1승만 더하면 우승!</color>" : "<color=#FFD24D>1승만 더하면 진출!</color>")
-                    : losses == need - 1 ? "<color=#F28C40>지면 탈락!</color>" : $"{need}승 먼저 하는 팀이 올라가요";
+                int need = Postseason.WinsNeeded(s.Name);
+                bool final = s.Name == Postseason.KoreanSeries;
+                string stakes = wins == need - 1 && losses == need - 1 ? (final ? "<color=#F28C40>이기면 우승, 지면 준우승!</color>" : "<color=#F28C40>이기면 진출, 지면 탈락!</color>")
+                    : wins == need - 1 ? (final ? "<color=#FFD24D>1승만 더하면 우승!</color>" : "<color=#FFD24D>1승만 더하면 진출!</color>")
+                    : losses == need - 1 ? "<color=#F28C40>지면 탈락!</color>"
+                    : s.Name == Postseason.WildCard ? (s.High == me ? "4위 팀은 1승을 안고 시작해요. 한 번만 이기거나 비겨도 진출!" : "4위 팀이 1승을 안고 있어요. 두 번 다 이겨야 해요!")
+                    : $"{need}승 먼저 하는 팀이 올라가요";
                 var next = UiKit.Label(body, $"<b>{s.Name} {s.Games.Count + 1}차전</b>  vs {run.NextOpponent.Name}\n<size=30>{stakes}</size>", 38, TextAnchor.MiddleCenter);
                 UiKit.Height(next, 130);
                 var go = UiKit.Button(card, "경기 시작!", PlayPostseasonGame, Gold);
@@ -2182,11 +2174,80 @@ namespace BaseballGame
             else
             {
                 string verdict = post.MyTeamWon ? $"<color=#FFD24D><b>우승!</b></color>\n<size=32>{me.Name}이(가) 정상에 올랐어요!</size>"
+                    : post.Series.LastOrDefault()?.Loser == me && post.Series.Count == 4 ? $"<color=#BAC4D8><b>준우승</b></color>\n<size=30>{post.Champion?.Name} 우승</size>"
                     : $"<color=#F28C40>{post.Series.FirstOrDefault(x => x.Loser == me && (x.High == me || x.Low == me))?.Name ?? "가을야구"} 탈락</color>\n<size=30>{post.Champion?.Name} 우승</size>";
+                if (!string.IsNullOrEmpty(post.KsMvp))
+                    verdict += $"\n<size=28><color=#FFD24D>한국시리즈 MVP</color> {post.KsMvp}</size>";
                 var label = UiKit.Label(body, verdict, 48, TextAnchor.MiddleCenter);
-                UiKit.Height(label, 160);
+                UiKit.Height(label, 220);
                 if (post.MyTeamWon) UiAnim.Pulse(label, 1.15f, 0.5f);
                 UiKit.Height(UiKit.Button(card, "시즌 마무리 · 시상식", () => { CloseOverlay(); ShowSeasonEnd(); }, Gold), 120);
+            }
+        }
+
+        /// <summary>
+        /// The step ladder, drawn like a KBO bracket: the 1st seed waits at the top, and each round's
+        /// winner climbs up the right-hand side to meet the next seed.
+        /// </summary>
+        void Bracket(RectTransform parent, Postseason.Run run)
+        {
+            var me = _career.MyTeam;
+            var seeds = _career.League.Ranked().Take(Postseason.Teams).Select(x => x.Team).ToList();
+            var names = new[] { Postseason.KoreanSeries, Postseason.Playoff, Postseason.SemiPlayoff, Postseason.WildCard };
+            var gold = new Color(1f, 0.82f, 0.3f);
+            string Short(Team t)
+            {
+                if (t == null) return "<color=#7F8AA3>?</color>";
+                int space = t.Name.IndexOf(' ');
+                string n = space >= 0 ? t.Name.Substring(space + 1) : t.Name;
+                return t == me ? $"<b><color=#FFD24D>{n}</color></b>" : n;
+            }
+
+            var panel = UiKit.Panel(parent, "Bracket", UiKit.Background);
+            UiKit.Column(panel, 0, 14);
+            for (int i = 0; i < names.Length; i++)
+            {
+                var series = run.Result.Series.FirstOrDefault(x => x.Name == names[i]);
+                int seedIndex = i == 3 ? 3 : i; // 1st, 2nd, 3rd wait; the wild card is 4th v 5th
+                var high = seeds[seedIndex];
+                // The challenger: the winner climbing up from the round below, once it's known.
+                Team low = series?.Low ?? (i == 3 ? seeds[4] : null);
+                bool done = series != null && (series.HighWins >= Postseason.WinsNeeded(series.Name) || series.LowWins >= Postseason.WinsNeeded(series.Name));
+                bool live = series != null && series == run.NextSeries;
+
+                var row = UiKit.Panel(panel, names[i], live ? new Color(0.37f, 0.66f, 1f, 0.18f) : new Color(1, 1, 1, 0.04f));
+                UiKit.Height(row, 112);
+                UiKit.Row(row, 8).padding = new RectOffset(12, 12, 6, 6);
+
+                Box(row, $"<size=24><color=#BAC4D8>{seedIndex + 1}위</color></size>\n{Short(high)}", done && series.Winner == high);
+                string state = series == null ? "<color=#7F8AA3>대기</color>"
+                    : done ? $"<b>{series.HighWins} : {series.LowWins}</b>"
+                    : $"<b>{series.HighWins} : {series.LowWins}</b> <size=24><color=#5FA8FF>진행 중</color></size>";
+                var mid = UiKit.Label(row, $"<size=24><color=#BAC4D8>{names[i]}</color></size>\n{state}", 30, TextAnchor.MiddleCenter);
+                UiKit.Width(mid, 220, 1);
+                Box(row, (i == 3 ? $"<size=24><color=#BAC4D8>5위</color></size>\n" : "<size=24><color=#BAC4D8>승자</color></size>\n") + Short(low), done && series.Winner == low);
+
+                if (i < names.Length - 1)
+                {
+                    // The ladder's rung up to this row's challenger slot, lit once the round below is decided.
+                    var below = run.Result.Series.FirstOrDefault(x => x.Name == names[i + 1]);
+                    bool climbed = below != null && (below.HighWins >= Postseason.WinsNeeded(below.Name) || below.LowWins >= Postseason.WinsNeeded(below.Name));
+                    var rung = UiKit.Empty(panel, "Rung");
+                    UiKit.Height(rung, 34);
+                    UiKit.Row(rung, 8).padding = new RectOffset(12, 12, 0, 0);
+                    UiKit.Width(UiKit.Empty(rung, "Gap"), 0, 1);
+                    var arrow = UiKit.Label(rung, climbed ? $"▲ {Short(below.Winner)}" : "▲", 26, TextAnchor.MiddleCenter, climbed ? gold : new Color(0.5f, 0.55f, 0.65f));
+                    UiKit.Width(arrow, 260);
+                }
+            }
+            UiKit.Height(panel, 4 * 112 + 3 * 34 + 6 * 14);
+
+            void Box(RectTransform row, string text, bool winner)
+            {
+                var box = UiKit.Panel(row, "Team", winner ? new Color(1f, 0.82f, 0.3f, 0.28f) : new Color(1, 1, 1, 0.07f));
+                UiKit.Width(box, 260);
+                var label = UiKit.Label(box, text, 30, TextAnchor.MiddleCenter);
+                UiKit.Stretch(label.rectTransform);
             }
         }
 
@@ -2224,7 +2285,8 @@ namespace BaseballGame
             UiKit.Height(body.parent, 0, 1);
 
             int order = 0;
-            if (champion) TrophyCard(body, Postseason.ChampionTitle, "챔피언 결정전 우승", $"{_career.MyTeam.Name} · {MyPostLine(summary.Postseason)}", order++);
+            if (champion) TrophyCard(body, Postseason.ChampionTitle, "한국시리즈 우승", $"{_career.MyTeam.Name} · {MyPostLine(summary.Postseason)}", order++);
+            if (summary.Postseason.KsMvpMine) TrophyCard(body, Postseason.KsMvpTitle, Postseason.KsMvpTitle, summary.Postseason.KsMvpLine, order++);
             foreach (var a in mine.Where(a => a.Title != Awards.GoldenGlove))
                 TrophyCard(body, a.Title, a.Title, string.IsNullOrEmpty(a.Value) ? _career.Me.Name : $"기록 {a.Value}", order++);
             foreach (var a in mine.Where(a => a.Title == Awards.GoldenGlove))

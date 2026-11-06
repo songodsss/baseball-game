@@ -22,7 +22,7 @@ namespace BaseballSim.Career
         /// <summary>Where the season stands: "85/120", or the team's place.</summary>
         public string Progress(Career c)
         {
-            if (IsTeamPromise) return $"현재 {c.StandingRank()}위 / 4위 안";
+            if (IsTeamPromise) return $"현재 {c.StandingRank()}위 / 5위 안";
             var goal = new SeasonGoal { Kind = Kind.Value, Target = Target };
             return goal.Progress(c);
         }
@@ -118,7 +118,7 @@ namespace BaseballSim.Career
                 GoalKind? kind = parts[2] == "team" ? (GoalKind?)null : (GoalKind)Enum.Parse(typeof(GoalKind), parts[2]);
                 double target = double.Parse(parts[3], CultureInfo.InvariantCulture);
                 var p = new StoryPromise { Id = parts[0], Season = season, Kind = kind, Target = target };
-                string what = kind == null ? "정규시즌 4위 안" : new SeasonGoal { Kind = kind.Value, Target = target }.Text;
+                string what = kind == null ? "정규시즌 5위 안" : new SeasonGoal { Kind = kind.Value, Target = target }.Text;
                 p.Text = Fill($"{def.Title} · {what}", c);
                 list.Add(p);
             }
@@ -135,7 +135,7 @@ namespace BaseballSim.Career
             foreach (var p in Active(c))
             {
                 var def = Defs[p.Id];
-                bool kept = p.IsTeamPromise ? summary.Rank <= 4 : new SeasonGoal { Kind = p.Kind.Value, Target = p.Target }.Current(c) >= p.Target;
+                bool kept = p.IsTeamPromise ? summary.Rank <= Postseason.Teams : new SeasonGoal { Kind = p.Kind.Value, Target = p.Target }.Current(c) >= p.Target;
                 c.Story.Flags.Add((kept ? KeptPrefix : BrokenPrefix) + p.Id);
                 int delta = kept ? def.KeptBond : def.BrokenBond;
                 int before = c.Story.BondOf(def.Who);

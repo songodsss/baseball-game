@@ -54,20 +54,30 @@ public class SeasonEndTests
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]
-    public void PostseasonCrownsATopFourTeam(int seed)
+    public void PostseasonFollowsTheKboLadder(int seed)
     {
         var career = PlayedSeason(seed);
-        var topFour = career.League.Ranked().Take(4).Select(s => s.Team).ToList();
+        var top = career.League.Ranked().Take(5).Select(s => s.Team).ToList();
         var summary = career.EndSeason();
         var post = summary.Postseason;
 
-        Assert.Equal(3, post.Series.Count);
-        Assert.Contains(post.Champion, topFour);
-        Assert.Equal(post.Champion, post.Series[2].Winner);
-        Assert.Equal(topFour.Contains(career.MyTeam), post.MyTeamIn);
+        Assert.Equal(new[] { Postseason.WildCard, Postseason.SemiPlayoff, Postseason.Playoff, Postseason.KoreanSeries }, post.Series.Select(s => s.Name));
+        Assert.Equal((top[3], top[4]), (post.Series[0].High, post.Series[0].Low));
+        Assert.Equal(top[2], post.Series[1].High);
+        Assert.Equal(top[1], post.Series[2].High);
+        Assert.Equal(top[0], post.Series[3].High);
+        for (int i = 1; i < 4; i++) Assert.Equal(post.Series[i - 1].Winner, post.Series[i].Low);
+        Assert.Equal(post.Champion, post.Series[3].Winner);
+        Assert.Equal(top.Contains(career.MyTeam), post.MyTeamIn);
         Assert.Equal(post.MyTeamWon, summary.Record.Titles.Contains(Postseason.ChampionTitle));
         foreach (var s in post.Series)
-            Assert.Equal(s.Name == "챔피언 결정전" ? 3 : 2, Math.Max(s.HighWins, s.LowWins));
+        {
+            Assert.Equal(Postseason.WinsNeeded(s.Name), Math.Max(s.HighWins, s.LowWins));
+            Assert.All(s.Games, g => Assert.False(g.IsTie)); // no ties in the autumn
+        }
+        Assert.True(post.Series[0].Games.Count <= 2);
+        Assert.False(string.IsNullOrEmpty(post.KsMvp));
+        Assert.Equal(post.KsMvpMine, summary.Record.Titles.Contains(Postseason.KsMvpTitle));
         Assert.True(post.MyTeamIn ? post.Bonus > 0 : post.Bonus == 0);
     }
 
@@ -79,7 +89,7 @@ public class SeasonEndTests
             var career = PlayedSeason(seed);
             var summary = career.EndSeason();
             Assert.Equal(summary.Awards.Where(a => a.Mine).Select(a => a.Title),
-                summary.Record.Titles.Where(t => t != Postseason.ChampionTitle));
+                summary.Record.Titles.Where(t => t != Postseason.ChampionTitle && t != Postseason.KsMvpTitle));
             if (summary.Record.Titles.Count > 0) return;
         }
         Assert.Fail("No title in 30 seasons; check the awards.");

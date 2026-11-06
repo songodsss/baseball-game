@@ -149,6 +149,18 @@ namespace BaseballSim.Career
             return true;
         }
 
+        /// <summary>A stat goes straight up (only for the rarest moments, like breaking a legend's record).</summary>
+        public void Raise(Stat stat, int points)
+        {
+            stat = Me.RoleStat(stat);
+            Me.Ratings[stat] = Math.Min(CareerPlayer.MaxRating, Me.Ratings[stat] + points);
+            if (Me.Potential[stat] < Me.Ratings[stat]) Me.Potential[stat] = Me.Ratings[stat];
+            if (Me.Ratings[stat] > Me.PeakRatings[stat]) Me.PeakRatings[stat] = Me.Ratings[stat];
+            Outcome.PointsGained.TryGetValue(stat, out var p);
+            Outcome.PointsGained[stat] = p + points;
+            Outcome.Changes.Add($"{Stats.Name(stat)} +{points} (영구)");
+        }
+
         public void Fans(int points)
         {
             int before = Me.Popularity;

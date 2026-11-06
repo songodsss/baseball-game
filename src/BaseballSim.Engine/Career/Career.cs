@@ -877,6 +877,7 @@ namespace BaseballSim.Career
             };
             Me.Money += summary.Postseason.Bonus;
             if (summary.Postseason.MyTeamWon) summary.Record.Titles.Add(BaseballSim.Career.Postseason.ChampionTitle);
+            if (summary.Postseason.KsMvpMine) summary.Record.Titles.Add(BaseballSim.Career.Postseason.KsMvpTitle);
             Me.History.Add(summary.Record);
             summary.FanMood = Offseason.Mood(summary.Record);
             summary.FanComments = Offseason.FanComments(this, summary.Record);

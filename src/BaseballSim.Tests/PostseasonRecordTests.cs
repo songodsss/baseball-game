@@ -19,7 +19,7 @@ public class PostseasonRecordTests
         }
         var summary = career.EndSeason();
         var lines = summary.Record.Postseason;
-        Assert.Equal(1 + summary.Postseason.Series.Count, lines.Count);
+        Assert.Equal(2 + summary.Postseason.Series.Count, lines.Count); // my result, each series, the KS MVP
         Assert.Contains(summary.Postseason.Champion.Name, string.Join(" ", lines));
         if (summary.Postseason.MyTeamWon) Assert.StartsWith("우승", lines[0]);
         else Assert.Contains("우승", lines[0]);

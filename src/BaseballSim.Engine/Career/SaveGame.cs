@@ -691,7 +691,7 @@ namespace BaseballSim.Career
                 ReadList(r, () =>
                 {
                     var h = me.History[i++];
-                    h.Titles = ReadList(r, r.ReadString);
+                    h.Titles = ReadList(r, () => { var t = r.ReadString(); return t == Postseason.OldChampionTitle ? Postseason.ChampionTitle : t; });
                     h.InjuryFree = r.ReadBoolean();
                     return h;
                 });

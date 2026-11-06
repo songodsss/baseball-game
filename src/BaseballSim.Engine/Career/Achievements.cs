@@ -57,7 +57,7 @@ namespace BaseballSim.Career
             Add("first_title", "첫 타이틀", "개인 타이틀 수상", c => c.Me.History.Any(h => h.Titles.Any(t => t != Postseason.ChampionTitle)));
             Add("rookie", "신인왕", "신인왕 수상", c => HasTitle(c, Awards.Rookie));
             Add("mvp", "MVP", "시즌 MVP 수상", c => HasTitle(c, Awards.Mvp));
-            Add("champion", "우승 반지", "챔피언 결정전 우승", c => HasTitle(c, Postseason.ChampionTitle));
+            Add("champion", "우승 반지", "한국시리즈 우승", c => HasTitle(c, Postseason.ChampionTitle));
             Add("salary_1", "억대 연봉", "연봉 1억 원 돌파", c => c.Me.Salary >= 10000);
             Add("salary_10", "10억 연봉", "연봉 10억 원 돌파", c => c.Me.Salary >= 100000);
             Add("full_gear", "명품 장비", "모든 장비를 최고 등급으로", c => c.Me.Equipped.Count == 5 && c.Me.Equipped.Values.All(e => e.Price == EquipmentCatalog.All.Max(x => x.Price)));

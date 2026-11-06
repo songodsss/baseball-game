@@ -32,7 +32,7 @@ namespace BaseballSim.Career
 
         /// <summary>The individual stat titles (not MVP, rookie or golden glove): what counts toward "N관왕".</summary>
         public static bool IsStatTitle(string title) =>
-            title != Mvp && title != Rookie && title != GoldenGlove && title != Postseason.ChampionTitle;
+            title != Mvp && title != Rookie && title != GoldenGlove && title != Postseason.ChampionTitle && title != Postseason.KsMvpTitle;
 
         /// <summary>
         /// Rate titles need a qualifying number of plate appearances; counting titles don't.
