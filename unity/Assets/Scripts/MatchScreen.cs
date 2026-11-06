@@ -9,8 +9,10 @@ using UnityEngine.UI;
 namespace BaseballGame
 {
     /// <summary>
-    /// Replays one finished game over the 3D field: scoreboard, outs and runners, play-by-play,
-    /// and controls to pause, speed up, jump to my next at-bat or straight to the result.
+    /// Replays one finished game like a TV broadcast in 2D: scoreboard, a big picture cut for each play
+    /// (Resources/Art/Broadcast, drawn cards when a picture is missing), name plates, a small diamond
+    /// with the runners and the ball's flight, play-by-play, and controls to pause, speed up, jump to
+    /// my next at-bat or straight to the result.
     /// </summary>
     public class MatchScreen : MonoBehaviour
     {
@@ -20,7 +22,7 @@ namespace BaseballGame
 
         MatchReplay _replay;
         Action _onClose;
-        MatchField _field;
+        BroadcastView _view;
 
         int _speedIndex;
         bool _paused;
@@ -59,9 +61,6 @@ namespace BaseballGame
 
         void Start()
         {
-            _field = MatchField.Build(transform);
-            _field.Mine = _replay.Mine;
-            _field.Skipping = () => Skipping;
             BuildUi();
             _songBefore = GameAudio.CurrentMusic;
             GameAudio.PlayMusic(GameAudio.MusicMatch);
@@ -75,7 +74,8 @@ namespace BaseballGame
         {
             RefreshBoard(-1);
             Log($"{Game.Away.Name} vs {Game.Home.Name}, 경기 시작!");
-            yield return Wait(0.8f);
+            _view.Cut(BroadcastView.Start, $"{Game.Away.Name} vs {Game.Home.Name}", "플레이볼!", TeamColor(Game.Home));
+            yield return Wait(1.4f);
 
             while (!_replay.IsFinished)
             {
@@ -87,47 +87,59 @@ namespace BaseballGame
 
                 var batting = ev.IsTopHalf ? Game.Away : Game.Home;
                 var fielding = ev.IsTopHalf ? Game.Home : Game.Away;
-                _field.SetTeamColors(TeamColor(batting), TeamColor(fielding));
 
                 if (animate)
                 {
-                    _field.Speed = Speed;
-                    _field.Snap(ev.BasesBefore, ev.Kind == EventKind.PlateAppearance ? ev.Batter : null);
+                    _view.Speed = Speed;
+                    _view.SetRunners(ev.BasesBefore, _replay.Mine);
                     ShowSituation(ev, ev.OutsBefore, ev.BasesBefore);
                     if (step.StartsHalf)
                     {
+                        _view.Cut(BroadcastView.HalfStart, step.HalfLabel, $"{batting.Name} 공격", TeamColor(batting));
                         Pop(step.HalfLabel, Color.white);
-                        yield return Wait(0.9f);
-                    }
-                    if (step.IsMine)
-                    {
-                        Pop("내 타석!", Gold);
-                        yield return Wait(0.8f);
+                        yield return Wait(1.0f);
                     }
 
                     if (ev.Kind != EventKind.PlateAppearance)
                     {
-                        // Pitching changes and steals: no pitch to animate; the runners snap below.
-                        if (ev.Kind == EventKind.StolenBase && !Skipping && ev.OutsAfter == ev.OutsBefore)
-                            GameAudio.Sfx(GameAudio.CheerSmall, batting == Game.Home ? 0.6f : 0.3f);
-                        if (ev.Kind == EventKind.StolenBase && !Skipping)
-                            Pop(ev.OutsAfter > ev.OutsBefore ? "도루 실패" : "도루 성공!", ev.OutsAfter > ev.OutsBefore ? Color.gray : Gold);
-                        yield return Wait(0.6f);
+                        if (ev.Kind == EventKind.StolenBase)
+                        {
+                            bool caught = ev.OutsAfter > ev.OutsBefore;
+                            _view.Cut(BroadcastView.Steal, caught ? "도루 실패" : "도루 성공!", ev.Batter.Name, TeamColor(batting));
+                            if (!caught) GameAudio.Sfx(GameAudio.CheerSmall, batting == Game.Home ? 0.6f : 0.3f);
+                            Pop(caught ? "도루 실패" : "도루 성공!", caught ? Color.gray : Gold);
+                        }
+                        else
+                            _view.Cut(BroadcastView.PitchingChange, "투수 교체", ev.Pitcher.Name, TeamColor(fielding));
+                        yield return Wait(1.0f);
                     }
                     else
                     {
-                        yield return _field.Pitch();
+                        // The at-bat: name plates and the pitcher's windup, then the result's picture.
+                        _view.Plates(ev.Batter.Name, TeamColor(batting), ev.Pitcher.Name, TeamColor(fielding), step.IsMine);
+                        if (step.IsMine)
+                        {
+                            _view.Cut(_replay.Mine == ev.Pitcher ? BroadcastView.MyPitch : BroadcastView.MyAtBat,
+                                _replay.Mine == ev.Pitcher ? "내 등판" : "내 타석!", _replay.Mine.Name, TeamColor(_replay.Mine == ev.Pitcher ? fielding : batting));
+                            Pop(_replay.Mine == ev.Pitcher ? "승부!" : "내 타석!", Gold);
+                            yield return Wait(1.0f);
+                        }
+                        else if (!step.StartsHalf) _view.Cut(BroadcastView.Pitch, null, null, TeamColor(fielding));
+                        yield return Wait(0.55f);
                         if (!Skipping)
                         {
+                            bool pitcherMine = _replay.Mine != null && ev.Pitcher == _replay.Mine;
+                            _view.Cut(BroadcastView.CutFor(ev, pitcherMine), OutcomeWord(ev), ev.Batter.Name, TeamColor(MatchReplay.IsHit(ev.Outcome) || ev.Outcome == Outcome.Walk || ev.Outcome == Outcome.HitByPitch ? batting : fielding), big: ev.Outcome == Outcome.HomeRun);
                             Pop(OutcomeWord(ev), ResultColor(step));
                             OutcomeSound(step, batting == Game.Home);
+                            yield return _view.Flight(ev);
+                            yield return _view.MoveRunners(step.Moves, ev.BasesBefore, _replay.Mine);
                         }
-                        yield return _field.Result(step);
                     }
                 }
 
                 // Runners left on at the third out walk off the field.
-                _field.Snap(ev.OutsAfter >= 3 ? new Player[3] : ev.BasesAfter, null);
+                if (_view != null) _view.SetRunners(ev.OutsAfter >= 3 ? new Player[3] : ev.BasesAfter, _replay.Mine);
                 ShowSituation(ev, ev.OutsAfter, ev.BasesAfter);
                 RefreshBoard(step.Index);
                 string text = $"<color=#BAC4D8>{step.HalfLabel}</color> {step.Text}";
@@ -137,6 +149,11 @@ namespace BaseballGame
             }
 
             yield return Wait(0.8f);
+            var me = MyTeam();
+            bool walkOff = !Game.IsTie && Game.Winner == Game.Home && Game.Events.Count > 0 && !Game.Events[Game.Events.Count - 1].IsTopHalf && Game.Events[Game.Events.Count - 1].RunnersScored.Count > 0;
+            if (walkOff) _view.Cut(BroadcastView.WalkOff, "끝내기!", Game.Home.Name, TeamColor(Game.Home), big: true);
+            else if (me != null && !Game.IsTie) _view.Cut(Game.Winner == me ? BroadcastView.Win : BroadcastView.Lose, Game.Winner == me ? "승리!" : "패배", me.Name, TeamColor(me), big: Game.Winner == me);
+            if (walkOff || me != null) yield return Wait(1.6f);
             ShowFinal();
         }
 
@@ -156,7 +173,7 @@ namespace BaseballGame
         void CycleSpeed()
         {
             _speedIndex = (_speedIndex + 1) % Speeds.Length;
-            _field.Speed = Speed;
+            _view.Speed = Speed;
             _speedLabel.text = $"속도 x{Speed:0}";
         }
 
@@ -189,17 +206,30 @@ namespace BaseballGame
             scaler.gameObject.AddComponent<FitScaler>();
             _canvas = (RectTransform)canvasGo.transform;
 
+            var backdrop = UiKit.Panel(_canvas, "Backdrop", new Color(0.04f, 0.06f, 0.1f), rounded: false);
+            UiKit.Stretch(backdrop);
+            var stadium = ArtLibrary.Get("Broadcast/" + BroadcastView.Stadium);
+            if (stadium != null)
+            {
+                var bg = UiKit.Panel(backdrop, "Stadium", new Color(0.45f, 0.45f, 0.5f), rounded: false);
+                UiKit.Stretch(bg);
+                var img = bg.GetComponent<Image>();
+                img.sprite = stadium;
+                img.preserveAspect = false;
+            }
+
             var root = UiKit.SafeRoot(_canvas);
             UiKit.Column(root, 30, 16);
 
             BuildScoreboard(root);
             BuildSituation(root);
 
-            // The 3D field shows through this gap.
-            UiKit.Height(UiKit.Empty(root, "Field View"), 0, 1);
+            var screen = UiKit.Panel(root, "Broadcast", Color.black);
+            UiKit.Height(screen, 0, 1);
+            _view = BroadcastView.Build(screen, Speed);
 
             var logCard = UiKit.Panel(root, "Log", new Color(0.07f, 0.09f, 0.14f, 0.85f));
-            UiKit.Height(logCard, 300);
+            UiKit.Height(logCard, 230);
             _log = UiKit.Label(logCard, "", 30, TextAnchor.LowerLeft);
             UiKit.Stretch(_log.rectTransform);
             _log.rectTransform.offsetMin = new Vector2(24, 20);
@@ -334,7 +364,7 @@ namespace BaseballGame
         void Log(string line)
         {
             _logLines.Add(line);
-            if (_logLines.Count > 5) _logLines.RemoveAt(0);
+            if (_logLines.Count > 4) _logLines.RemoveAt(0);
             _log.text = string.Join("\n", _logLines);
         }
 
