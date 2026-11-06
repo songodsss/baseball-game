@@ -28,6 +28,8 @@ namespace BaseballSim.Career
         public bool OffDayNext;
         /// <summary>Condition stars when training today (0 on a rest day); 4–5 stars train better.</summary>
         public int ConditionStars;
+        /// <summary>A training day that clicked: 2 (대성공) or 3 (초대성공) times the experience; 0 for an ordinary day.</summary>
+        public int TrainingCrit;
         /// <summary>Rating points gained today, from training and from the game.</summary>
         public Dictionary<Stat, int> PointsGained = new Dictionary<Stat, int>();
         public bool GotInjured;
@@ -508,10 +510,27 @@ namespace BaseballSim.Career
             var (main, side) = TrainingTargets(action);
             result.ConditionStars = ConditionStars;
             double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
+            result.TrainingCrit = tired ? 0 : RollTrainingCrit(result.ConditionStars);
+            if (result.TrainingCrit > 0) mult *= result.TrainingCrit;
             AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * VeteranGrowth(main) * TrainingMultiplier(main))));
             AddPoints(result, side, Me.GainExp(side, (int)Math.Round(TrainSideExp * DayWeight * mult * VeteranGrowth(side) * TrainingMultiplier(side))));
             Me.Fatigue = Math.Min(100, Me.Fatigue + Tiring(TrainFatigue));
         }
+
+        /// <summary>
+        /// Now and then a training day just clicks: 대성공 doubles the day's experience, 초대성공 triples it.
+        /// More likely on a good-condition day; never when tired.
+        /// </summary>
+        public const double GreatTrainingChance = 0.08, SuperTrainingChance = 0.02;
+
+        int RollTrainingCrit(int stars)
+        {
+            double boost = stars >= 4 ? 1.5 : 1.0;
+            double roll = _random.NextDouble();
+            return roll < SuperTrainingChance * boost ? 3 : roll < (SuperTrainingChance + GreatTrainingChance) * boost ? 2 : 0;
+        }
+
+        public static string TrainingCritName(int crit) => crit >= 3 ? "초대성공" : crit == 2 ? "대성공" : null;
 
         public static bool IsPitcherAction(DailyAction action) => action >= DailyAction.TrainVelocity;
 

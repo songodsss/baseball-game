@@ -533,7 +533,7 @@ namespace BaseballGame
                 var f = r.FarmLine;
                 if (f != null) return head + $" 2군 {f.AtBats}타수 {f.Hits}안타 {f.HomeRuns}홈런</size>";
                 if (r.FarmPitching != null) return head + $" 2군 {PitchingText(r.FarmPitching)}</size>";
-                return head + " " + Actions.First(a => a.Action == r.Action).Label + "</size>";
+                return head + " " + Actions.First(a => a.Action == r.Action).Label + (r.TrainingCrit > 0 ? $" <color=#FFD24D>{CareerState.TrainingCritName(r.TrainingCrit)}</color>" : "") + "</size>";
             }
             bool home = g.Home == _career.MyTeam;
             int mine = home ? g.HomeScore : g.AwayScore, theirs = home ? g.AwayScore : g.HomeScore;
@@ -541,6 +541,7 @@ namespace BaseballGame
             string line = $"{head} {verdict} {mine}:{theirs} vs {(home ? g.Away : g.Home).Name}";
             if (r.MyPitching != null) line += $" · {PitchingText(r.MyPitching)}";
             else if (r.MyLine != null && r.MyLine.PlateAppearances > 0) line += $" · {r.MyLine.AtBats}타수 {r.MyLine.Hits}안타" + (r.MyLine.HomeRuns > 0 ? $" <color=#FFD24D>{r.MyLine.HomeRuns}홈런</color>" : "") + (r.MyLine.RunsBattedIn > 0 ? $" {r.MyLine.RunsBattedIn}타점" : "");
+            if (r.TrainingCrit > 0) line += $" <color=#FFD24D>훈련 {CareerState.TrainingCritName(r.TrainingCrit)}</color>";
             return line + "</size>";
         }
 
@@ -610,7 +611,40 @@ namespace BaseballGame
             Save();
             Refresh();
             ShowGains(result);
+            if (result.TrainingCrit > 0) ShowTrainingCrit(result.TrainingCrit);
             ShowTips();
+        }
+
+        /// <summary>A training day that clicked: a flash, a big gold word in the middle, a cheer.</summary>
+        void ShowTrainingCrit(int crit)
+        {
+            var root = GetComponentInChildren<Canvas>().transform;
+            var flash = UiKit.Panel(root, "CritFlash", new Color(1f, 0.85f, 0.35f, crit >= 3 ? 0.45f : 0.3f));
+            flash.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            UiKit.Stretch(flash);
+            flash.GetComponent<Image>().raycastTarget = false;
+            var word = UiKit.Label(flash, $"<b>훈련 {CareerState.TrainingCritName(crit)}{(crit >= 3 ? "!!" : "!")}</b>\n<size=56>경험치 ×{crit}</size>", crit >= 3 ? 104 : 88, TextAnchor.MiddleCenter, Gold);
+            UiKit.Stretch(word.rectTransform);
+            word.raycastTarget = false;
+            var outline = word.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.35f, 0.15f, 0f, 0.9f);
+            outline.effectDistance = new Vector2(4, -4);
+            UiAnim.PopIn(word, 0.35f);
+            GameAudio.Sfx(GameAudio.CheerSmall, 0.8f);
+            if (crit >= 3) GameAudio.Sfx(GameAudio.Achievement, 0.7f);
+            StartCoroutine(FadeCrit(flash.gameObject));
+        }
+
+        System.Collections.IEnumerator FadeCrit(GameObject flash)
+        {
+            var group = flash.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            for (float t = 0; t < 1.6f && flash != null; t += Time.unscaledDeltaTime)
+            {
+                group.alpha = t < 1.0f ? 1 : 1 - (t - 1.0f) / 0.6f;
+                yield return null;
+            }
+            if (flash != null) Destroy(flash);
         }
 
         /// <summary>One sound for the day's biggest news: the popup that opens, or else how the day went.</summary>
@@ -1393,6 +1427,8 @@ namespace BaseballGame
             foreach (var a in r.NewAchievements) lines.Add($"<color=#5FA8FF>업적 달성: {a.Name}</color>");
             if (r.ConditionStars >= 4 && !r.GotInjured)
                 lines.Add($"<color={(r.ConditionStars >= 5 ? "#FFD24D" : "#5FA8FF")}>컨디션 {CareerState.ConditionLabel(r.ConditionStars)}! 훈련 효과 +{Mathf.RoundToInt((float)(CareerState.ConditionTraining(r.ConditionStars) - 1) * 100)}%</color>");
+            if (r.TrainingCrit > 0)
+                lines.Add($"<color=#FFD24D><b>훈련 {CareerState.TrainingCritName(r.TrainingCrit)}!</b> 오늘 훈련 경험치 ×{r.TrainingCrit}</color>");
             if (r.PointsGained.Count > 0)
                 lines.Add("능력치 상승: " + string.Join(", ", r.PointsGained.Select(p => $"{StatNames[p.Key]} +{p.Value}")));
 
