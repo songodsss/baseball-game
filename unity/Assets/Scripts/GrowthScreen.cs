@@ -1039,7 +1039,7 @@ namespace BaseballGame
         void OddsBox(RectTransform card, AtBatSituation s, bool pitching)
         {
             double trust = s.HunchAccuracy * s.HitIfRight + (1 - s.HunchAccuracy) * s.HitIfWrong;
-            string level = _career.OppositionLevel > 0 ? $"  <color=#BAC4D8>(리그 수준 +{_career.OppositionLevel} 반영)</color>" : "";
+            string level = "";
             string text = pitching
                 ? $"승부 적중 시 피안타 <color=#5FA8FF><b>{s.HitIfRight:P0}</b></color> · 피홈런 {s.HomeRunIfRight:P0}   빗나가면 피안타 <color=#F28C40><b>{s.HitIfWrong:P0}</b></color>\n" +
                   $"<size=24>느낌대로 던지면 피안타 약 {trust:P0} · 어렵게 가면 피안타 {s.HitPatient:P0}, 볼넷 {s.WalkPatient:P0}{level}</size>"
@@ -3069,7 +3069,6 @@ namespace BaseballGame
             _money.text = $"{Krw.Format(me.Money)}  <size=26><color=#BAC4D8>연봉 {Krw.Format(me.Salary)}</color></size>";
             var states = _career.ActiveStatuses();
             string stateLine = states.Count == 0 ? "" : string.Join(" ", states.Select(a => $"<color={(a.Def.Good ? "#5FA8FF" : "#F28C40")}>[{a.Def.Name}]</color>")) + "  ";
-            if (_career.OppositionLevel > 0) stateLine += $"<color=#BAC4D8>리그 수준 +{_career.OppositionLevel}</color>  ";
             _status.text = $"{season}  ·  인기 {me.Popularity}{injury}{morale}\n" +
                 $"<size=24>{stateLine}<color=#BAC4D8>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);

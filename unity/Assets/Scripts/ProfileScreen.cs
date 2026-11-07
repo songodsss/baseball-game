@@ -64,9 +64,6 @@ namespace BaseballGame
             if (states.Count == 0) Line(content, "지금은 특별한 상태가 없어요. 경기와 훈련 흐름에 따라 생기고 사라져요.", UiKit.Muted);
             foreach (var a in states)
                 Line(content, $"<color={(a.Def.Good ? "#5FA8FF" : "#F28C40")}><b>{a.Def.Name}</b></color> ({a.Text})  <color=#BAC4D8>{a.Def.Description}</color>");
-            Line(content, _career.OppositionLevel > 0
-                ? $"리그 수준 +{_career.OppositionLevel}: 상대 투수·타자·포수가 능력치 {_career.OppositionLevel}만큼 강하게 상대해요 (시즌마다 조금씩, 최대 +{CareerState.MaxOpposition})."
-                : $"리그 수준 +0: 2년차부터 상대가 시즌마다 조금씩 강해져요 (최대 +{CareerState.MaxOpposition}).", UiKit.Muted);
 
             Section(content, $"인기 {me.Popularity} / 100 · {CareerState.PopularityTier(me.Popularity)}");
             Line(content, "안타·홈런·승리와 타이틀로 오르고, 겨울마다 30%쯤 식어요.", UiKit.Muted);
