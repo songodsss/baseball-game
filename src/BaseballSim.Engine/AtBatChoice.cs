@@ -81,6 +81,10 @@ namespace BaseballSim
         public const string Reader = "reader";
         public const string Clutch = "clutch";
         public const string Gambler = "gambler";
+        /// <summary>Season perks on the game copy: a sharper hunch (+10 points, +5 points).</summary>
+        public const string SharpEye = "sharp_eye", SeasonedEye = "seasoned_eye";
+
+        static double PerkRead(Player p) => (p.Traits.Contains(SharpEye) ? 0.10 : 0) + (p.Traits.Contains(SeasonedEye) ? 0.05 : 0);
 
         /// <summary>Scoring position, or a close game late.</summary>
         public static bool IsBig(int inning, bool[] bases, int scoreGap) =>
@@ -104,7 +108,7 @@ namespace BaseballSim
         {
             double share = FastballShare(pitcher);
             var coming = random.NextDouble() < share ? Pitch.Fastball : Pitch.Breaking;
-            double accuracy = Math.Min(0.95, HunchAccuracy(batter.Batting.Eye) + (batter.Traits.Contains(Reader) ? 0.15 : 0) + MoraleRead(batter.Morale));
+            double accuracy = Math.Min(0.95, HunchAccuracy(batter.Batting.Eye) + (batter.Traits.Contains(Reader) ? 0.15 : 0) + MoraleRead(batter.Morale) + PerkRead(batter));
             var other = coming == Pitch.Fastball ? Pitch.Breaking : Pitch.Fastball;
             return new AtBatSituation
             {
@@ -133,7 +137,7 @@ namespace BaseballSim
         {
             double share = SitsFastball(batter);
             var sitting = random.NextDouble() < share ? Pitch.Fastball : Pitch.Breaking;
-            double accuracy = Math.Min(0.95, HunchAccuracy(pitcher.Pitching.Control) + (pitcher.Traits.Contains(Reader) ? 0.15 : 0) + MoraleRead(pitcher.Morale));
+            double accuracy = Math.Min(0.95, HunchAccuracy(pitcher.Pitching.Control) + (pitcher.Traits.Contains(Reader) ? 0.15 : 0) + MoraleRead(pitcher.Morale) + PerkRead(pitcher));
             var other = sitting == Pitch.Fastball ? Pitch.Breaking : Pitch.Fastball;
             return new AtBatSituation
             {

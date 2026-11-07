@@ -82,7 +82,7 @@ namespace BaseballSim.Career
                 Home = home,
                 AwayStarter = awayStarter,
                 HomeStarter = homeStarter,
-                Player = Me.ForGame(_random, TodayForm + StatusForm),
+                Player = GameCopy(_random),
                 Seed = (int)(_random.NextDouble() * int.MaxValue),
                 Result = result,
             };

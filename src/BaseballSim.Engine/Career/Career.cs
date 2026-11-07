@@ -442,7 +442,9 @@ namespace BaseballSim.Career
                 Me.Fatigue = Math.Max(0, Me.Fatigue - OffDayRecovery);
             }
             // A loud home crowd keeps a good mood from fading.
-            if (!(Me.Morale > 0 && CheeredAtHome(result))) Me.Morale -= Math.Sign(Me.Morale);
+            if (!(Me.Morale > 0 && CheeredAtHome(result)))
+                Me.Morale -= Math.Sign(Me.Morale) * (Me.Morale > 1 && HasStatus(Statuses.BigContract) ? 2 : 1);
+            if (MoraleFloor && Me.Morale < 0) Me.Morale = 0;
             Day++;
             result.Milestones = CheckMilestones(result);
             result.GradeUps = CheckGrades();
@@ -705,7 +707,7 @@ namespace BaseballSim.Career
         /// </summary>
         public bool NextTrainingTires => Me.Fatigue + TrainingFatigue + GameFatigueToday - DailyEase >= TiredThreshold;
 
-        int Tiring(int fatigue) => (int)Math.Round(fatigue * (Me.Traits.Contains(Traits.Iron) ? 0.7 : 1.0) * (StatusIron ? 0.7 : 1.0));
+        int Tiring(int fatigue) => (int)Math.Round(fatigue * (Me.Traits.Contains(Traits.Iron) ? 0.7 : 1.0) * (StatusIron ? 0.7 : 1.0) * StatusFatigue);
 
         /// <summary>Three traits to pick one from, offered when a slot opens; waits until picked.</summary>
         public List<Trait> PendingTraitOffer { get; private set; }
@@ -775,7 +777,7 @@ namespace BaseballSim.Career
                 Home = home,
                 AwayStarter = awayStarter,
                 HomeStarter = homeStarter,
-                Player = Me.ForGame(_random, TodayForm + StatusForm),
+                Player = GameCopy(_random),
                 Seed = (int)(_random.NextDouble() * int.MaxValue),
                 Result = result,
             };

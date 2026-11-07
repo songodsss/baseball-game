@@ -131,3 +131,23 @@ public class OppositionAndStatusTests
         Assert.True(s.WalkPatient > odds.Walk);
     }
 }
+
+public class SeasonPerkTests
+{
+    [Fact]
+    public void CareerMomentsBringASeasonPerk()
+    {
+        var random = new BaseballSim.SeededRandom(2);
+        var league = new BaseballSim.Career.League(new BaseballSim.RosterGenerator(random), 36);
+        var c = new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("테스트", random), league, league.Teams[0], random);
+        Assert.False(c.HasStatus(BaseballSim.Career.Statuses.Newlywed));
+        c.Me.StoryMarks["married"] = c.Stamp;
+        Assert.True(c.HasStatus(BaseballSim.Career.Statuses.Newlywed));
+        c.Me.History.Add(new BaseballSim.Career.SeasonRecord { Season = 1, Military = true, Line = new BaseballSim.BattingLine(), Titles = new System.Collections.Generic.List<string>() });
+        c.Season = 2;
+        Assert.True(c.HasStatus(BaseballSim.Career.Statuses.Discharged));
+        Assert.False(c.HasStatus(BaseballSim.Career.Statuses.Newlywed)); // that was last season
+        c.Me.Age = 34;
+        Assert.Contains(c.ActiveStatuses(), a => a.Def.Id == BaseballSim.Career.Statuses.Veteran);
+    }
+}

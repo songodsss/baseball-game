@@ -1560,6 +1560,9 @@ namespace BaseballGame
             foreach (var a in r.NewAchievements) lines.Add($"<color=#5FA8FF>업적 달성: {a.Name}</color>");
             if (r.ConditionStars >= 4 && !r.GotInjured)
                 lines.Add($"<color={(r.ConditionStars >= 5 ? "#FFD24D" : "#5FA8FF")}>컨디션 {CareerState.ConditionLabel(r.ConditionStars)}! 훈련 효과 +{Mathf.RoundToInt((float)(CareerState.ConditionTraining(r.ConditionStars) - 1) * 100)}%</color>");
+            if (r.Day == 0)
+                foreach (var a in _career.ActiveStatuses().Where(a => a.Text == "이번 시즌" || a.Def.Id == Statuses.Rookie))
+                    lines.Add($"<color={(a.Def.Good ? "#FFD24D" : "#F28C40")}><b>시즌 특권: {a.Def.Name}</b> · {a.Def.Description}</color>");
             foreach (var st in r.NewStatuses)
                 lines.Add($"<color={(st.Good ? "#5FA8FF" : "#F28C40")}><b>상태: {st.Name}</b> · {st.Description}</color>");
             foreach (var up in r.GradeUps)
