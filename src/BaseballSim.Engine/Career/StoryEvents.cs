@@ -1,0 +1,562 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace BaseballSim.Career
+{
+    public class EventChoice
+    {
+        public string Label;
+        /// <summary>What happens, told after the choice is made.</summary>
+        public string Result;
+        public Action<EventEffects> Apply;
+    }
+
+    /// <summary>
+    /// A small story beat between days: a coach's offer, a slump, a fan letter. The player picks one
+    /// of the choices. Effects are small on purpose: they colour a career, they don't decide it.
+    /// </summary>
+    public class StoryEvent
+    {
+        public string Id;
+        public string Title;
+        /// <summary>{name} and {team} are filled in.</summary>
+        public string Text;
+        /// <summary>Relative odds among the events that can happen today; 0 = not today.</summary>
+        public Func<Career, DayResult, double> Weight;
+        public List<EventChoice> Choices = new List<EventChoice>();
+
+        public string TextFor(Career career) => Fill(Text, career);
+
+        /// <summary>Fills {name}, {team}, {senior} (the roommate senior) and {mate} (a teammate from the same draft class).</summary>
+        public static string Fill(string text, Career career)
+        {
+            if (string.IsNullOrEmpty(text) || !text.Contains("{")) return text;
+            return Placeholder.Replace(text, m =>
+            {
+                string key = m.Groups[1].Value;
+                string word;
+                switch (key)
+                {
+                    case "name": word = career.Me.Name; break;
+                    case "team": word = career.MyTeam.Name; break;
+                    case "lover": word = Romance.LoverName(career); break;
+                    case "spouse": word = Romance.Lover(career)?.Name ?? "아내"; break;
+                    case "senior": case "mate": case "veteran": case "junior": case "coach": case "exveteran": case "excoach": word = career.BondName(key); break;
+                    default:
+                        if (!key.StartsWith("story:")) return m.Value;
+                        word = career.BondName(key);
+                        break;
+                }
+                return word + Particle(word, m.Groups[2].Value);
+            });
+        }
+
+        // {who} plus an optional particle right after it, which is fixed to suit the name: 이/가, 을/를, 은/는, 과/와.
+        static readonly System.Text.RegularExpressions.Regex Placeholder =
+            new System.Text.RegularExpressions.Regex(@"\{([\w:]+)\}(이|가|을|를|은|는|과|와)?");
+
+        static string Particle(string word, string particle)
+        {
+            if (string.IsNullOrEmpty(particle)) return "";
+            char last = word.Length == 0 ? 'a' : word[word.Length - 1];
+            bool batchim = last >= 0xAC00 && last <= 0xD7A3 && (last - 0xAC00) % 28 != 0;
+            switch (particle)
+            {
+                case "이": case "가": return batchim ? "이" : "가";
+                case "을": case "를": return batchim ? "을" : "를";
+                case "은": case "는": return batchim ? "은" : "는";
+                default: return batchim ? "과" : "와";
+            }
+        }
+    }
+
+    public class EventOutcome
+    {
+        public string Text;
+        /// <summary>Changes in words, e.g. "컨택 +1", "피로 +15".</summary>
+        public List<string> Changes = new List<string>();
+        public Dictionary<Stat, int> PointsGained = new Dictionary<Stat, int>();
+    }
+
+    /// <summary>What an event choice can do to the player; every change is noted for the result card.</summary>
+    public class EventEffects
+    {
+        readonly Career _career;
+        readonly IRandom _random;
+        public readonly EventOutcome Outcome;
+
+        internal EventEffects(Career career, IRandom random, EventOutcome outcome)
+        {
+            _career = career;
+            _random = random;
+            Outcome = outcome;
+        }
+
+        CareerPlayer Me => _career.Me;
+
+        public void Exp(Stat stat, int amount)
+        {
+            stat = Me.RoleStat(stat);
+            int points = Me.GainExp(stat, amount);
+            if (points == 0) return;
+            Outcome.PointsGained.TryGetValue(stat, out var p);
+            Outcome.PointsGained[stat] = p + points;
+            Outcome.Changes.Add($"{Stats.Name(stat)} +{points}");
+        }
+
+        /// <summary>One stat trains faster for a while (days of a full season).</summary>
+        public void Boost(Stat stat, int percent, int days, string source)
+        {
+            stat = Me.RoleStat(stat);
+            var b = _career.AddBoost(stat, percent, days, source);
+            Outcome.Changes.Add($"{Stats.Name(stat)} 훈련 효율 +{percent}% ({b.DaysLeft}일)");
+        }
+
+        /// <summary>Fatigue right now, for effects that scale with what came before them.</summary>
+        public int FatigueNow => Me.Fatigue;
+
+        /// <summary>Folds every fatigue line of this outcome into one total, after a choice that did several things.</summary>
+        internal void MergeFatigueLines(int start)
+        {
+            int delta = Me.Fatigue - start;
+            Outcome.Changes.RemoveAll(ch => ch.StartsWith("피로 "));
+            if (delta != 0) Outcome.Changes.Add($"피로 {Signed(delta)}");
+        }
+
+        public void Fatigue(int delta)
+        {
+            int before = Me.Fatigue;
+            Me.Fatigue = Math.Max(0, Math.Min(100, Me.Fatigue + delta));
+            if (Me.Fatigue != before) Outcome.Changes.Add($"피로 {Signed(Me.Fatigue - before)}");
+        }
+
+        public void Money(int delta)
+        {
+            Me.Money = Math.Max(0, Me.Money + delta);
+            Outcome.Changes.Add($"보유금 {Krw.Signed(delta)}");
+        }
+
+        public void Morale(int delta)
+        {
+            int before = Me.Morale;
+            Me.Morale = Math.Max(-CareerPlayer.MaxMorale, Math.Min(CareerPlayer.MaxMorale, Me.Morale + delta));
+            if (Me.Morale != before) Outcome.Changes.Add($"사기 {Signed(Me.Morale - before)}");
+            // A good moment doesn't vanish with the next day's morale: it carries into training for a while.
+            if (delta >= GoodMoment)
+            {
+                var main = Me.MyStats.OrderByDescending(s => Me.Ratings[s]).First();
+                Boost(main, delta * 2, delta * 2, "좋은 흐름");
+            }
+        }
+
+        /// <summary>Morale this big from a scene also lifts training a little (2% and 2 days per point).</summary>
+        public const int GoodMoment = 4;
+
+        public void ShortenInjury(int days)
+        {
+            if (!Me.IsInjured) return;
+            int before = Me.InjuryDaysLeft;
+            Me.InjuryDaysLeft = Math.Max(0, Me.InjuryDaysLeft - days);
+            Outcome.Changes.Add($"부상 {before}일 → {Me.InjuryDaysLeft}일");
+        }
+
+        /// <summary>Rolls for a small injury; returns true if it happened.</summary>
+        public bool MaybeInjure(double chance, int days, InjuryKind kind = InjuryKind.Ankle)
+        {
+            if (Me.IsInjured || _random.NextDouble() >= chance) return false;
+            days = _career.Injure(kind, days);
+            Outcome.Changes.Add($"{Injuries.Name(kind)} {days}일");
+            return true;
+        }
+
+        /// <summary>A stat goes straight up (only for the rarest moments, like breaking a legend's record).</summary>
+        public void Raise(Stat stat, int points)
+        {
+            stat = Me.RoleStat(stat);
+            Me.Ratings[stat] = Math.Min(CareerPlayer.MaxRating, Me.Ratings[stat] + points);
+            if (Me.Potential[stat] < Me.Ratings[stat]) Me.Potential[stat] = Me.Ratings[stat];
+            if (Me.Ratings[stat] > Me.PeakRatings[stat]) Me.PeakRatings[stat] = Me.Ratings[stat];
+            Outcome.PointsGained.TryGetValue(stat, out var p);
+            Outcome.PointsGained[stat] = p + points;
+            Outcome.Changes.Add($"{Stats.Name(stat)} +{points} (영구)");
+        }
+
+        public void Fans(int points)
+        {
+            int before = Me.Popularity;
+            _career.AddFansFromEvent(points);
+            if (Me.Popularity != before) Outcome.Changes.Add($"인기 +{Me.Popularity - before}");
+        }
+
+        public void Say(string text) => Outcome.Text += "\n" + text;
+
+        internal Career Career => _career;
+
+        /// <summary>True with the given chance.</summary>
+        /// <summary>Today's rating in a stat, read as this player's role (contact means control for a pitcher).</summary>
+        public int Rating(Stat stat) => Me.GameRating(Me.RoleStat(stat));
+
+        public bool Chance(double p) => _random.NextDouble() < p;
+
+        public double Roll() => _random.NextDouble();
+
+        /// <summary>Remembers something for a follow-up event later.</summary>
+        public void Mark(string key) => Me.StoryMarks[key] = _career.Stamp;
+
+        public void Unmark(string key) => Me.StoryMarks.Remove(key);
+
+        /// <summary>Grows (or cools) a bond; close people get a farewell and an after-story later.</summary>
+        public void Close(string who, int delta)
+        {
+            bool was = _career.IsClose(who);
+            _career.AddCloseness(who, delta);
+            string name = _career.BondName(who);
+            string with = name + WaGwa(name);
+            if (delta != 0) Outcome.Changes.Add($"{with} 친밀 {Signed(delta)}");
+            if (!was && _career.IsClose(who)) Outcome.Changes.Add($"♥ {with} 가까워졌다");
+        }
+
+        /// <summary>Changes the manager's trust; shown as 감독 신뢰 on the result card.</summary>
+        public void Trust(int delta)
+        {
+            int before = Me.ManagerTrust;
+            Me.ManagerTrust = Math.Max(-6, Math.Min(6, Me.ManagerTrust + delta));
+            if (Me.ManagerTrust != before) Outcome.Changes.Add($"감독 신뢰 {Signed(Me.ManagerTrust - before)}");
+        }
+
+        public void MeetLegend(string id)
+        {
+            if (!Me.MetLegends.Contains(id)) Me.MetLegends.Add(id);
+        }
+
+        /// <summary>와 after a vowel, 과 after a final consonant.</summary>
+        static string WaGwa(string word)
+        {
+            char last = word.Length == 0 ? 'a' : word[word.Length - 1];
+            return last >= 0xAC00 && last <= 0xD7A3 && (last - 0xAC00) % 28 != 0 ? "과" : "와";
+        }
+
+        static string Signed(int v) => v >= 0 ? $"+{v:N0}" : $"{v:N0}";
+    }
+
+    public static partial class StoryEvents
+    {
+        public static readonly List<StoryEvent> All = Build();
+
+        public static StoryEvent Find(string id) => All.Find(e => e.Id == id);
+
+        /// <summary>Weighted pick among events possible today; null if none.</summary>
+        static readonly System.Text.RegularExpressions.Regex PaidLabel = new System.Text.RegularExpressions.Regex(@"\(([\d,]+)만원\)");
+        /// <summary>Choices that are a different path, not a second kindness: never paired with a paid one.</summary>
+        static readonly string[] NotAKindness = { "거절", "실력으로", "다짐", "우승한다", "천천히", "혼자", "모른 척", "현실적", "훈련", "쉰다", "넘어간다" };
+
+        /// <summary>
+        /// A kind act that costs money next to one that costs time ("사인볼 한 상자를 보낸다 (100만원)" and
+        /// "쉬는 날 찾아간다") shouldn't make the player pick one: a third choice does both, at the price.
+        /// Returns a copy; the shared event is left alone.
+        /// </summary>
+        public static StoryEvent WithBoth(StoryEvent ev)
+        {
+            // Main-story and romance scenes record the path taken: their choices stay as written.
+            if (ev == null || ev.Choices.Count > 3 || MainStory.IsMain(ev) || ev.Id.StartsWith("her_") || ev.Choices.Any(ch => ch.Label.StartsWith("둘 다"))) return ev;
+            var paid = ev.Choices.Where(ch => PaidLabel.IsMatch(ch.Label)).ToList();
+            if (paid.Count != 1) return ev;
+            var money = paid[0];
+            var other = ev.Choices.FirstOrDefault(ch => ch != money && !PaidLabel.IsMatch(ch.Label) && !ch.Label.Contains("만원") && !NotAKindness.Any(w => ch.Label.Contains(w)));
+            if (other == null) return ev;
+            string cost = PaidLabel.Match(money.Label).Groups[1].Value;
+            var copy = new StoryEvent { Id = ev.Id, Title = ev.Title, Text = ev.Text, Weight = ev.Weight, Choices = ev.Choices.ToList() };
+            int effort = BothEffort(other.Label);
+            copy.Choices.Add(new EventChoice
+            {
+                Label = $"둘 다 한다 ({cost}만원 · 피로 많이)",
+                Result = other.Result + "\n" + money.Result + "\n하루가 모자랐다. 몸이 천근만근이다.",
+                Apply = e =>
+                {
+                    int start = e.FatigueNow;
+                    other.Apply?.Invoke(e);
+                    int own = e.FatigueNow - start;
+                    money.Apply?.Invoke(e);
+                    // Doing both costs the day: the legwork on top of the money, and twice what the legwork alone tired.
+                    e.Fatigue(effort + Math.Max(0, own));
+                    e.MergeFatigueLines(start);
+                },
+            });
+            return copy;
+        }
+
+        /// <summary>How much doing both on top of the money tires: going somewhere in person costs the most.</summary>
+        static int BothEffort(string label)
+        {
+            string[] trip = { "찾아간", "간다", "가서", "직접", "함께", "같이", "달려", "방문", "다녀", "밤새", "새벽" };
+            string[] small = { "전화", "문자", "편지", "메시지", "영상", "글", "SNS", "사인" };
+            if (trip.Any(w => label.Contains(w))) return 22;
+            if (small.Any(w => label.Contains(w))) return 10;
+            return 15;
+        }
+
+        public static StoryEvent Pick(Career career, DayResult day, IRandom random)
+        {
+            var options = All.Where(e => !AboutSomeoneLeftBehind(career, e)).Select(e => (Event: e, Weight: e.Weight(career, day))).Where(o => o.Weight > 0).ToList();
+            double total = options.Sum(o => o.Weight);
+            if (total <= 0) return null;
+            double roll = random.NextDouble() * total;
+            foreach (var o in options)
+            {
+                roll -= o.Weight;
+                if (roll < 0) return o.Event;
+            }
+            return options.Last().Event;
+        }
+
+        static bool PlayedWell(DayResult d) =>
+            d.MyLine != null && (d.MyLine.HomeRuns > 0 || d.MyLine.Hits >= 3) || d.MyPitching != null && d.MyPitching.Wins > 0 && !d.InFarm;
+
+        static List<StoryEvent> Build()
+        {
+            var list = new List<StoryEvent>();
+
+            list.Add(new StoryEvent
+            {
+                Id = "coach_extra",
+                Title = "코치의 특별 지도",
+                Text = "{coach} 타격 코치가 {name}에게 다가왔다.\n\"오늘 끝나고 30분만 더 하자. 스윙이 조금 늦어.\"",
+                Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher || !Played(d) ? 0 : 1,
+                Choices =
+                {
+                    new EventChoice { Label = "남아서 배운다", Result = "땀범벅이 됐지만 감이 잡혔다.", Apply = e => { e.Exp(Stat.Contact, 60); e.Fatigue(15); e.Close("coach", 2); } },
+                    new EventChoice { Label = "오늘은 쉬겠다고 한다", Result = "\"그래, 몸 관리도 실력이지.\"", Apply = e => e.Fatigue(-10) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "senior_advice",
+                Title = "선배의 조언",
+                Text = "베테랑 {veteran} 선배가 라커룸에서 말을 걸었다.\n\"신인 때는 하나만 확실히 해. 뭘 배우고 싶어?\"",
+                Weight = (c, d) => c.Me.Age <= 23 ? 1 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "힘 쓰는 법", Result = "하체를 쓰는 요령을 배웠다.", Apply = e => { e.Exp(Stat.Power, 50); e.Close("veteran", 1); } },
+                    new EventChoice { Label = "공 보는 법", Result = "투수의 버릇을 읽는 법을 배웠다.", Apply = e => { e.Exp(Stat.Eye, 50); e.Close("veteran", 1); } },
+                    new EventChoice { Label = "베이스 도는 법", Result = "스타트 타이밍을 배웠다.", Apply = e => { e.Exp(Stat.Speed, 50); e.Close("veteran", 1); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "slump",
+                Title = "슬럼프",
+                Text = "{name}, 최근 경기에서 안타가 없다.\n배트가 무겁게 느껴진다.",
+                Weight = (c, d) => !c.Me.IsPitcher && c.HitlessStreak >= 3 ? 6 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "영상을 돌려본다", Result = "타이밍이 반 박자 늦었던 걸 찾았다.", Apply = e => { e.Exp(Stat.Eye, 30); e.Morale(4); } },
+                    new EventChoice { Label = "하루 푹 쉰다", Result = "머리를 비우니 몸이 가벼워졌다.", Apply = e => { e.Fatigue(-25); e.Morale(5); } },
+                    new EventChoice { Label = "특타로 정면 돌파", Result = "손바닥이 다 까졌다. 그래도 뭔가 남았다.", Apply = e => { e.Exp(Stat.Contact, 50); e.Fatigue(20); e.Morale(2); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "fan_letter",
+                Title = "팬레터",
+                Text = "오늘 경기를 본 어린이 팬에게서 편지가 왔다.\n\"{name} 선수처럼 되고 싶어요!\"",
+                Weight = (c, d) => PlayedWell(d) ? 4 * (1 + c.Me.Popularity / 50.0) : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "답장을 쓴다", Result = "편지를 쓰며 처음 야구를 시작한 날이 떠올랐다.", Apply = e => e.Morale(6) },
+                    new EventChoice { Label = "사인 공을 보낸다", Result = "구단 SNS에 소식이 올라왔다.", Apply = e => { e.Morale(4); e.Money(-20); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "commercial",
+                Title = "광고 제의",
+                Text = "스포츠 음료 회사에서 광고 촬영 제의가 들어왔다.\n촬영은 하루 종일 걸린다고 한다.",
+                Weight = (c, d) => c.SeasonLine.PlateAppearances >= 30 && Career.Ops(c.SeasonLine) >= 0.8 ? 1.5 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "찍는다", Result = "어색한 미소였지만 출연료는 두둑했다.", Apply = e => { e.Money(400); e.Fatigue(10); } },
+                    new EventChoice { Label = "야구에 집중한다", Result = "감독이 그 이야기를 듣고 고개를 끄덕였다.", Apply = e => e.Morale(3) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "night_out",
+                Title = "원정 숙소의 밤",
+                Text = "원정 숙소. 동기들이 맛집에 가자고 문을 두드린다.\n내일도 경기가 있다.",
+                Weight = (c, d) => c.Me.IsInjured ? 0 : 1,
+                Choices =
+                {
+                    new EventChoice
+                    {
+                        Label = "따라 나간다", Result = "오랜만에 크게 웃었다.",
+                        Apply = e =>
+                        {
+                            e.Morale(5);
+                            e.Fatigue(15);
+                            if (e.MaybeInjure(0.1, 2)) e.Say("돌아오는 길에 계단에서 발목을 삐끗했다...");
+                        },
+                    },
+                    new EventChoice { Label = "방에서 쉰다", Result = "일찍 잠들었다.", Apply = e => e.Fatigue(-10) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "rehab",
+                Title = "재활",
+                Text = "트레이너가 재활 프로그램을 제안했다.\n개인 비용이 들지만 복귀가 빨라진다고 한다.",
+                Weight = (c, d) => c.Me.InjuryDaysLeft >= 2 ? 5 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "받는다 (300만원)", Result = "꼼꼼한 관리 덕에 회복이 빨라졌다.", Apply = e => { e.Money(-300); e.ShortenInjury(2); } },
+                    new EventChoice { Label = "천천히 회복한다", Result = "조급해하지 않기로 했다.", Apply = e => e.Morale(1) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "family_visit",
+                Title = "가족의 응원",
+                Text = "부모님이 {team} 홈구장을 찾았다.\n관중석에서 손을 흔드는 모습이 보인다.",
+                Weight = (c, d) => 0.7,
+                Choices =
+                {
+                    new EventChoice { Label = "손을 흔들어 답한다", Result = "어깨에 힘이 들어간다.", Apply = e => e.Morale(7) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "rival",
+                Title = "라이벌",
+                Text = "같은 포지션에 거포 신인이 들어왔다.\n기자들이 둘을 비교하기 시작했다.",
+                Weight = (c, d) => c.Me.Age >= 24 && c.Me.Age <= 32 ? 0.7 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "자극제로 삼는다", Result = "새벽 훈련을 시작했다.", Apply = e => { e.Exp(Stat.Power, 30); e.Exp(Stat.Contact, 30); e.Fatigue(15); } },
+                    new EventChoice { Label = "내 야구를 한다", Result = "흔들리지 않기로 했다.", Apply = e => e.Morale(3) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "gear_sponsor",
+                Title = "용품 협찬",
+                Text = "용품 회사 담당자가 찾아왔다.\n\"저희 장갑 한번 써 보시겠어요? 사용료도 드립니다.\"",
+                Weight = (c, d) => d.MyLine != null && d.MyLine.Hits >= 2 ? 1 : 0.2,
+                Choices =
+                {
+                    new EventChoice { Label = "계약한다", Result = "손에 착 감긴다.", Apply = e => e.Money(250) },
+                    new EventChoice { Label = "쓰던 걸 쓴다", Result = "익숙한 게 최고다.", Apply = e => e.Morale(2) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "defense_drill",
+                Title = "펑고 100개",
+                Text = "수비 코치가 펑고 배트를 들었다.\n\"오늘 첫 발이 늦더라. 100개 받고 가.\"",
+                Weight = (c, d) => c.Me.IsInjured || c.Me.IsPitcher || !Played(d) ? 0 : 0.8,
+                Choices =
+                {
+                    new EventChoice { Label = "다 받는다", Result = "유니폼이 흙투성이가 됐다.", Apply = e => { e.Exp(Stat.Defense, 60); e.Fatigue(15); } },
+                    new EventChoice { Label = "50개만 부탁한다", Result = "\"다음엔 100개다.\"", Apply = e => { e.Exp(Stat.Defense, 25); e.Fatigue(5); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "farm_coach",
+                Title = "2군 코치의 특훈",
+                Text = "2군 구장. 잔뼈 굵은 코치가 {name}을 불렀다.\n\"여기 오래 있을 생각 없지? 그럼 기본부터 다시 하자.\"",
+                Weight = (c, d) => c.InFarm && !c.InMilitary && !c.Me.IsInjured ? 3 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "폼을 뜯어고친다", Result = "며칠은 어색했지만, 몸에 붙기 시작했다.", Apply = e => { e.Exp(Stat.Contact, 90); e.Fatigue(20); e.Morale(-1); } },
+                    new EventChoice { Label = "기본기를 다진다", Result = "화려하진 않아도 단단해졌다.", Apply = e => { e.Exp(Stat.Eye, 40); e.Exp(Stat.Defense, 40); e.Fatigue(10); } },
+                    new EventChoice { Label = "1군 복귀만 생각한다", Result = "마음을 다잡았다.", Apply = e => e.Morale(5) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "video_analysis",
+                Title = "전력분석실",
+                Text = "전력분석팀이 {name}의 최근 영상을 정리해 왔다.\n\"요즘 상대가 이렇게 공략하고 있어요.\"",
+                Weight = (c, d) => c.HitlessStreak >= 2 ? 3 : 0.4,
+                Choices =
+                {
+                    new EventChoice { Label = "밤새 분석한다", Result = "상대의 패턴이 보이기 시작했다.", Apply = e => { e.Exp(Stat.Eye, 60); e.Fatigue(10); } },
+                    new EventChoice { Label = "핵심만 듣는다", Result = "\"이것만 기억하세요.\" 머리가 맑아졌다.", Apply = e => { e.Exp(Stat.Eye, 25); e.Morale(2); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "mental_coach",
+                Title = "멘탈 코치",
+                Text = "구단이 멘탈 코치와의 상담을 권했다.\n개인 비용 200만원이 든다.",
+                Weight = (c, d) => c.Me.Morale <= -3 || c.HitlessStreak >= 3 ? 3 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "상담을 받는다 (200만원)", Result = "\"결과 말고 과정만 생각해요.\" 마음이 한결 가벼워졌다.", Apply = e => { e.Money(-200); e.Morale(8); } },
+                    new EventChoice { Label = "혼자 이겨낸다", Result = "이를 악물었다.", Apply = e => e.Morale(2) },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "pitcher_slump",
+                Title = "흔들리는 마운드",
+                Text = "{name}, 최근 등판에서 연달아 무너졌다.\n공이 손에서 빠지는 느낌이다.",
+                Weight = (c, d) => c.Me.IsPitcher && c.HitlessStreak >= 2 ? 6 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "투구 폼을 점검한다", Result = "릴리스 포인트가 미세하게 낮아져 있었다.", Apply = e => { e.Exp(Stat.Control, 50); e.Morale(3); } },
+                    new EventChoice { Label = "어깨를 쉬게 한다", Result = "푹 쉬고 나니 팔이 가벼워졌다.", Apply = e => { e.Fatigue(-30); e.Morale(4); } },
+                    new EventChoice { Label = "불펜에서 100구", Result = "어깨는 무거워도 감은 돌아왔다.", Apply = e => { e.Exp(Stat.Breaking, 50); e.Fatigue(20); e.Morale(2); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "pitching_coach",
+                Title = "투수 코치의 원포인트",
+                Text = "불펜 피칭을 지켜보던 {coach} 투수 코치가 다가왔다.\n\"하나만 고쳐 보자. 뭐부터 할래?\"",
+                Weight = (c, d) => c.Me.IsPitcher && !c.Me.IsInjured ? 1.2 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "새 변화구를 배운다", Result = "그립을 바꾸자 공이 꺾이기 시작했다.", Apply = e => { e.Exp(Stat.Breaking, 60); e.Fatigue(10); e.Close("coach", 1); } },
+                    new EventChoice { Label = "제구를 잡는다", Result = "포수 미트가 움직이지 않았다.", Apply = e => { e.Exp(Stat.Control, 60); e.Fatigue(10); e.Close("coach", 1); } },
+                    new EventChoice { Label = "하체를 쓴다", Result = "공 끝에 힘이 붙었다.", Apply = e => { e.Exp(Stat.Velocity, 50); e.Fatigue(15); e.Close("coach", 1); } },
+                },
+            });
+
+            list.Add(new StoryEvent
+            {
+                Id = "fan_signing",
+                Title = "팬 사인회",
+                Text = "{team} 팬 사인회에 {name}의 줄이 가장 길다.\n예정 시간이 이미 지났다.",
+                Weight = (c, d) => c.Me.Popularity >= 40 ? 0.8 : 0,
+                Choices =
+                {
+                    new EventChoice { Label = "끝까지 다 해 준다", Result = "손목이 저렸지만 팬들의 얼굴이 잊히지 않는다.", Apply = e => { e.Morale(6); e.Fatigue(10); e.Fans(60); } },
+                    new EventChoice { Label = "양해를 구하고 마친다", Result = "아쉬워하는 팬들에게 고개를 숙였다.", Apply = e => e.Fatigue(-5) },
+                },
+            });
+
+            AddLifeEvents(list);
+            AddSideStories(list);
+            AddRafael(list);
+            AddSpouseStories(list);
+            AddSerialStories(list);
+            return list;
+        }
+    }
+}
