@@ -825,6 +825,7 @@ namespace BaseballGame
             SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 찬스: " + result.AtBatLog.Last() : null);
             PitchMix(card, $"투수 {s.Pitcher.Name}의 승부구", s.FastballShare);
             Hunch(card, $"느낌: 이번엔 <b>{(s.Hunch == Pitch.Fastball ? "직구" : "변화구")}</b>가 올 것 같다", $"선구안 감 적중률 {s.HunchAccuracy:P0}" + MoraleNote());
+            OddsBox(card, s, false);
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             ChoiceRow(card, ("직구 노리기", Approach.SitFastball, UiKit.Accent), ("변화구 노리기", Approach.SitBreaking, UiKit.Accent));
             ChoiceRow(card, ("신중하게 (볼넷 노림)", Approach.Patient, UiKit.Muted), ("평소대로", Approach.Normal, UiKit.Background));
@@ -844,6 +845,7 @@ namespace BaseballGame
             SituationBoard(card, s, result.AtBatLog.Count > 0 ? "직전 승부: " + result.AtBatLog.Last() : null);
             PitchMix(card, $"타자 {s.Batter.Name}이(가) 노리는 공", s.SitsFastball);
             Hunch(card, $"포수의 느낌: <b>{(s.Hunch == Pitch.Fastball ? "직구" : "변화구")}</b>를 노리고 있다", $"제구 감 적중률 {s.HunchAccuracy:P0}" + MoraleNote());
+            OddsBox(card, s, true);
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             ChoiceRow(card, ("직구로 승부", Approach.ThrowFastball, UiKit.Accent), ("변화구로 승부", Approach.ThrowBreaking, UiKit.Accent));
             ChoiceRow(card, ("어렵게 승부 (볼넷 각오)", Approach.PitchAround, UiKit.Muted), ("평소대로", Approach.Normal, UiKit.Background));
@@ -871,7 +873,9 @@ namespace BaseballGame
             var odds = UiKit.Label(bar.parent, $"성공 확률 {s.StealOdds:P0}  (주력 {_career.Me.EffectiveRating(Stat.Speed)})", 30, TextAnchor.MiddleCenter);
             odds.fontStyle = FontStyle.Bold;
             UiKit.Stretch(odds.rectTransform);
-            UiKit.Height(UiKit.Label(card, "성공하면 득점권, 실패하면 아웃이에요. 빠를수록 성공률이 올라가요.", 26, TextAnchor.MiddleCenter, UiKit.Muted), 60);
+            string battery = $"상대 투수 구속 {s.Pitcher.Pitching?.Velocity ?? 50}" + (s.Catcher != null ? $" · 포수 {s.Catcher.Name} 수비 {s.Catcher.Batting.Defense}" : "") +
+                (_career.OppositionLevel > 0 ? $" · 리그 수준 +{_career.OppositionLevel}" : "");
+            UiKit.Height(UiKit.Label(card, battery + "\n성공하면 득점권, 실패하면 아웃. 빠를수록, 상대 어깨가 약할수록 성공률이 올라가요.", 26, TextAnchor.MiddleCenter, UiKit.Muted), 80);
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             ChoiceRow(card, ("뛴다!", Approach.Steal, Gold), ("멈춘다", Approach.Normal, UiKit.Background));
             Tip("steal", "1루에 나가면 도루를 시도할 수 있어요. 주루 훈련으로 주력을 올리면 성공률이 높아져요.");
@@ -1033,6 +1037,24 @@ namespace BaseballGame
         }
 
         /// <summary>The hunch, called out in gold so it reads before anything else.</summary>
+        /// <summary>What each choice is worth: hits (and homers) when the read is right or wrong, swinging away, taking pitches.</summary>
+        void OddsBox(RectTransform card, AtBatSituation s, bool pitching)
+        {
+            double trust = s.HunchAccuracy * s.HitIfRight + (1 - s.HunchAccuracy) * s.HitIfWrong;
+            string level = _career.OppositionLevel > 0 ? $"  <color=#BAC4D8>(리그 수준 +{_career.OppositionLevel} 반영)</color>" : "";
+            string text = pitching
+                ? $"승부 적중 시 피안타 <color=#5FA8FF><b>{s.HitIfRight:P0}</b></color> · 피홈런 {s.HomeRunIfRight:P0}   빗나가면 피안타 <color=#F28C40><b>{s.HitIfWrong:P0}</b></color>\n" +
+                  $"<size=24>느낌대로 던지면 피안타 약 {trust:P0} · 어렵게 가면 피안타 {s.HitPatient:P0}, 볼넷 {s.WalkPatient:P0}{level}</size>"
+                : $"노림수 적중 시 안타 <color=#5FA8FF><b>{s.HitIfRight:P0}</b></color> · 홈런 {s.HomeRunIfRight:P0}   빗나가면 안타 <color=#F28C40><b>{s.HitIfWrong:P0}</b></color>\n" +
+                  $"<size=24>느낌대로 노리면 안타 약 {trust:P0} · 평소대로 {s.HitNormal:P0} · 신중하게 볼넷 {s.WalkPatient:P0}{level}</size>";
+            var box = UiKit.Panel(card, "Odds", new Color(0.37f, 0.66f, 1f, 0.12f));
+            UiKit.Height(box, 104);
+            var label = UiKit.Label(box, text, 28, TextAnchor.MiddleCenter);
+            UiKit.Stretch(label.rectTransform);
+            label.rectTransform.offsetMin = new Vector2(12, 6);
+            label.rectTransform.offsetMax = new Vector2(-12, -6);
+        }
+
         void Hunch(RectTransform card, string text, string accuracy)
         {
             var box = UiKit.Panel(card, "Hunch", new Color(1f, 0.82f, 0.3f, 0.16f));
@@ -1540,6 +1562,8 @@ namespace BaseballGame
             foreach (var a in r.NewAchievements) lines.Add($"<color=#5FA8FF>업적 달성: {a.Name}</color>");
             if (r.ConditionStars >= 4 && !r.GotInjured)
                 lines.Add($"<color={(r.ConditionStars >= 5 ? "#FFD24D" : "#5FA8FF")}>컨디션 {CareerState.ConditionLabel(r.ConditionStars)}! 훈련 효과 +{Mathf.RoundToInt((float)(CareerState.ConditionTraining(r.ConditionStars) - 1) * 100)}%</color>");
+            foreach (var st in r.NewStatuses)
+                lines.Add($"<color={(st.Good ? "#5FA8FF" : "#F28C40")}><b>상태: {st.Name}</b> · {st.Description}</color>");
             foreach (var up in r.GradeUps)
                 lines.Add($"<color=#FFD24D><b>{StatNames[up.Stat]} {up.Grade}등급 달성!</b> 훈련 효율 +{up.BoostPercent}% ({up.BoostDays}일)</color>");
             if (r.TrainingCrit > 0)
@@ -3045,8 +3069,11 @@ namespace BaseballGame
                 : me.Role == PitcherRole.Setup ? $"{p.Holds}홀드 평균자책 {p.EraText}"
                 : $"{p.Wins}승 {p.Losses}패 평균자책 {p.EraText}";
             _money.text = $"{Krw.Format(me.Money)}  <size=26><color=#BAC4D8>연봉 {Krw.Format(me.Salary)}</color></size>";
+            var states = _career.ActiveStatuses();
+            string stateLine = states.Count == 0 ? "" : string.Join(" ", states.Select(a => $"<color={(a.Def.Good ? "#5FA8FF" : "#F28C40")}>[{a.Def.Name}]</color>")) + "  ";
+            if (_career.OppositionLevel > 0) stateLine += $"<color=#BAC4D8>리그 수준 +{_career.OppositionLevel}</color>  ";
             _status.text = $"{season}  ·  인기 {me.Popularity}{injury}{morale}\n" +
-                $"<size=24><color=#BAC4D8>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
+                $"<size=24>{stateLine}<color=#BAC4D8>{traits}" + (next != null ? $"  (다음 특성: 능력치 총합 {Traits.RatingTotal(me)}/{next})" : "") + "</color></size>";
             UiKit.SetBar(_fatigueFill, me.Fatigue / 100f);
             string fatigueColor = me.Fatigue >= 80 ? "#F28C40" : me.Fatigue >= 60 ? "#FFD24D" : "#FFFFFF";
             _fatigueText.text = $"피로 <b><color={fatigueColor}>{me.Fatigue}</color></b>";

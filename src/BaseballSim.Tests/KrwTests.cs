@@ -78,3 +78,56 @@ public class GradeAndHighlightTests
         Assert.DoesNotContain(next.GradeUps, g => g.Stat == stat);
     }
 }
+
+public class OppositionAndStatusTests
+{
+    static BaseballSim.Career.Career NewCareer(int seed)
+    {
+        var random = new BaseballSim.SeededRandom(seed);
+        var league = new BaseballSim.Career.League(new BaseballSim.RosterGenerator(random), 36);
+        return new BaseballSim.Career.Career(BaseballSim.Career.Career.NewPlayer("테스트", random), league, league.Teams[0], random);
+    }
+
+    [Fact]
+    public void TheLeagueGetsALittleStrongerEachSeasonAndRookiesGetAHeadStart()
+    {
+        var c = NewCareer(1);
+        Assert.Equal(0, c.OppositionLevel);
+        Assert.True(c.RookieBlessed);
+        Assert.Contains(c.ActiveStatuses(), a => a.Def.Id == BaseballSim.Career.Statuses.Rookie);
+        c.Season = 3;
+        Assert.False(c.RookieBlessed);
+        Assert.Equal(2, c.OppositionLevel);
+        c.Season = 30;
+        Assert.Equal(BaseballSim.Career.Career.MaxOpposition, c.OppositionLevel);
+    }
+
+    [Fact]
+    public void AStrongArmAndAGoodCatcherCutSteals()
+    {
+        var runner = new BaseballSim.Player("r", "주자"); runner.Batting.Speed = 80;
+        var soft = new BaseballSim.Player("p", "투수") { Pitching = new BaseballSim.PitchingRatings { Velocity = 30 } };
+        var hard = new BaseballSim.Player("p2", "투수2") { Pitching = new BaseballSim.PitchingRatings { Velocity = 90 } };
+        var weak = new BaseballSim.Player("c", "포수"); weak.Batting.Defense = 30;
+        var strong = new BaseballSim.Player("c2", "포수2"); strong.Batting.Defense = 90;
+        double easy = BaseballSim.AtBatChoice.StealOdds(runner, soft, weak);
+        double hardest = BaseballSim.AtBatChoice.StealOdds(runner, hard, strong);
+        Assert.True(easy - hardest > 0.2, $"{easy} vs {hardest}");
+        Assert.True(BaseballSim.AtBatChoice.StealOdds(runner, hard, strong, 10) < hardest);
+    }
+
+    [Fact]
+    public void ABigAtBatShowsWhatEachChoiceIsWorth()
+    {
+        var random = new BaseballSim.SeededRandom(5);
+        var gen = new BaseballSim.RosterGenerator(random);
+        var t = gen.CreateTeam("A");
+        var batter = t.Lineup[0];
+        var odds = BaseballSim.PlateAppearanceModel.Compute(batter, t.Rotation[0], 50, 0);
+        var s = new BaseballSim.AtBatSituation();
+        BaseballSim.AtBatChoice.Preview(s, odds, batter);
+        Assert.True(s.HitIfRight > s.HitNormal && s.HitNormal > s.HitIfWrong);
+        Assert.True(s.HomeRunIfRight > s.HomeRunNormal);
+        Assert.True(s.WalkPatient > odds.Walk);
+    }
+}

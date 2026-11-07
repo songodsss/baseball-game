@@ -63,9 +63,15 @@ namespace BaseballSim
         /// <summary>My player on first with second open: steal or stay. StealOdds is the chance it works.</summary>
         public bool Stealing;
         public Player Runner;
+        /// <summary>The catcher my runner tries to beat.</summary>
+        public Player Catcher;
         public double StealOdds;
         /// <summary>A bunt's chances: a sacrifice that moves the runners, and a bunt single.</summary>
         public double BuntOdds, BuntHitOdds;
+        /// <summary>What each choice is worth, shown before picking: the chance of a hit (and of a home run)
+        /// when the read is right or wrong, swinging away, or taking pitches (with the walk chance).
+        /// When pitching, the same numbers are the hits the batter gets.</summary>
+        public double HitIfRight, HomeRunIfRight, HitIfWrong, HitNormal, HomeRunNormal, HitPatient, WalkPatient;
         internal Pitch Coming;
     }
 
@@ -213,6 +219,50 @@ namespace BaseballSim
         /// <summary>Steals work 45% of the time at speed 20, 92% at 100; the speed trait adds 8 points.</summary>
         public static double StealOdds(Player runner) =>
             Math.Min(0.95, 0.45 + 0.47 * Unit(runner.Batting.Speed) + (runner.Traits.Contains("speed") ? 0.08 : 0));
+
+        /// <summary>
+        /// The same against a battery: a hard thrower (velocity) and a good catcher (defense) cut it, up to
+        /// about 8 and 10 points each for a 100 against an average 50, and the league's level counts on top
+        /// of both when my player runs.
+        /// </summary>
+        public static double StealOdds(Player runner, Player pitcher, Player catcher, int level = 0)
+        {
+            double arm = pitcher?.Pitching == null ? 0 : (pitcher.Pitching.Velocity + pitcher.Condition + level - 50) / 50.0;
+            double glove = catcher == null ? 0 : (catcher.Batting.Defense + catcher.Condition + level - 50) / 50.0;
+            return Math.Max(0.15, Math.Min(0.95, StealOdds(runner) - 0.08 * arm - 0.10 * glove));
+        }
+
+        static OutcomeOdds Copy(OutcomeOdds o) => new OutcomeOdds
+        {
+            Strikeout = o.Strikeout, Walk = o.Walk, HitByPitch = o.HitByPitch, HomeRun = o.HomeRun, Triple = o.Triple,
+            Double = o.Double, Single = o.Single, GroundOut = o.GroundOut, FlyOut = o.FlyOut, LineOut = o.LineOut,
+        };
+
+        static double Hits(OutcomeOdds o) => o.Single + o.Double + o.Triple + o.HomeRun;
+
+        /// <summary>Fills in what each approach is worth for this batter against this pitcher.</summary>
+        public static void Preview(AtBatSituation s, OutcomeOdds odds, Player batter)
+        {
+            var right = Copy(odds); Apply(right, Approach.SitFastball, Pitch.Fastball, batter);
+            var wrong = Copy(odds); Apply(wrong, Approach.SitFastball, Pitch.Breaking, batter);
+            var patient = Copy(odds); Apply(patient, Approach.Patient, Pitch.Fastball, batter);
+            s.HitIfRight = Hits(right); s.HomeRunIfRight = right.HomeRun;
+            s.HitIfWrong = Hits(wrong);
+            s.HitNormal = Hits(odds); s.HomeRunNormal = odds.HomeRun;
+            s.HitPatient = Hits(patient); s.WalkPatient = patient.Walk + patient.HitByPitch;
+        }
+
+        /// <summary>The pitcher's side: hits allowed if the pitch fools him, if it's what he sat on, or pitching around him.</summary>
+        public static void PreviewPitch(AtBatSituation s, OutcomeOdds odds)
+        {
+            var right = Copy(odds); ApplyPitch(right, Approach.ThrowFastball, Pitch.Breaking);
+            var wrong = Copy(odds); ApplyPitch(wrong, Approach.ThrowFastball, Pitch.Fastball);
+            var around = Copy(odds); ApplyPitch(around, Approach.PitchAround, Pitch.Fastball);
+            s.HitIfRight = Hits(right); s.HomeRunIfRight = right.HomeRun;
+            s.HitIfWrong = Hits(wrong);
+            s.HitNormal = Hits(odds); s.HomeRunNormal = odds.HomeRun;
+            s.HitPatient = Hits(around); s.WalkPatient = around.Walk + around.HitByPitch;
+        }
 
         /// <summary>Swinging to protect the runner: the batter puts the ball in play and gives up some power.</summary>
         public static void ApplyHitAndRun(OutcomeOdds odds) =>

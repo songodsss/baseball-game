@@ -23,6 +23,14 @@ namespace BaseballSim
         /// </summary>
         public Func<AtBatSituation, Approach?> Decide;
         public Player DecideFor;
+        /// <summary>
+        /// My player in this game (matched by id), and how much stronger the league plays against him:
+        /// every pitcher, batter and catcher he faces counts this many rating points higher. It grows a little
+        /// each season, so the same ratings get slightly harder to win with.
+        /// </summary>
+        public string MeId;
+        public int Opposition;
+        bool IsMe(Player p) => p != null && MeId != null && p.Id == MeId;
         public AtBatSituation Suspended { get; private set; }
         /// <summary>Big spots asked about in one game when <see cref="DecideFor"/> pitches, so a starter isn't stopped all night.</summary>
         public int MaxPitchingDecisions = 4;
@@ -203,7 +211,13 @@ namespace BaseballSim
             int limit = MaxPitches(fielding);
             double fatigue = Math.Min(MaxFatigue, Math.Max(0, (fielding.PitchCount - limit * 0.8) / (limit * 0.2)) * 0.3);
 
-            var odds = PlateAppearanceModel.Compute(batter, pitcher, fielding.Defense, fatigue);
+            // Facing my player, the other side plays up to the league's level this season.
+            var stronger = Opposition > 0 && IsMe(batter) ? pitcher : Opposition > 0 && IsMe(pitcher) ? batter : null;
+            if (stronger != null) stronger.Condition += Opposition;
+            double defense = fielding.Defense + (stronger != null && IsMe(batter) ? Opposition : 0);
+            OutcomeOdds odds;
+            try { odds = PlateAppearanceModel.Compute(batter, pitcher, defense, fatigue); }
+            finally { if (stronger != null) stronger.Condition -= Opposition; }
             _tactic = Approach.Normal;
             string note = Decide == null ? null
                 : batter == DecideFor ? AskApproach(batter, pitcher, odds)
@@ -265,6 +279,7 @@ namespace BaseballSim
             situation.TheirRuns = fielding == _home ? _result.AwayScore : _result.HomeScore;
             situation.Score = ScoreSoFar();
             situation.MineIsAway = fielding == _away;
+            AtBatChoice.PreviewPitch(situation, odds);
             var approach = Decide(situation);
             if (approach == null)
             {
@@ -296,6 +311,7 @@ namespace BaseballSim
             situation.CanHitAndRun = AtBatChoice.CanHitAndRun(bases, _outs);
             situation.BuntOdds = AtBatChoice.BuntOdds(batter);
             situation.BuntHitOdds = AtBatChoice.BuntHitOdds(batter);
+            AtBatChoice.Preview(situation, odds, batter);
             var approach = Decide(situation);
             if (approach == null)
             {
@@ -329,7 +345,7 @@ namespace BaseballSim
             if (Decide == null || runner != DecideFor)
             {
                 // Everyone else runs on his own: only the quick ones, in a game still in reach.
-                double odds = AtBatChoice.StealOdds(runner);
+                double odds = StealOddsAgainst(runner, fielding);
                 if (Math.Abs(gap) > 3 || odds < AiStealMinOdds || !Chance(AiStealTry * (odds - AiStealMinOdds) / (0.95 - AiStealMinOdds))) return false;
                 return Steal(runner, fielding, odds, null);
             }
@@ -343,7 +359,8 @@ namespace BaseballSim
                 Runner = runner,
                 Pitcher = fielding.Pitcher,
                 Batter = (_top ? _away : _home).Team.Lineup[(_top ? _away : _home).BattingIndex],
-                StealOdds = AtBatChoice.StealOdds(runner),
+                StealOdds = StealOddsAgainst(runner, fielding),
+                Catcher = fielding.Team.Lineup.Count > 0 ? fielding.Team.Lineup[0] : null,
                 Inning = _inning,
                 IsTopHalf = _top,
                 Outs = _outs,
@@ -361,6 +378,14 @@ namespace BaseballSim
             }
             if (approach != Approach.Steal) return false;
             return Steal(runner, fielding, situation.StealOdds, situation);
+        }
+
+        /// <summary>The runner's speed against the pitcher's arm and the catcher's (league lineups bat the catcher first in the list).</summary>
+        double StealOddsAgainst(Player runner, Side fielding)
+        {
+            int level = IsMe(runner) ? Opposition : 0;
+            var catcher = fielding.Team.Lineup.Count > 0 ? fielding.Team.Lineup[0] : null;
+            return AtBatChoice.StealOdds(runner, fielding.Pitcher, catcher, level);
         }
 
         /// <summary>A runner on first with second open, per plate appearance: the fastest try now and then.</summary>

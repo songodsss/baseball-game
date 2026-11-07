@@ -82,7 +82,7 @@ namespace BaseballSim.Career
                 Home = home,
                 AwayStarter = awayStarter,
                 HomeStarter = homeStarter,
-                Player = Me.ForGame(_random, TodayForm),
+                Player = Me.ForGame(_random, TodayForm + StatusForm),
                 Seed = (int)(_random.NextDouble() * int.MaxValue),
                 Result = result,
             };
@@ -107,6 +107,8 @@ namespace BaseballSim.Career
                 };
             }
 
+            sim.MeId = g.Player.Id;
+            sim.Opposition = OppositionLevel;
             bool atHome = g.Home == MyTeam;
             var awayStarter = g.AwayStarter;
             var homeStarter = g.HomeStarter;

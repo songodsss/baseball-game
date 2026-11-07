@@ -259,6 +259,8 @@ namespace BaseballSim.Career
             {
                 MaxInnings = PostseasonMaxInnings,
                 DecideFor = gamePlayer,
+                MeId = gamePlayer.Id,
+                Opposition = career.OppositionLevel,
                 Decide = s => ctx.Asked < ctx.Decisions.Count ? ctx.Decisions[ctx.Asked++] : ctx.Auto ? Approach.Normal : (Approach?)null,
             };
             bool atHome = home == career.MyTeam;

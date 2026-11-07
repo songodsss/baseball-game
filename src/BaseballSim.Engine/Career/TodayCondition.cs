@@ -28,7 +28,7 @@ namespace BaseballSim.Career
         }
 
         /// <summary>Game condition today: form, minus tiredness, plus half the morale. Same formula as ForGame.</summary>
-        public int TodayCondition => TodayForm - Math.Max(0, (Me.Fatigue - 50) / 6) + Me.Morale / 2;
+        public int TodayCondition => TodayForm + StatusForm - Math.Max(0, (Me.Fatigue - 50) / 6) + Me.Morale / 2;
 
         /// <summary>Today's condition as 1–5 stars.</summary>
         public int ConditionStars

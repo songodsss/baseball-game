@@ -32,6 +32,8 @@ namespace BaseballSim.Career
         public int TrainingCrit;
         /// <summary>Stats that reached a new grade today (E·D·C·B·A·S·SS·SSS), each with its training boost.</summary>
         public List<GradeUp> GradeUps = new List<GradeUp>();
+        /// <summary>States that came on today (상승세, 유리몸 …).</summary>
+        public List<StatusDef> NewStatuses = new List<StatusDef>();
         /// <summary>Rating points gained today, from training and from the game.</summary>
         public Dictionary<Stat, int> PointsGained = new Dictionary<Stat, int>();
         public bool GotInjured;
@@ -332,6 +334,8 @@ namespace BaseballSim.Career
         public StoryEvent PendingEvent { get; private set; }
 
         readonly IRandom _random;
+        /// <summary>Hurt when the day began: coming back today puts on 유리몸.</summary>
+        bool _injuredAtDayStart;
         readonly GameSimulator _sim;
 
         public Career(CareerPlayer me, League league, Team myTeam, IRandom random)
@@ -391,6 +395,7 @@ namespace BaseballSim.Career
             PendingTrade = null;
 
             var result = new DayResult { Season = Season, Day = Day, Action = action };
+            _injuredAtDayStart = Me.IsInjured;
             // A tournament left unplayed (the screen plays it game by game) is played out first.
             if (InTournament) { AutoTournament(); result.Tournament = FinishTournament(); }
             if (Me.IsInjured) result.Action = action = DailyAction.Rest;
@@ -441,6 +446,7 @@ namespace BaseballSim.Career
             Day++;
             result.Milestones = CheckMilestones(result);
             result.GradeUps = CheckGrades();
+            UpdateStatuses(result, _injuredAtDayStart);
             ReviewRoster(result);
             if (Day == AllStarDay) PlayAllStar(result);
             if (Day == TournamentDay && NationalTeam.IsTournamentYear(Year)) PlayTournament(result);
@@ -502,7 +508,7 @@ namespace BaseballSim.Career
 
             bool tired = Me.Fatigue >= TiredThreshold;
             double rehab = 1 - Facilities.InjuryReduction(Me.FacilityLevel(Facility.RehabCenter));
-            if (tired && _random.NextDouble() < InjuryChanceWhenTired * rehab)
+            if (tired && _random.NextDouble() < InjuryChanceWhenTired * rehab * StatusInjury)
             {
                 var kind = Injuries.Roll(_random);
                 Injure(kind, (int)Math.Ceiling(Injuries.Days(kind, _random) * rehab / DayWeight));
@@ -513,7 +519,7 @@ namespace BaseballSim.Career
 
             var (main, side) = TrainingTargets(action);
             result.ConditionStars = ConditionStars;
-            double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0);
+            double mult = ConditionTraining(result.ConditionStars) * AgeGrowth() * (tired ? 0.5 : 1.0) * (Me.Traits.Contains(Traits.Grinder) ? 1.25 : 1.0) * StatusTraining;
             result.TrainingCrit = tired ? 0 : RollTrainingCrit(result.ConditionStars);
             if (result.TrainingCrit > 0) mult *= result.TrainingCrit;
             AddPoints(result, main, Me.GainExp(main, (int)Math.Round(TrainMainExp * DayWeight * mult * VeteranGrowth(main) * TrainingMultiplier(main))));
@@ -529,7 +535,7 @@ namespace BaseballSim.Career
 
         int RollTrainingCrit(int stars)
         {
-            double boost = stars >= 4 ? 1.5 : 1.0;
+            double boost = (stars >= 4 ? 1.5 : 1.0) * StatusCrit;
             double roll = _random.NextDouble();
             return roll < SuperTrainingChance * boost ? 3 : roll < (SuperTrainingChance + GreatTrainingChance) * boost ? 2 : 0;
         }
@@ -699,7 +705,7 @@ namespace BaseballSim.Career
         /// </summary>
         public bool NextTrainingTires => Me.Fatigue + TrainingFatigue + GameFatigueToday - DailyEase >= TiredThreshold;
 
-        int Tiring(int fatigue) => Me.Traits.Contains(Traits.Iron) ? (int)Math.Round(fatigue * 0.7) : fatigue;
+        int Tiring(int fatigue) => (int)Math.Round(fatigue * (Me.Traits.Contains(Traits.Iron) ? 0.7 : 1.0) * (StatusIron ? 0.7 : 1.0));
 
         /// <summary>Three traits to pick one from, offered when a slot opens; waits until picked.</summary>
         public List<Trait> PendingTraitOffer { get; private set; }
@@ -769,7 +775,7 @@ namespace BaseballSim.Career
                 Home = home,
                 AwayStarter = awayStarter,
                 HomeStarter = homeStarter,
-                Player = Me.ForGame(_random, TodayForm),
+                Player = Me.ForGame(_random, TodayForm + StatusForm),
                 Seed = (int)(_random.NextDouble() * int.MaxValue),
                 Result = result,
             };
@@ -791,6 +797,8 @@ namespace BaseballSim.Career
                 };
             }
 
+            sim.MeId = g.Player.Id;
+            sim.Opposition = OppositionLevel;
             var regular = MyTeam.Lineup[LineupSlot];
             MyTeam.Lineup[LineupSlot] = g.Player;
             GameResult game;

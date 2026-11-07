@@ -32,7 +32,7 @@ public class TacticTests
                 offered++;
                 Assert.Same(mine, s.Runner);
                 Assert.True(s.Bases[0] && !s.Bases[1] && s.Outs < 2);
-                Assert.InRange(s.StealOdds, 0.85, 0.95);
+                Assert.InRange(s.StealOdds, 0.75, 0.95); // speed 95, less against a strong arm and a good catcher
                 return Approach.Steal;
             }, away, home);
             foreach (var ev in game.Events.Where(e => e.Kind == EventKind.StolenBase && e.Batter == mine))

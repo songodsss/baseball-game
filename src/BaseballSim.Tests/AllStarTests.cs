@@ -29,8 +29,14 @@ public class AllStarTests
     [Fact]
     public void StarPlaysInTheMidseasonGameWithoutItCounting()
     {
-        var career = NewCareer(1, 95);
-        var allStar = PlayToAllStar(career);
+        // A star can still hit a cold spell and be sent down before the break: take a career that made the team.
+        CareerState career = null;
+        AllStarResult allStar = null;
+        for (int seed = 1; seed <= 10 && (allStar == null || !allStar.Selected); seed++)
+        {
+            career = NewCareer(seed, 95);
+            allStar = PlayToAllStar(career);
+        }
         Assert.Equal(career.League.GamesPerSeason / 2, career.Day);
 
         int played = career.League.Standings.Values.Sum(s => s.Wins + s.Losses + s.Ties);

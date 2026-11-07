@@ -58,6 +58,8 @@ public class AtBatChoiceTests
         int answers = 0;
         while (day.AtBat != null)
         {
+            // A steal question on first is a different call: staying put leaves no note.
+            if (day.AtBat.Stealing) { day = career.ChooseApproach(Approach.Normal); continue; }
             day = career.ChooseApproach(day.AtBat.Hunch == Pitch.Fastball ? Approach.SitFastball : Approach.SitBreaking);
             answers++;
             Assert.Equal(answers, day.AtBatLog.Count);
