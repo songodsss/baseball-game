@@ -870,12 +870,10 @@ namespace BaseballGame
             var bar = UiKit.Bar(card, s.StealOdds >= 0.7 ? new Color(0.3f, 0.75f, 0.45f) : UiKit.Warning);
             UiKit.Height(bar.parent, 64);
             UiKit.SetBar(bar, (float)s.StealOdds);
-            var odds = UiKit.Label(bar.parent, $"성공 확률 {s.StealOdds:P0}  (주력 {_career.Me.EffectiveRating(Stat.Speed)})", 30, TextAnchor.MiddleCenter);
+            var odds = UiKit.Label(bar.parent, $"성공 확률 {s.StealOdds:P0}", 30, TextAnchor.MiddleCenter);
             odds.fontStyle = FontStyle.Bold;
             UiKit.Stretch(odds.rectTransform);
-            string battery = $"상대 투수 구속 {s.Pitcher.Pitching?.Velocity ?? 50}" + (s.Catcher != null ? $" · 포수 {s.Catcher.Name} 수비 {s.Catcher.Batting.Defense}" : "") +
-                (_career.OppositionLevel > 0 ? $" · 리그 수준 +{_career.OppositionLevel}" : "");
-            UiKit.Height(UiKit.Label(card, battery + "\n성공하면 득점권, 실패하면 아웃. 빠를수록, 상대 어깨가 약할수록 성공률이 올라가요.", 26, TextAnchor.MiddleCenter, UiKit.Muted), 80);
+            UiKit.Height(UiKit.Label(card, "성공하면 득점권, 실패하면 아웃이에요. 빠를수록 성공률이 올라가요.", 26, TextAnchor.MiddleCenter, UiKit.Muted), 60);
             UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
             ChoiceRow(card, ("뛴다!", Approach.Steal, Gold), ("멈춘다", Approach.Normal, UiKit.Background));
             Tip("steal", "1루에 나가면 도루를 시도할 수 있어요. 주루 훈련으로 주력을 올리면 성공률이 높아져요.");
