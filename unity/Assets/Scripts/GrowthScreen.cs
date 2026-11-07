@@ -1639,6 +1639,7 @@ namespace BaseballGame
                 var pay = r.Payday;
                 string label2 = _career.InMilitary ? "군 복무 수당" : "월급";
                 lines.Add($"<color=#FFD24D>{pay.Month} {label2} {Krw.Format(pay.Salary)}" + (pay.Bonus > 0 ? $" + 성적 보너스 {Krw.Format(pay.Bonus)}" : "") + " 입금!</color>");
+                if (pay.FanGift != null) lines.Add($"<color=#5FA8FF><b>{pay.FanGift}</b></color>");
             }
             Log(string.Join("\n", lines));
         }

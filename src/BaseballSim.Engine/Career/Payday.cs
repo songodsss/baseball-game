@@ -7,6 +7,8 @@ namespace BaseballSim.Career
         public int Salary;
         public int Bonus;
         public int Total => Salary + Bonus;
+        /// <summary>The fans' gift that came with it (from 40 popularity), or null.</summary>
+        public string FanGift;
     }
 
     /// <summary>
@@ -39,6 +41,7 @@ namespace BaseballSim.Career
                 PendingBonus = 0;
                 Me.Money += pay.Total;
                 result.MoneyEarned += pay.Total;
+                pay.FanGift = FanGift();
                 result.Payday = pay;
             }
         }

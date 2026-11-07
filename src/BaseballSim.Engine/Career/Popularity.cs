@@ -34,13 +34,33 @@ namespace BaseballSim.Career
         /// <summary>What popularity does, for the profile: each line with whether it's on yet.</summary>
         public static List<(bool On, string Text)> PopularityPerks(int popularity) => new List<(bool, string)>
         {
-            (true, $"시즌 끝 광고 수입 {Krw.Format(popularity * SponsorPerPopularity)} (인기 1당 {SponsorPerPopularity}만원)"),
-            (popularity > 0, $"연봉 시세 +{popularity / 4}% (인기 4당 1%, FA 제안에도 반영)"),
-            (popularity >= 20, "인기 20+ · 좋은 경기 뒤 인터뷰·팬 장면이 더 자주 와요"),
+            (popularity >= 20, "인기 20+ · 홈 관중 응원: 홈경기 컨디션 +1"),
+            (popularity >= 40, $"인기 40+ · 월급날 팬 선물: 주특기 훈련 효율 +{FanGiftPercent(Math.Max(40, popularity))}% (20일)"),
             (popularity >= HomeCheerPopularity, $"인기 {HomeCheerPopularity}+ · 홈경기에서 뛴 날은 좋은 사기가 떨어지지 않아요"),
+            (popularity >= 60, "인기 60+ · 홈 찬스에서 관중 함성: 노림수 '느낌' 적중률 +5%"),
             (popularity >= FanVotePopularity, $"인기 {FanVotePopularity}+ · 성적이 모자라도 팬 투표로 올스타·홈런 더비 출전"),
-            (popularity >= 100, "인기 100 · 업적 '국민 스타'"),
+            (popularity >= 80, "인기 80+ · 어디서나 응원: 원정에서도 컨디션 +1 (홈은 +2)"),
+            (popularity >= 100, "인기 100 · 국민 스타: 모든 훈련 효율 +10%"),
+            (popularity > 0, $"연봉 시세 +{popularity / 4}% · 시즌 끝 광고 수입 {Krw.Format(popularity * SponsorPerPopularity)}"),
         };
+
+        /// <summary>The fans' gift on payday: 10% at 40, 15% at 60, 20% at 80 and up.</summary>
+        public static int FanGiftPercent(int popularity) => popularity >= 80 ? 20 : popularity >= 60 ? 15 : popularity >= 40 ? 10 : 0;
+
+        /// <summary>Game condition from the crowd: +1 at home from 20, and +1 anywhere from 80.</summary>
+        int CrowdForm(bool home) => (home && Me.Popularity >= 20 ? 1 : 0) + (Me.Popularity >= 80 ? 1 : 0);
+
+        double PopularityTraining => Me.Popularity >= 100 ? 1.1 : 1.0;
+
+        /// <summary>On payday, from 40 popularity the fans send something: the main stat trains faster for a while.</summary>
+        string FanGift()
+        {
+            int pct = FanGiftPercent(Me.Popularity);
+            if (pct == 0 || InMilitary) return null;
+            var main = Me.MyStats.OrderByDescending(s => Me.Ratings[s]).First();
+            AddBoost(main, pct, 20, "팬 선물");
+            return $"팬 선물 도착! {Stats.Name(main)} 훈련 효율 +{pct}% (20일)";
+        }
 
         bool CheeredAtHome(DayResult day) =>
             Me.Popularity >= HomeCheerPopularity && day?.MyGame != null && day.MyGame.Home == MyTeam

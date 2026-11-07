@@ -144,7 +144,7 @@ namespace BaseballSim.Career
             + (HasStatus(Statuses.Newlywed) ? 1 : 0) + (HasStatus(Statuses.Defending) ? 1 : 0) + (HasStatus(Statuses.Prime) ? 1 : 0);
 
         /// <summary>Training from the states: the rookie blessing up, wear down.</summary>
-        double StatusTraining => (RookieBlessed ? RookieTraining : 1.0) * (HasStatus(Statuses.Worn) ? 0.8 : 1.0)
+        double StatusTraining => PopularityTraining * (RookieBlessed ? RookieTraining : 1.0) * (HasStatus(Statuses.Worn) ? 0.8 : 1.0)
             * (HasStatus(Statuses.Discharged) ? 1.2 : 1.0) * (HasStatus(Statuses.FreshStart) ? 1.15 : 1.0) * (HasStatus(Statuses.Comeback) ? 1.15 : 1.0) * (HasStatus(Statuses.Rebound) ? 1.2 : 1.0);
 
         /// <summary>Fans won count this much more (new club, defending champions, last dance, a legend's heir).</summary>
@@ -167,10 +167,11 @@ namespace BaseballSim.Career
         }
 
         /// <summary>My player for today's game, with the states and perks on.</summary>
-        Player GameCopy(IRandom random)
+        Player GameCopy(IRandom random, bool home)
         {
-            var p = Me.ForGame(random, TodayForm + StatusForm);
+            var p = Me.ForGame(random, TodayForm + StatusForm + CrowdForm(home));
             foreach (var t in PerkTraits()) p.Traits.Add(t);
+            if (home && Me.Popularity >= 60) p.Traits.Add(AtBatChoice.CrowdEye);
             return p;
         }
 

@@ -82,9 +82,9 @@ namespace BaseballSim
         public const string Clutch = "clutch";
         public const string Gambler = "gambler";
         /// <summary>Season perks on the game copy: a sharper hunch (+10 points, +5 points).</summary>
-        public const string SharpEye = "sharp_eye", SeasonedEye = "seasoned_eye";
+        public const string SharpEye = "sharp_eye", SeasonedEye = "seasoned_eye", CrowdEye = "crowd_eye";
 
-        static double PerkRead(Player p) => (p.Traits.Contains(SharpEye) ? 0.10 : 0) + (p.Traits.Contains(SeasonedEye) ? 0.05 : 0);
+        static double PerkRead(Player p) => (p.Traits.Contains(SharpEye) ? 0.10 : 0) + (p.Traits.Contains(SeasonedEye) ? 0.05 : 0) + (p.Traits.Contains(CrowdEye) ? 0.05 : 0);
 
         /// <summary>Scoring position, or a close game late.</summary>
         public static bool IsBig(int inning, bool[] bases, int scoreGap) =>
