@@ -30,21 +30,27 @@ namespace BaseballSim.Career
         // Season perks: each comes with a moment of the career and lasts that season (veteran: from 33 on).
         public const string Discharged = "discharged", FreshStart = "fresh_start", ContractYear = "contract_year", Newlywed = "newlywed",
             NewDad = "new_dad", Taegeuk = "taegeuk", Comeback = "comeback", Veteran = "veteran", LastDance = "last_dance",
-            Sophomore = "sophomore", BigContract = "big_contract";
+            Sophomore = "sophomore", BigContract = "big_contract",
+            Defending = "defending", MvpPride = "mvp_pride", Rebound = "rebound", Prime = "prime", Heir = "heir";
         public const string Rookie = "rookie", Hot = "hot", Cold = "cold", Fragile = "fragile", Iron = "iron", Worn = "worn", Focus = "focus";
 
         public static readonly List<StatusDef> All = new List<StatusDef>
         {
             new StatusDef { Id = Rookie, Name = "새싹의 축복", Good = true, Description = "프로 첫 두 시즌: 훈련 경험치 +25%, 지쳐도 부상 확률 절반" },
             new StatusDef { Id = Discharged, Name = "전역의 각오", Good = true, Description = "전역 후 첫 시즌: 훈련 경험치 +20%" },
-            new StatusDef { Id = FreshStart, Name = "새 출발", Good = true, Description = "새 팀 첫 시즌: 훈련 +15%, 사기가 0 밑으로 안 떨어짐" },
+            new StatusDef { Id = FreshStart, Name = "새 출발", Good = true, Description = "새 팀 첫 시즌: 훈련 +15%, 인기 1.5배로 오름" },
             new StatusDef { Id = ContractYear, Name = "FA로이드", Good = true, Description = "계약 마지막 시즌: 경기 컨디션 +2" },
-            new StatusDef { Id = Newlywed, Name = "신혼의 힘", Good = true, Description = "결혼한 시즌: 사기가 0 밑으로 안 떨어짐" },
+            new StatusDef { Id = Newlywed, Name = "신혼의 힘", Good = true, Description = "결혼한 시즌: 경기 컨디션 +1, 매일 피로 3 더 회복" },
             new StatusDef { Id = NewDad, Name = "아빠의 힘", Good = true, Description = "아이가 태어난 시즌: 찬스에서 노림수 적중 시 장타 확률 업" },
             new StatusDef { Id = Taegeuk, Name = "태극마크 효과", Good = true, Description = "국가대표 다녀온 시즌: 노림수 '느낌' 적중률 +10%" },
             new StatusDef { Id = Comeback, Name = "재기의 의지", Good = true, Description = "큰 부상 다음 시즌: 유리몸에 안 걸리고 훈련 +15%" },
             new StatusDef { Id = Veteran, Name = "베테랑의 노련함", Good = true, Description = "33세부터: 피로 15% 덜 쌓이고 '느낌' 적중률 +5%" },
             new StatusDef { Id = LastDance, Name = "라스트 댄스", Good = true, Description = "마지막 시즌: 경기 컨디션 +2, 인기 2배로 오름" },
+            new StatusDef { Id = Defending, Name = "디펜딩 챔피언", Good = true, Description = "우승 다음 시즌: 경기 컨디션 +1, 인기 1.5배로 오름" },
+            new StatusDef { Id = MvpPride, Name = "MVP의 품격", Good = true, Description = "MVP 다음 시즌: 노림수 '느낌' 적중률 +10%" },
+            new StatusDef { Id = Rebound, Name = "절치부심", Good = true, Description = "부진했던 시즌 다음: 훈련 경험치 +20%" },
+            new StatusDef { Id = Prime, Name = "전성기", Good = true, Description = "28~31세: 경기 컨디션 +1" },
+            new StatusDef { Id = Heir, Name = "전설의 계승자", Good = true, Description = "레전드 기록을 넘은 뒤 은퇴까지: 인기 1.5배로 오름, 찬스 장타 확률 업" },
             new StatusDef { Id = Sophomore, Name = "2년차 징크스", Good = false, Description = "신인왕 다음 시즌: 경기 컨디션 -1" },
             new StatusDef { Id = BigContract, Name = "대박 계약의 부담", Good = false, Description = "연봉이 크게 오른 시즌: 좋은 사기가 두 배로 빨리 식음" },
             new StatusDef { Id = Hot, Name = "상승세", Good = true, Description = "몸이 가볍다: 경기 컨디션 +2" },
@@ -96,6 +102,11 @@ namespace BaseballSim.Career
                 case Statuses.Veteran: return Me.Age >= 33;
                 case Statuses.LastDance: return IsFinalSeason && !InMilitary;
                 case Statuses.Sophomore: return last != null && Me.History.Count == 1 && last.Titles.Contains(Awards.Rookie);
+                case Statuses.Defending: return last != null && last.Titles.Contains(BaseballSim.Career.Postseason.ChampionTitle);
+                case Statuses.MvpPride: return last != null && last.Titles.Contains(Awards.Mvp);
+                case Statuses.Rebound: return last != null && !last.Military && (last.Pitching != null ? last.Pitching.Outs >= 60 && last.Pitching.Era >= 5.0 : last.Line.PlateAppearances >= 100 && Ops(last.Line) < 0.650);
+                case Statuses.Prime: return Me.Age >= 28 && Me.Age <= 31;
+                case Statuses.Heir: return Legends.All.Any(l => StageOf(l.Id) == LegendStage.Surpassed);
                 case Statuses.BigContract: return last != null && Me.Salary >= last.Salary * 2 && Me.Salary - last.Salary >= 10000;
                 default: return null;
             }
@@ -109,7 +120,7 @@ namespace BaseballSim.Career
             {
                 if (!HasStatus(d.Id)) continue;
                 if (d.Id == Statuses.Rookie) { list.Add(new ActiveStatus { Def = d, DaysLeft = 0, Text = $"{RookieSeasons - Season + 1}시즌 남음" }); continue; }
-                if (SeasonPerk(d.Id) != null) { list.Add(new ActiveStatus { Def = d, DaysLeft = 0, Text = d.Id == Statuses.Veteran ? "은퇴까지" : "이번 시즌" }); continue; }
+                if (SeasonPerk(d.Id) != null) { list.Add(new ActiveStatus { Def = d, DaysLeft = 0, Text = d.Id == Statuses.Veteran || d.Id == Statuses.Heir ? "은퇴까지" : d.Id == Statuses.Prime ? "31세까지" : "이번 시즌" }); continue; }
                 int left = Me.StoryMarks[StatusMark + d.Id] - Stamp;
                 list.Add(new ActiveStatus { Def = d, DaysLeft = left, Text = left > 900 ? "풀릴 때까지" : $"{left}일" });
             }
@@ -129,14 +140,19 @@ namespace BaseballSim.Career
 
         /// <summary>Game condition from the states on today.</summary>
         int StatusForm => (HasStatus(Statuses.Hot) ? 2 : 0) - (HasStatus(Statuses.Cold) ? 2 : 0) - (HasStatus(Statuses.Worn) ? 1 : 0)
-            + (HasStatus(Statuses.ContractYear) ? 2 : 0) + (HasStatus(Statuses.LastDance) ? 2 : 0) - (HasStatus(Statuses.Sophomore) ? 1 : 0);
+            + (HasStatus(Statuses.ContractYear) ? 2 : 0) + (HasStatus(Statuses.LastDance) ? 2 : 0) - (HasStatus(Statuses.Sophomore) ? 1 : 0)
+            + (HasStatus(Statuses.Newlywed) ? 1 : 0) + (HasStatus(Statuses.Defending) ? 1 : 0) + (HasStatus(Statuses.Prime) ? 1 : 0);
 
         /// <summary>Training from the states: the rookie blessing up, wear down.</summary>
         double StatusTraining => (RookieBlessed ? RookieTraining : 1.0) * (HasStatus(Statuses.Worn) ? 0.8 : 1.0)
-            * (HasStatus(Statuses.Discharged) ? 1.2 : 1.0) * (HasStatus(Statuses.FreshStart) ? 1.15 : 1.0) * (HasStatus(Statuses.Comeback) ? 1.15 : 1.0);
+            * (HasStatus(Statuses.Discharged) ? 1.2 : 1.0) * (HasStatus(Statuses.FreshStart) ? 1.15 : 1.0) * (HasStatus(Statuses.Comeback) ? 1.15 : 1.0) * (HasStatus(Statuses.Rebound) ? 1.2 : 1.0);
 
-        /// <summary>Morale never drops below zero in these seasons.</summary>
-        bool MoraleFloor => HasStatus(Statuses.FreshStart) || HasStatus(Statuses.Newlywed);
+        /// <summary>Fans won count this much more (new club, defending champions, last dance, a legend's heir).</summary>
+        double StatusFans => (HasStatus(Statuses.LastDance) ? 2.0 : 1.0) * (HasStatus(Statuses.FreshStart) ? 1.5 : 1.0)
+            * (HasStatus(Statuses.Defending) ? 1.5 : 1.0) * (HasStatus(Statuses.Heir) ? 1.5 : 1.0);
+
+        /// <summary>Extra daily fatigue recovery.</summary>
+        int StatusRecovery => HasStatus(Statuses.Newlywed) ? 3 : 0;
 
         /// <summary>Fatigue gained is scaled by this (veterans pace themselves).</summary>
         double StatusFatigue => HasStatus(Statuses.Veteran) ? 0.85 : 1.0;
@@ -144,7 +160,8 @@ namespace BaseballSim.Career
         /// <summary>Traits the game copy of my player carries from the season perks (see AtBatChoice).</summary>
         IEnumerable<string> PerkTraits()
         {
-            if (HasStatus(Statuses.NewDad)) yield return AtBatChoice.Clutch;
+            if (HasStatus(Statuses.NewDad) || HasStatus(Statuses.Heir)) yield return AtBatChoice.Clutch;
+            if (HasStatus(Statuses.MvpPride)) yield return AtBatChoice.SharpEye;
             if (HasStatus(Statuses.Taegeuk)) yield return AtBatChoice.SharpEye;
             if (HasStatus(Statuses.Veteran)) yield return AtBatChoice.SeasonedEye;
         }

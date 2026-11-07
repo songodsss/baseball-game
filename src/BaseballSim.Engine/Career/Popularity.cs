@@ -55,7 +55,7 @@ namespace BaseballSim.Career
         {
             int points = bat != null ? 2 * bat.Hits + 6 * bat.HomeRuns : 0;
             if (pitch != null) points += 10 * pitch.Wins + 8 * pitch.Saves + 5 * pitch.Holds + pitch.Strikeouts + 30 * pitch.Shutouts;
-            AddFans(points * DayWeight * (HasStatus(Statuses.LastDance) ? 2 : 1));
+            AddFans((int)Math.Round(points * DayWeight * StatusFans));
         }
 
         /// <summary>At season end: honours win fans, almost a third drift away, and sponsors pay on what's left.</summary>

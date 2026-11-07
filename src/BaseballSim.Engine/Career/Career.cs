@@ -432,7 +432,7 @@ namespace BaseballSim.Career
         DayResult FinishDay(DayResult result)
         {
             result.AtBat = null;
-            Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery - Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom)));
+            Me.Fatigue = Math.Max(0, Me.Fatigue - DailyRecovery - StatusRecovery - Facilities.ExtraRecovery(Me.FacilityLevel(Facility.TrainerRoom)));
             if (Me.InjuryDaysLeft > 0) { Me.InjuryDaysLeft--; InjuryDays++; }
             else if (Me.LingerDays > 0) Me.LingerDays--;
             // Sunday's game is the last of the week: Monday has no game and the body gets a real rest.
@@ -444,7 +444,6 @@ namespace BaseballSim.Career
             // A loud home crowd keeps a good mood from fading.
             if (!(Me.Morale > 0 && CheeredAtHome(result)))
                 Me.Morale -= Math.Sign(Me.Morale) * (Me.Morale > 1 && HasStatus(Statuses.BigContract) ? 2 : 1);
-            if (MoraleFloor && Me.Morale < 0) Me.Morale = 0;
             Day++;
             result.Milestones = CheckMilestones(result);
             result.GradeUps = CheckGrades();
