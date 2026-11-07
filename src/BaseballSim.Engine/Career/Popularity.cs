@@ -5,7 +5,7 @@ using System.Linq;
 namespace BaseballSim.Career
 {
     /// <summary>
-    /// Popularity, 0 up (100 is a national star, 150 and 200 are for the very few): hits, homers and wins win fans, honours win more, and almost a third of them drift
+    /// Popularity, 0 up (100 is a national star, 150 and 200 are for the very few): hits, homers and wins win fans, honours win more, and some of them drift
     /// away each winter. It can carry a player into the all-star game by fan vote and brings in a little
     /// sponsor money; it never touches ratings.
     /// </summary>
@@ -13,6 +13,8 @@ namespace BaseballSim.Career
     {
         public const int FanPointsPerPopularity = 30;
         public const int MaxPopularity = 300;
+        /// <summary>Percent of the fans who drift away each winter.</summary>
+        public const int WinterDrift = 15;
         const int MaxFanPoints = MaxPopularity * FanPointsPerPopularity;
         /// <summary>Popularity that wins an all-star spot by fan vote even without the numbers.</summary>
         public const int FanVotePopularity = 70;
@@ -89,7 +91,7 @@ namespace BaseballSim.Career
             summary.Popularity = Me.Popularity;
             summary.Sponsor = Me.Popularity * SponsorPerPopularity;
             Me.Money += summary.Sponsor;
-            Me.FanPoints = Me.FanPoints * 7 / 10;
+            Me.FanPoints = Me.FanPoints * (100 - WinterDrift) / 100;
         }
     }
 }

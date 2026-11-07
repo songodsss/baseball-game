@@ -66,7 +66,7 @@ namespace BaseballGame
                 Line(content, $"<color={(a.Def.Good ? "#5FA8FF" : "#F28C40")}><b>{a.Def.Name}</b></color> ({a.Text})  <color=#BAC4D8>{a.Def.Description}</color>");
 
             Section(content, $"인기 {me.Popularity} · {CareerState.PopularityTier(me.Popularity)}");
-            Line(content, "안타·홈런·승리와 타이틀로 오르고, 겨울마다 30%쯤 식어요.", UiKit.Muted);
+            Line(content, "안타·홈런·승리와 타이틀로 오르고, 겨울마다 15%쯤 식어요.", UiKit.Muted);
             foreach (var (on, text) in CareerState.PopularityPerks(me.Popularity))
                 Line(content, on ? $"<color=#FFD24D>✓</color> {text}" : $"<color=#6B7488>· {text}</color>");
 
