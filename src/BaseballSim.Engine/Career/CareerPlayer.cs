@@ -169,7 +169,7 @@ namespace BaseballSim.Career
 
         /// <summary>Fan points; popularity is a 0-100 view of them.</summary>
         public int FanPoints;
-        public int Popularity => Math.Min(100, FanPoints / Career.FanPointsPerPopularity);
+        public int Popularity => Math.Min(Career.MaxPopularity, FanPoints / Career.FanPointsPerPopularity);
 
         public int EffectiveRating(Stat stat) => Math.Min(100, Ratings[stat] + EquipmentBonus(stat) + BaseballSim.Career.Traits.BoostFor(this, stat));
 

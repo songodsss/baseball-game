@@ -25,6 +25,7 @@ public class PopularityPerkTests
         Assert.Equal("무명", BaseballSim.Career.Career.PopularityTier(5));
         Assert.Equal("스타", BaseballSim.Career.Career.PopularityTier(65));
         Assert.Equal("국민 스타", BaseballSim.Career.Career.PopularityTier(100));
+        Assert.Equal("야구의 아이콘", BaseballSim.Career.Career.PopularityTier(230));
         Assert.Equal(1.25, BaseballSim.Career.Career.PopularityPay(100), 3);
         var perks = BaseballSim.Career.Career.PopularityPerks(55);
         Assert.Contains(perks, p => p.On && p.Text.Contains("홈경기"));

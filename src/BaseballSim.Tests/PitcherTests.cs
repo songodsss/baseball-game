@@ -250,7 +250,7 @@ public class PopularityTests
         Assert.True(summary.Popularity > 0);
         Assert.Equal(summary.Popularity * 8, summary.Sponsor);
         Assert.True(career.Me.FanPoints < before + 2000);
-        Assert.InRange(career.Me.Popularity, 0, 100);
+        Assert.InRange(career.Me.Popularity, 0, BaseballSim.Career.Career.MaxPopularity);
     }
 
     [Fact]

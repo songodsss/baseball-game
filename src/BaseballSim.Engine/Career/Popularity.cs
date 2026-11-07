@@ -5,14 +5,15 @@ using System.Linq;
 namespace BaseballSim.Career
 {
     /// <summary>
-    /// Popularity, 0-100: hits, homers and wins win fans, honours win more, and almost a third of them drift
+    /// Popularity, 0 up (100 is a national star, 150 and 200 are for the very few): hits, homers and wins win fans, honours win more, and almost a third of them drift
     /// away each winter. It can carry a player into the all-star game by fan vote and brings in a little
     /// sponsor money; it never touches ratings.
     /// </summary>
     public partial class Career
     {
         public const int FanPointsPerPopularity = 30;
-        const int MaxFanPoints = 3600;
+        public const int MaxPopularity = 300;
+        const int MaxFanPoints = MaxPopularity * FanPointsPerPopularity;
         /// <summary>Popularity that wins an all-star spot by fan vote even without the numbers.</summary>
         public const int FanVotePopularity = 70;
         /// <summary>Sponsor money per popularity point at season end: kept small on purpose.</summary>
@@ -22,11 +23,11 @@ namespace BaseballSim.Career
         public const int HomeCheerPopularity = 50;
 
         /// <summary>Salary worth goes up a quarter of a percent per popularity point (+25% at 100).</summary>
-        public static double PopularityPay(int popularity) => 1 + popularity / 400.0;
+        public static double PopularityPay(int popularity) => 1 + Math.Min(200, popularity) / 400.0;
 
         static readonly (int From, string Name)[] Tiers =
         {
-            (100, "국민 스타"), (80, "슈퍼스타"), (60, "스타"), (40, "인기 선수"), (20, "주목받는 선수"), (0, "무명"),
+            (200, "야구의 아이콘"), (150, "살아있는 전설"), (100, "국민 스타"), (80, "슈퍼스타"), (60, "스타"), (40, "인기 선수"), (20, "주목받는 선수"), (0, "무명"),
         };
 
         public static string PopularityTier(int popularity) => Tiers.First(t => popularity >= t.From).Name;
@@ -41,16 +42,18 @@ namespace BaseballSim.Career
             (popularity >= FanVotePopularity, $"인기 {FanVotePopularity}+ · 성적이 모자라도 팬 투표로 올스타·홈런 더비 출전"),
             (popularity >= 80, "인기 80+ · 어디서나 응원: 원정에서도 컨디션 +1 (홈은 +2)"),
             (popularity >= 100, "인기 100 · 국민 스타: 모든 훈련 효율 +10%"),
+            (popularity >= 150, "인기 150 · 살아있는 전설: 컨디션 +1 더 (홈 +3, 원정 +2), 팬 선물 +30%"),
+            (popularity >= 200, "인기 200 · 야구의 아이콘: 모든 훈련 효율 +20%"),
             (popularity > 0, $"연봉 시세 +{popularity / 4}% · 시즌 끝 광고 수입 {Krw.Format(popularity * SponsorPerPopularity)}"),
         };
 
         /// <summary>The fans' gift on payday: 10% at 40, 15% at 60, 20% at 80 and up.</summary>
-        public static int FanGiftPercent(int popularity) => popularity >= 80 ? 20 : popularity >= 60 ? 15 : popularity >= 40 ? 10 : 0;
+        public static int FanGiftPercent(int popularity) => popularity >= 150 ? 30 : popularity >= 80 ? 20 : popularity >= 60 ? 15 : popularity >= 40 ? 10 : 0;
 
         /// <summary>Game condition from the crowd: +1 at home from 20, and +1 anywhere from 80.</summary>
-        int CrowdForm(bool home) => (home && Me.Popularity >= 20 ? 1 : 0) + (Me.Popularity >= 80 ? 1 : 0);
+        int CrowdForm(bool home) => (home && Me.Popularity >= 20 ? 1 : 0) + (Me.Popularity >= 80 ? 1 : 0) + (Me.Popularity >= 150 ? 1 : 0);
 
-        double PopularityTraining => Me.Popularity >= 100 ? 1.1 : 1.0;
+        double PopularityTraining => Me.Popularity >= 200 ? 1.2 : Me.Popularity >= 100 ? 1.1 : 1.0;
 
         /// <summary>On payday, from 40 popularity the fans send something: the main stat trains faster for a while.</summary>
         string FanGift()
