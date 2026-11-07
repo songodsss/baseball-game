@@ -560,4 +560,27 @@ public class LifeEventTests
         var ev = StoryEvents.Scheduled(career, new DayResult());
         return ev != null && (ev.Id.StartsWith("farewell:") || ev.Id.StartsWith("after:") || ev.Id.StartsWith("junior_")) ? ev : null;
     }
+    [Fact]
+    public void TheOrphanPromiseIsSettledByTheNextGame()
+    {
+        var career = NewCareer(21);
+        career.Day = 10;
+        career.Me.StoryMarks["seen:opening"] = career.Stamp;
+        career.Me.StoryMarks["promise"] = career.Stamp;
+        var other = career.League.Teams[1];
+        DayResult Game(int mine, int theirs) => new DayResult
+        {
+            MyGame = new GameResult { Home = career.MyTeam, Away = other, HomeScore = mine, AwayScore = theirs },
+            MyLine = new BattingLine { PlateAppearances = 4 },
+        };
+        Assert.Null(StoryEvents.Scheduled(career, new DayResult())); // no game, no verdict
+        var won = StoryEvents.Scheduled(career, Game(5, 2));
+        Assert.Equal("promise_kept", won?.Id);
+        var outcome = Answer(career, won, 0);
+        Assert.False(career.HasMark("promise"));
+        Assert.Contains(outcome.Changes, ch => ch.Contains("훈련 효율"));
+
+        career.Me.StoryMarks["promise"] = career.Stamp;
+        Assert.Equal("promise_late", StoryEvents.Scheduled(career, Game(1, 3))?.Id);
+    }
 }

@@ -706,7 +706,8 @@ namespace BaseballSim.Career
         /// </summary>
         public bool NextTrainingTires => Me.Fatigue + TrainingFatigue + GameFatigueToday - DailyEase >= TiredThreshold;
 
-        int Tiring(int fatigue) => (int)Math.Round(fatigue * (Me.Traits.Contains(Traits.Iron) ? 0.7 : 1.0) * (StatusIron ? 0.7 : 1.0) * StatusFatigue);
+        // Every fatigue cut together saves at most a quarter: rest days stay needed even with all of them.
+        int Tiring(int fatigue) => (int)Math.Round(fatigue * Math.Max(0.75, (Me.Traits.Contains(Traits.Iron) ? 0.85 : 1.0) * (StatusIron ? 0.85 : 1.0) * StatusFatigue));
 
         /// <summary>Three traits to pick one from, offered when a slot opens; waits until picked.</summary>
         public List<Trait> PendingTraitOffer { get; private set; }
@@ -947,6 +948,7 @@ namespace BaseballSim.Career
 
             Season++;
             Day = 0;
+            PendingEvent = null; // last season's leftover scene never opens the new one
             InjuredThisSeason = false;
             InjuryDays = 0;
             SeasonLine = new BattingLine();

@@ -168,7 +168,7 @@ public class BothKindnessesTests
         var both = StoryEvents.WithBoth(ev);
         Assert.Equal(2, ev.Choices.Count); // the shared event is untouched
         Assert.Equal(3, both.Choices.Count);
-        Assert.Equal("둘 다 한다 (100만원)", both.Choices[2].Label);
+        Assert.Equal("둘 다 한다 (100만원 · 피로 많이)", both.Choices[2].Label);
 
         var refusal = new StoryEvent { Id = "u", Title = "u", Text = "u", Weight = (_, __) => 0, Choices =
         {

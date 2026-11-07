@@ -390,7 +390,7 @@ namespace BaseballSim.Career
         }
 
         /// <summary>A stable number from who the player is, for saves made before the seed existed.</summary>
-        static int SeedFor(CareerPlayer me)
+        internal static int SeedFor(CareerPlayer me)
         {
             uint h = 2166136261u;
             foreach (char ch in me.Name + me.Number + (int)me.Position) h = (h ^ ch) * 16777619u;

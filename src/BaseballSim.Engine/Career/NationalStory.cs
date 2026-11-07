@@ -10,9 +10,9 @@ namespace BaseballSim.Career
     /// wear the armband) and which tournament it is, and most scenes have a few versions so a second
     /// or third call-up doesn't read the same. Military service is a footnote, not the point.
     /// </summary>
-    public static class NationalStory
+    public static partial class NationalStory
     {
-        const string Call = "nt:call", Camp = "nt:camp", Room = "nt:room", Scout = "nt:scout", Eve = "nt:eve", Semi = "nt:semi", End = "nt:end";
+        const string Mid = "nt:mid", Call = "nt:call", Camp = "nt:camp", Room = "nt:room", Scout = "nt:scout", Eve = "nt:eve", Semi = "nt:semi", End = "nt:end";
 
         public static StoryEvent Next(Career c, NationalTeam.Run run)
         {
@@ -20,9 +20,11 @@ namespace BaseballSim.Career
             if (!t.Selected) return null;
             if (run.GamesPlayed == 0 && !Done(c, Call)) return CallUp(c, t);
             if (run.GamesPlayed == 0 && !Done(c, Camp)) return Squad(c, t);
-            if (run.GamesPlayed == 1 && !run.Done && !Done(c, Room)) return Roommate(c, t);
-            if (t.Wbc && run.NextStage == "8강" && !Done(c, Scout)) return Scouts(c, run);
-            if (run.NextStage == "준결승" && !Done(c, Semi)) return SemiEve(c, t);
+            if (run.GamesPlayed == 1 && !run.Done && !Done(c, Room)) return Moment(c, t, run, Room, 0);
+            if (t.Wbc && run.GamesPlayed == 2 && !run.Done && run.NextStage != null && run.NextStage.StartsWith("조별") && !Done(c, Mid)) return Moment(c, t, run, Mid, 1);
+            if (t.Wbc && run.NextStage == "8강" && !Done(c, Scout)) return Pick(c, 2, 5) == 0 ? Scouts(c, run) : Moment(c, t, run, Scout, 2);
+            // The semifinal eve is one of the evenings, not every time: half the tournaments get another moment instead.
+            if (run.NextStage == "준결승" && !Done(c, Semi)) return Pick(c, 2, 3) == 0 ? SemiEve(c, t) : Moment(c, t, run, Semi, 3);
             if (run.NextStage == "결승" && !Done(c, Eve)) return FinalEve(c, run);
             if (run.Done && !Done(c, End)) return Finish(c, t);
             return null;
@@ -58,7 +60,13 @@ namespace BaseballSim.Career
         }
 
         /// <summary>Which version of a scene this tournament gets: changes from one tournament to the next.</summary>
-        static int Pick(Career c, int versions) => (c.Season * 7 + Caps(c) * 3) % versions;
+        static int Pick(Career c, int versions, int salt = 0)
+        {
+            if (c.Story.Seed == 0) c.Story.Seed = MainStory.SeedFor(c.Me);
+            uint h = (uint)c.Story.Seed * 2654435761u ^ (uint)(c.Season * 40503 + Caps(c) * 977 + salt * 7919);
+            h ^= h >> 15; h *= 2246822519u; h ^= h >> 13;
+            return (int)(h % (uint)versions);
+        }
 
         /// <summary>A teammate from another club in the squad, for the scenes.</summary>
         static string Mate(Career c, TournamentResult t, int which)
@@ -89,11 +97,15 @@ namespace BaseballSim.Career
                 {
                     $"대표팀 명단 발표 날. 휴대폰이 쉴 새 없이 울렸다.\n'{NationalTeam.Name} 최종 명단, {{name}} 발탁!'\n가슴에 태극마크를 다는 날이 왔다.",
                     $"훈련을 마치고 라커룸에 들어서자 동료들이 박수를 쳤다.\n\"봤어? 너 {NationalTeam.Name} 뽑혔어!\"\n어릴 때 텔레비전 앞에서 따라 부르던 애국가가 떠올랐다.",
+                    $"원정 버스 안, 감독이 맨 앞자리에서 일어나 내 이름을 불렀다.\n\"{NationalTeam.Name} 대표팀에서 연락 왔다. 축하한다.\" 버스 안이 함성으로 떠나갈 듯했다.",
+                    $"새벽에 고향 친구한테서 문자가 왔다. '야 뉴스 봐!!!'\n{NationalTeam.Name} 최종 명단, 맨 아래 줄에 {{name}}. 몇 번을 새로고침해도 그대로였다.",
                 };
                 string[] againVersions =
                 {
                     $"{NationalTeam.Name} 명단에 또 {{name}}의 이름이 올랐다.\n이번엔 대표팀의 중심으로서다.",
                     $"몇 번째 태극마크인지 이제 헷갈린다. {NationalTeam.Name} 명단에 또 {{name}}.\n그래도 유니폼을 받는 순간은 매번 새롭다.",
+                    $"{NationalTeam.Name} 명단 발표 날. 이번엔 기자들이 먼저 물었다. \"이번 대표팀에서 맡을 역할은요?\"\n뽑히느냐가 아니라 무엇을 하느냐를 묻는 질문이었다.",
+                    $"대표팀 감독이 직접 전화를 걸어왔다. \"이번에도 너 없인 안 된다.\"\n{NationalTeam.Name}, 다시 한번 태극마크다.",
                 };
                 text = first ? firstVersions[Pick(c, firstVersions.Length)] : againVersions[Pick(c, againVersions.Length)];
             }
@@ -252,6 +264,8 @@ namespace BaseballSim.Career
             {
                 $"내일은 {opponent}와(과)의 결승.\n숙소 창밖으로 경기장 조명이 보인다. 잠이 오지 않는다.",
                 $"결승 상대는 {opponent}. 저녁 미팅이 끝나고 다들 말없이 각자 방으로 흩어졌다.\n복도 끝 창문 너머로 내일 경기장이 보인다.",
+                $"결승 전날 저녁, 감독이 선수단 단톡방에 사진 한 장을 올렸다. 텅 빈 시상대.\n'내일 저기 올라가자.' 아무도 답장하지 않았지만, 다들 몇 번이고 그 사진을 봤다.",
+                $"내일은 {opponent}와(과)의 결승. 호텔 로비에 고국에서 날아온 응원 현수막이 걸렸다.\n'우리가 뒤에 있다.' 그 앞을 지나는 선수마다 걸음을 멈췄다.",
             };
             return Make(Eve, new StoryEvent
             {

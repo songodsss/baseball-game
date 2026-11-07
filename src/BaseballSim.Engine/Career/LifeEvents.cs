@@ -88,36 +88,8 @@ namespace BaseballSim.Career
                 Weight = (c, d) => !c.HasMark("promise") && !c.SeenThisSeason("orphanage") ? 0.5 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "\"꼭 해낼게\" 약속한다", Result = "새끼손가락을 걸었다. 이제 지켜야 한다.", Apply = e => { e.Mark("promise"); e.Morale(3); } },
+                    new EventChoice { Label = "\"꼭 해낼게\" 약속한다", Result = "새끼손가락을 걸었다. 다음 경기, 이제 꼭 이겨야 한다.", Apply = e => { e.Mark("promise"); e.Morale(3); } },
                     new EventChoice { Label = "사인과 사진만 찍어 준다", Result = "아이들이 사인볼을 꼭 끌어안았다.", Apply = e => { e.Fans(20); e.Morale(2); } },
-                },
-            });
-
-            list.Add(new StoryEvent
-            {
-                Id = "promise_kept",
-                Title = "약속을 지킨 날",
-                Text = "오늘 경기가 끝나자 보육원에서 영상 편지가 왔다.\n아이들이 TV 앞에서 방방 뛰고 있다.",
-                Weight = (c, d) => c.HasMark("promise") && PlayedWell(d) ? 8 : 0,
-                Choices =
-                {
-                    new EventChoice
-                    {
-                        Label = "답장 영상을 찍는다", Result = "구단 SNS에 올라간 영상이 하루 만에 퍼졌다.",
-                        Apply = e => { e.Unmark("promise"); e.Fans(120); e.Morale(8); },
-                    },
-                },
-            });
-
-            list.Add(new StoryEvent
-            {
-                Id = "promise_late",
-                Title = "아직 못 지킨 약속",
-                Text = "보육원에서 편지가 왔다.\n\"괜찮아요. 우리는 계속 응원할 거예요!\"",
-                Weight = (c, d) => Due(c, "promise", Gap(c) * 2) ? 4 : 0,
-                Choices =
-                {
-                    new EventChoice { Label = "다시 찾아간다", Result = "아이들과 캐치볼을 했다. 약속은 다음에 꼭.", Apply = e => { e.Unmark("promise"); e.Fans(30); e.Morale(3); e.Fatigue(5); } },
                 },
             });
 
@@ -657,6 +629,8 @@ namespace BaseballSim.Career
             // Hitters get the real home run derby at the break; pitchers have their own fun.
             if (c.Day > c.AllStarDay && c.Day <= c.AllStarDay + 3 && MadeAllStar(c) && !c.Me.IsInjured && c.Me.IsPitcher && !c.SeenThisSeason(RadarDerby.Id))
                 return RadarDerby;
+            var promise = PromiseMoment(c, day);
+            if (promise != null) return promise;
             var moved = ClubChangeMoment(c, day);
             if (moved != null) return moved;
             var bond = BondMoment(c);
@@ -665,6 +639,56 @@ namespace BaseballSim.Career
             if (serial != null) return serial;
             return null;
         }
+
+        /// <summary>
+        /// The orphanage promise is settled by the very next game the player plays in: a win is a real reward
+        /// (fans, morale and a training boost on the best stat), a loss gets a kind letter instead.
+        /// </summary>
+        static StoryEvent PromiseMoment(Career c, DayResult day)
+        {
+            if (!c.HasMark("promise") || day?.MyGame == null || !Played(day) || day.MyGame.IsTie) return null;
+            bool home = day.MyGame.Home == c.MyTeam;
+            bool won = home ? day.MyGame.HomeScore > day.MyGame.AwayScore : day.MyGame.AwayScore > day.MyGame.HomeScore;
+            return won ? PromiseKept(c) : PromiseMissed;
+        }
+
+        static StoryEvent PromiseKept(Career c)
+        {
+            var best = c.Me.MyStats.OrderByDescending(s => c.Me.Ratings[s]).First();
+            return new StoryEvent
+            {
+                Id = "promise_kept",
+                Title = "약속을 지킨 날",
+                Text = "경기가 끝나자마자 보육원에서 영상 편지가 왔다.\n아이들이 TV 앞에서 방방 뛰고 있다. \"진짜 이겼어! 약속 지켰어!\"\n새끼손가락을 걸던 그 아이가 화면 맨 앞에서 울고 있었다.",
+                Weight = (_, __) => 0,
+                Choices =
+                {
+                    new EventChoice
+                    {
+                        Label = "승리구를 들고 다시 찾아간다", Result = "아이 손에 승리구를 쥐여 주었다. 그 눈빛을 보니 더 잘하고 싶어졌다.",
+                        Apply = e => { e.Unmark("promise"); e.Fans(150); e.Morale(8); e.Boost(best, 30, 10, "아이와의 약속"); e.Fatigue(5); },
+                    },
+                    new EventChoice
+                    {
+                        Label = "답장 영상을 찍는다", Result = "구단 SNS에 올라간 영상이 하루 만에 퍼졌다. 응원 댓글이 끝도 없이 달렸다.",
+                        Apply = e => { e.Unmark("promise"); e.Fans(250); e.Morale(6); e.Boost(best, 20, 10, "아이와의 약속"); },
+                    },
+                },
+            };
+        }
+
+        static readonly StoryEvent PromiseMissed = new StoryEvent
+        {
+            Id = "promise_late",
+            Title = "못 지킨 약속",
+            Text = "졌다. 라커룸에서 휴대폰을 켜기가 무서웠다.\n보육원에서 온 사진 한 장. 삐뚤빼뚤한 글씨로 '괜찮아요! 다음엔 꼭 이겨요!'",
+            Weight = (_, __) => 0,
+            Choices =
+            {
+                new EventChoice { Label = "다시 찾아가 캐치볼을 한다", Result = "아이들과 해 질 때까지 공을 주고받았다. 다음 약속은 꼭 지키리라.", Apply = e => { e.Unmark("promise"); e.Fans(30); e.Morale(2); e.Fatigue(8); } },
+                new EventChoice { Label = "사진을 사물함에 붙인다", Result = "매일 그 글씨를 보며 배트를 잡기로 했다.", Apply = e => { e.Unmark("promise"); e.Morale(1); e.Exp(Stat.Contact, 30); } },
+            },
+        };
 
         /// <summary>The day of my club's last home game this season.</summary>
         public static int LastHomeDay(Career c)

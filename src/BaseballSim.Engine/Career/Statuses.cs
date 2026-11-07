@@ -56,7 +56,7 @@ namespace BaseballSim.Career
             new StatusDef { Id = Hot, Name = "상승세", Good = true, Description = "몸이 가볍다: 경기 컨디션 +2" },
             new StatusDef { Id = Cold, Name = "침체", Good = false, Description = "감이 안 온다: 경기 컨디션 -2 (좋은 경기 하나면 풀려요)" },
             new StatusDef { Id = Fragile, Name = "유리몸", Good = false, Description = "부상에서 막 돌아왔다: 지친 날 부상 확률 2배" },
-            new StatusDef { Id = Iron, Name = "강철 체력", Good = true, Description = "푹 쉰 몸: 훈련·경기 피로 30% 덜 쌓임" },
+            new StatusDef { Id = Iron, Name = "개운한 몸", Good = true, Description = "열흘 푹 쉰 몸: 훈련·경기 피로 15% 덜 쌓임 (5일)" },
             new StatusDef { Id = Worn, Name = "피로 누적", Good = false, Description = "며칠째 무리했다: 훈련 효율 -20%, 컨디션 -1 (피로 50 아래로 내리면 풀려요)" },
             new StatusDef { Id = Focus, Name = "몰입", Good = true, Description = "훈련이 손에 붙는다: 대성공 확률 1.5배" },
         };
@@ -196,7 +196,7 @@ namespace BaseballSim.Career
             // The body.
             if (wasInjured && !Me.IsInjured && !HasStatus(Statuses.Comeback)) Gain(Statuses.Fragile, 10);
             Count("fresh_days", Me.Fatigue <= 30, out int fresh);
-            if (fresh >= 7) { Gain(Statuses.Iron, 7); Me.StoryMarks["fresh_days"] = 0; }
+            if (fresh >= 10) { Gain(Statuses.Iron, 5); Me.StoryMarks["fresh_days"] = 0; }
             Count("tired_days", Me.Fatigue >= 80, out int tired);
             if (tired >= 3) Gain(Statuses.Worn, 999);
             if (HasStatus(Statuses.Worn) && Me.Fatigue < 50) ClearStatus(Statuses.Worn);

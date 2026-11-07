@@ -577,6 +577,12 @@ namespace BaseballGame
             {
                 ShowTournamentHub();
             }
+            else if (_career.IsSeasonOver && result.Event != null && _career.PendingEvent == result.Event)
+            {
+                // The last day's scene (the farewell to the home fans) comes first, then the autumn.
+                _afterEvent = BeginAutumn;
+                ShowEvent(result.Event);
+            }
             else if (_career.IsSeasonOver)
             {
                 BeginAutumn();
@@ -1191,6 +1197,9 @@ namespace BaseballGame
         /// A story event as a visual-novel scene: the text told line by line with the speaker's portrait
         /// and name, then the answers; the chosen answer and what follows are told the same way.
         /// </summary>
+        /// <summary>What comes after the story scene on screen, when something waits for it (the autumn after the last day).</summary>
+        System.Action _afterEvent;
+
         void ShowEvent(StoryEvent ev)
         {
             CloseOverlay();
@@ -1220,6 +1229,7 @@ namespace BaseballGame
             scene.Play(lines, () => scene.ShowEnd(changes.Length > 0 ? $"<color=#5FA8FF>{changes}</color>" : null, "확인", () =>
             {
                 CloseOverlay();
+                if (_afterEvent != null) { var next = _afterEvent; _afterEvent = null; next(); return; }
                 if (_career.InTournament) { ShowTournamentHub(); return; }
                 TrySeasonStart();
             }));
@@ -1500,7 +1510,7 @@ namespace BaseballGame
                 string mine = allStar.MyPitching != null ? (_career.Me.Role == PitcherRole.Starter ? "선발 " : "구원 ") + PitchingText(allStar.MyPitching)
                     : _career.Me.IsPitcher ? "등판 기회가 없었어요" : $"{l.AtBats}타수 {l.Hits}안타 {l.HomeRuns}홈런 {l.RunsBattedIn}타점";
                 text += (allStar.FanVote ? $"<color=#FFD24D>팬 투표로 뽑힌 올스타!</color> (인기 {_career.Me.Popularity})" : "팬과 감독이 뽑은 올스타!") + $"\n내 성적 {mine}\n" +
-                        $"<color=#5FA8FF>보너스 {Krw.Signed(allStar.Bonus)} · 사기 +2</color>";
+                        $"<color=#5FA8FF>보너스 {Krw.Signed(allStar.Bonus)} · 사기 +2" + (allStar.PopularityGained > 0 ? $" · 인기 +{allStar.PopularityGained}" : "") + "</color>";
             }
             else
             {
@@ -2457,8 +2467,9 @@ namespace BaseballGame
                 bool final = s.Name == Postseason.KoreanSeries;
                 string stakes = wins == need - 1 && losses == need - 1 ? (final ? "<color=#F28C40>이기면 우승, 지면 준우승!</color>" : "<color=#F28C40>이기면 진출, 지면 탈락!</color>")
                     : wins == need - 1 ? (final ? "<color=#FFD24D>1승만 더하면 우승!</color>" : "<color=#FFD24D>1승만 더하면 진출!</color>")
-                    : losses == need - 1 ? "<color=#F28C40>지면 탈락!</color>"
+                    : losses == need - 1 ? (final ? "<color=#F28C40>지면 준우승!</color>" : "<color=#F28C40>지면 탈락!</color>")
                     : s.Name == Postseason.WildCard ? (s.High == me ? "4위 팀은 1승을 안고 시작해요. 한 번만 이기거나 비겨도 진출!" : "4위 팀이 1승을 안고 있어요. 두 번 다 이겨야 해요!")
+                    : final ? $"{need}승 먼저 하는 팀이 우승해요"
                     : $"{need}승 먼저 하는 팀이 올라가요";
                 var next = UiKit.Label(body, $"<b>{s.Name} {s.Games.Count + 1}차전</b>  vs {run.NextOpponent.Name}\n<size=30>{stakes}</size>", 38, TextAnchor.MiddleCenter);
                 UiKit.Height(next, 130);

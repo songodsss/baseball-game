@@ -219,4 +219,35 @@ public class ClubChangeTests
         while (d.AtBat != null) d = career.ChooseApproach(Approach.Normal);
         Assert.Equal("club_arrival", StoryEvents.Scheduled(career, d)?.Id);
     }
+    [Fact]
+    public void ComingBackHomeFindsTheOldPeopleAgain()
+    {
+        var career = NewCareer(13);
+        var home = career.MyTeam;
+        string junior = career.JuniorName, veteran = career.VeteranName, coach = career.CoachName;
+        career.Me.StoryMarks["close:junior"] = 5;
+        career.Me.StoryMarks["close:coach"] = 3;
+        career.Me.StoryMarks["seen:senior_roommate"] = career.Stamp;
+        string senior = career.SeniorName;
+        career.Sign(new ContractOffer { Team = career.League.Teams[4], Salary = career.Me.Salary, Years = 1 });
+        Assert.NotEqual(junior, career.JuniorName);
+        Assert.False(career.CameHome);
+
+        career.Sign(new ContractOffer { Team = home, Salary = career.Me.Salary, Years = 1 });
+        Assert.True(career.CameHome);
+        Assert.Equal(junior, career.JuniorName);
+        Assert.Equal(veteran, career.VeteranName);
+        Assert.Equal(coach, career.CoachName);
+        Assert.Equal(5, career.Closeness("junior"));
+        Assert.Equal(3, career.Closeness("coach"));
+        Assert.False(career.HasMark("apart:senior"));
+        Assert.Equal(senior, career.SeniorName);
+
+        career.Me.StoryMarks["seen:opening"] = career.Stamp;
+        var d = career.PlayDay(DailyAction.Rest);
+        while (d.AtBat != null) d = career.ChooseApproach(Approach.Normal);
+        var ev = StoryEvents.Scheduled(career, d);
+        Assert.Equal("club_arrival", ev?.Id);
+        Assert.Equal("다시, 친정팀", ev.Title);
+    }
 }

@@ -81,7 +81,7 @@ namespace BaseballSim.Career
             Add(AtBatChoice.Clutch, "찬스에 강함", "노림수가 맞으면 장타가 더 잘 나옴", "파워 50 이상", AtLeast(Stat.Power, 50));
             Add(AtBatChoice.Gambler, "승부사", "노림수가 빗나가도 손해가 절반", "컨택 50 이상", AtLeast(Stat.Contact, 50));
             Add(Grinder, "연습벌레", "훈련 경험치 +25%", "누구나", _ => true);
-            Add(Iron, "강철 체력", "훈련·경기 피로 -30%", "누구나", _ => true);
+            Add(Iron, "강철 체력", "훈련·경기 피로 -15%", "누구나", _ => true);
             Add(Recovery, "빠른 회복", "부상 기간 -40%", "누구나", _ => true);
             Add(LateBloomer, "대기만성", "28세부터 성장 속도 1.6배", "누구나", _ => true);
             return list;

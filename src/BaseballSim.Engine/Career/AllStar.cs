@@ -17,6 +17,8 @@ namespace BaseballSim.Career
         /// <summary>Best batter on the winning side, "Name (Team)".</summary>
         public string Mvp;
         public bool MyMvp;
+        /// <summary>Popularity the game won me (an MVP wins far more).</summary>
+        public int PopularityGained;
         public int Bonus;
         /// <summary>Saturday's home run derby, the day before the game.</summary>
         public DerbyResult Derby;

@@ -113,6 +113,17 @@ namespace BaseballSim.Career
             Outcome.Changes.Add($"{Stats.Name(stat)} 훈련 효율 +{percent}% ({b.DaysLeft}일)");
         }
 
+        /// <summary>Fatigue right now, for effects that scale with what came before them.</summary>
+        public int FatigueNow => Me.Fatigue;
+
+        /// <summary>Folds every fatigue line of this outcome into one total, after a choice that did several things.</summary>
+        internal void MergeFatigueLines(int start)
+        {
+            int delta = Me.Fatigue - start;
+            Outcome.Changes.RemoveAll(ch => ch.StartsWith("피로 "));
+            if (delta != 0) Outcome.Changes.Add($"피로 {Signed(delta)}");
+        }
+
         public void Fatigue(int delta)
         {
             int before = Me.Fatigue;
@@ -256,13 +267,33 @@ namespace BaseballSim.Career
             if (other == null) return ev;
             string cost = PaidLabel.Match(money.Label).Groups[1].Value;
             var copy = new StoryEvent { Id = ev.Id, Title = ev.Title, Text = ev.Text, Weight = ev.Weight, Choices = ev.Choices.ToList() };
+            int effort = BothEffort(other.Label);
             copy.Choices.Add(new EventChoice
             {
-                Label = $"둘 다 한다 ({cost}만원)",
-                Result = other.Result + "\n" + money.Result,
-                Apply = e => { other.Apply?.Invoke(e); money.Apply?.Invoke(e); },
+                Label = $"둘 다 한다 ({cost}만원 · 피로 많이)",
+                Result = other.Result + "\n" + money.Result + "\n하루가 모자랐다. 몸이 천근만근이다.",
+                Apply = e =>
+                {
+                    int start = e.FatigueNow;
+                    other.Apply?.Invoke(e);
+                    int own = e.FatigueNow - start;
+                    money.Apply?.Invoke(e);
+                    // Doing both costs the day: the legwork on top of the money, and twice what the legwork alone tired.
+                    e.Fatigue(effort + Math.Max(0, own));
+                    e.MergeFatigueLines(start);
+                },
             });
             return copy;
+        }
+
+        /// <summary>How much doing both on top of the money tires: going somewhere in person costs the most.</summary>
+        static int BothEffort(string label)
+        {
+            string[] trip = { "찾아간", "간다", "가서", "직접", "함께", "같이", "달려", "방문", "다녀", "밤새", "새벽" };
+            string[] small = { "전화", "문자", "편지", "메시지", "영상", "글", "SNS", "사인" };
+            if (trip.Any(w => label.Contains(w))) return 22;
+            if (small.Any(w => label.Contains(w))) return 10;
+            return 15;
         }
 
         public static StoryEvent Pick(Career career, DayResult day, IRandom random)

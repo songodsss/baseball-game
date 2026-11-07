@@ -16,10 +16,14 @@ namespace BaseballSim.Career
         void LeaveClubPeople(Team from)
         {
             if (from == null) return;
+            // The people of this clubhouse are remembered per club, so coming back later finds them again.
+            foreach (var k in Me.StoryMarks.Keys.Where(k => k.StartsWith(KeepPrefix(from.Name))).ToList()) Me.StoryMarks.Remove(k);
             foreach (var role in new[] { "veteran", "junior", "coach" })
             {
                 var key = Me.StoryMarks.Keys.FirstOrDefault(k => k.StartsWith(role + ":"));
                 if (key == null) continue;
+                Me.StoryMarks[KeepPrefix(from.Name) + key] = Me.StoryMarks[key];
+                Me.StoryMarks[KeepPrefix(from.Name) + "close:" + role] = Closeness(role);
                 // Replace any earlier club's person in the same role: only the latest goodbye is kept.
                 foreach (var old in Me.StoryMarks.Keys.Where(k => k.StartsWith("old" + role + ":")).ToList()) Me.StoryMarks.Remove(old);
                 Me.StoryMarks["old" + key] = Me.StoryMarks[key];
@@ -31,11 +35,57 @@ namespace BaseballSim.Career
                 }
             }
             foreach (var role in new[] { "senior", "mate" })
-                if (Me.StoryMarks.Keys.Any(k => k.StartsWith(role + ":"))) Me.StoryMarks["apart:" + role] = Stamp;
+                if (Me.StoryMarks.Keys.Any(k => k.StartsWith(role + ":")) && !HasMark("apart:" + role))
+                {
+                    Me.StoryMarks["apart:" + role] = Stamp;
+                    Me.StoryMarks[KeepPrefix(from.Name) + "together:" + role] = Stamp;
+                }
             foreach (var k in Me.StoryMarks.Keys.Where(k => k.StartsWith("from:")).ToList()) Me.StoryMarks.Remove(k);
             Me.StoryMarks["from:" + from.Name] = Stamp;
             Me.StoryMarks["moved"] = Stamp;
+            Me.StoryMarks.Remove("homecoming");
         }
+
+        static string KeepPrefix(string club) => "keep:" + club + "|";
+
+        /// <summary>Played for this club before (the first club too, which Me.Clubs leaves out).</summary>
+        bool PlayedFor(string club) =>
+            Me.StoryMarks.Keys.Any(k => k.StartsWith(KeepPrefix(club))) || Me.History.Any(h => h.Club == club);
+
+        /// <summary>
+        /// Coming back to a club played for before: the veteran, the junior and the coach of those days are
+        /// there again with the closeness they had, the roommate senior and the draft-class mate are
+        /// teammates again, and the scenes after the move are a homecoming rather than a first day.
+        /// </summary>
+        void ReturnClubPeople(Team to)
+        {
+            if (to == null || !PlayedFor(to.Name)) return;
+            Me.StoryMarks["homecoming"] = Stamp;
+            string prefix = KeepPrefix(to.Name);
+            var kept = Me.StoryMarks.Keys.Where(k => k.StartsWith(prefix)).ToList();
+            foreach (var role in new[] { "veteran", "junior", "coach" })
+            {
+                var key = kept.FirstOrDefault(k => k.Substring(prefix.Length).StartsWith(role + ":"));
+                if (key == null) continue;
+                string person = key.Substring(prefix.Length);
+                foreach (var now in Me.StoryMarks.Keys.Where(k => k.StartsWith(role + ":")).ToList()) Me.StoryMarks.Remove(now);
+                Me.StoryMarks[person] = Me.StoryMarks[key];
+                if (Me.StoryMarks.TryGetValue(prefix + "close:" + role, out int close)) Me.StoryMarks["close:" + role] = close;
+                // The one just left behind in this role is the "old" one now; the same person can't be both.
+                string name = person.Substring(role.Length + 1);
+                if (Me.StoryMarks.ContainsKey("old" + role + ":" + name))
+                {
+                    Me.StoryMarks.Remove("old" + role + ":" + name);
+                    Me.StoryMarks.Remove("close:old" + role);
+                }
+            }
+            foreach (var role in new[] { "senior", "mate" })
+                if (kept.Contains(prefix + "together:" + role)) Me.StoryMarks.Remove("apart:" + role);
+            foreach (var k in kept) Me.StoryMarks.Remove(k);
+        }
+
+        /// <summary>Back at a club played for before, since the last move.</summary>
+        public bool CameHome => HasMark("homecoming");
     }
 
     public static partial class StoryEvents
@@ -54,13 +104,13 @@ namespace BaseballSim.Career
             if (!c.HasMark("moved") || c.InFarm) return null;
             int since = c.GamesSince("moved");
             string from = c.FormerClub;
-            if (!SeenSinceMove(c, "club_arrival")) return since <= 6 ? Arrival(c) : null;
-            if (!SeenSinceMove(c, "club_dinner") && since >= 4 && since <= 40) return Dinner;
+            if (!SeenSinceMove(c, "club_arrival")) return since <= 6 ? (c.CameHome ? Homecoming(c) : Arrival(c)) : null;
+            if (!SeenSinceMove(c, "club_dinner") && since >= 4 && since <= 40) return c.CameHome ? HomeDinner : Dinner;
             if (!SeenSinceMove(c, "club_old_foe") && from != "" && day?.MyGame != null && (day.MyGame.Home.Name == from || day.MyGame.Away.Name == from))
                 return OldFoe(c, day.MyGame.Home.Name == from);
             if (!SeenSinceMove(c, "club_old_friend") && since >= 10 && since <= 60 && (c.HasMark("apart:senior") || c.HasMark("apart:mate")))
                 return OldFriend(c);
-            if (!SeenSinceMove(c, "club_new_song") && since >= 20 && since <= 80 && Played(day)) return NewSong;
+            if (!SeenSinceMove(c, "club_new_song") && since >= 20 && since <= 80 && Played(day)) return c.CameHome ? OldSong : NewSong;
             return null;
         }
 
@@ -102,6 +152,55 @@ namespace BaseballSim.Career
                 },
             };
         }
+
+        static StoryEvent Homecoming(Career c)
+        {
+            bool traded = c.SeasonNotes.Any(n => n.Contains("트레이드")) && c.Day > 0;
+            bool senior = !c.HasMark("apart:senior") && c.Me.StoryMarks.Keys.Any(k => k.StartsWith("senior:")) && !c.HasMark("gone:senior");
+            return new StoryEvent
+            {
+                Id = "club_arrival",
+                Title = "다시, 친정팀",
+                Text = (traded
+                        ? "짐 가방을 들고 다시 이 라커룸 문을 열었다. 몇 년 만인데도 냄새부터 그대로다."
+                        : "다시 {team}의 출근길. 구단 버스 기사님이 먼저 알아봤다. \"어이, 돌아왔네!\"")
+                    + "\n내 옛 사물함 자리엔 누가 붙여 놨는지 '{name} 지정석' 이름표가 붙어 있었다."
+                    + "\n{veteran} 선배가 팔짱을 끼고 서 있었다. \"늦었다. 밥 먹으러 가자.\""
+                    + (senior ? "\n뒤에서 {senior} 선배가 웃었다. \"이 방 아직 네 자리 비워 놨다.\"" : ""),
+                Weight = (_, __) => 0,
+                Choices =
+                {
+                    new EventChoice { Label = "\"다녀왔습니다\" 꾸벅 인사한다", Result = "\"다녀왔으면 됐다.\" 그 한마디에 떠나 있던 시간이 접혔다.", Apply = e => { e.Morale(6); e.Close("veteran", 1); e.Close("coach", 1); e.Fans(40); } },
+                    new EventChoice { Label = "\"그동안 더 늘어서 왔습니다\"", Result = "\"어디 보자.\" {coach} 코치가 배팅 케이지 문을 열었다. 옛날처럼.", Apply = e => { e.Exp(Stat.Contact, 50); e.Close("coach", 2); e.Morale(3); } },
+                },
+            };
+        }
+
+        static readonly StoryEvent HomeDinner = new StoryEvent
+        {
+            Id = "club_dinner",
+            Title = "돌아온 날의 회식",
+            Text = "단골 고깃집, 늘 앉던 구석 자리. 사장님이 말없이 내 앞에 공깃밥을 두 그릇 놨다.\n{junior}가 잔을 들었다. \"선배님 없을 때 저 혼자 얼마나 힘들었는지 아세요?\"",
+            Weight = (_, __) => 0,
+            Choices =
+            {
+                new EventChoice { Label = "떠나 있던 동안의 이야기를 풀어 놓는다", Result = "다른 팀 이야기에 다들 귀를 쫑긋 세웠다. \"거기선 그렇게 해?\" 밤이 짧았다.", Apply = e => { e.Morale(5); e.Close("junior", 2); e.Close("veteran", 1); } },
+                new EventChoice { Label = "\"이제 안 떠난다\"", Result = "\"그 말 녹음했습니다.\" {junior}가 휴대폰을 흔들었다. 다들 웃었다.", Apply = e => { e.Morale(4); e.Close("junior", 1); e.Trust(1); e.Fans(40); } },
+            },
+        };
+
+        static readonly StoryEvent OldSong = new StoryEvent
+        {
+            Id = "club_new_song",
+            Title = "그 응원가",
+            Text = "첫 타석에 들어서는데 외야석에서 익숙한 전주가 흘렀다.\n떠나기 전 그 응원가. 팬들이 한 글자도 잊지 않고 있었다. 누군가 '다시 우리 {name}'이라고 쓴 현수막을 흔들었다.",
+            Weight = (_, __) => 0,
+            Choices =
+            {
+                new EventChoice { Label = "헬멧을 벗고 외야석을 향해 고개 숙인다", Result = "응원가가 더 커졌다. 돌아올 곳이 있다는 건 이런 거구나.", Apply = e => { e.Fans(120); e.Morale(6); } },
+                new EventChoice { Label = "응원가에 맞춰 배트를 흔든다", Result = "옛날 하던 그 동작에 관중석이 뒤집어졌다.", Apply = e => { e.Fans(80); e.Morale(5); e.Trust(1); } },
+            },
+        };
 
         static readonly StoryEvent Dinner = new StoryEvent
         {

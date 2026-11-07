@@ -256,6 +256,7 @@ namespace BaseballSim.Career
             Me.Clubs.Add(to.Name);
             MyTeam = to;
             LeaveClubPeople(from);
+            ReturnClubPeople(to);
             if (League.Batting.TryGetValue(Me.Id, out var season)) season.Team = to;
             if (League.Pitching.TryGetValue(Me.Id, out var arm)) arm.Team = to;
             KeepRivalAway();
@@ -349,11 +350,14 @@ namespace BaseballSim.Career
             if (derby.MyIn)
             {
                 SeasonNotes.Add(derby.MyWon ? $"{MonthText} 홈런 더비 우승" : $"{MonthText} 홈런 더비 출전");
-                if (derby.MyWon) { Me.HomeRunDerbyWins++; AddFans(150); }
+                if (derby.MyWon) { Me.HomeRunDerbyWins++; AddFans(300); }
             }
             if (!result.AllStar.Selected) return;
             SeasonNotes.Add(result.AllStar.MyMvp ? $"{MonthText} 올스타전 MVP" : result.AllStar.FanVote ? $"{MonthText} 팬 투표 올스타" : $"{MonthText} 올스타 선정");
-            AddFans(result.AllStar.MyMvp ? 200 : 100);
+            // An MVP is the talk of the break: about +20 popularity, against +5 for just being there.
+            int before = Me.Popularity;
+            AddFans(result.AllStar.MyMvp ? 600 : 150);
+            result.AllStar.PopularityGained = Me.Popularity - before;
             Me.Morale = Math.Min(CareerPlayer.MaxMorale, Me.Morale + 2);
         }
 
