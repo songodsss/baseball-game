@@ -1223,7 +1223,7 @@ namespace BaseballGame
             Refresh();
 
             var lines = new List<DialogueLine>();
-            var mine = Dialogue.MyChoice(label, _career);
+            var mine = Dialogue.MyChoice(label, _career, text);
             if (mine != null) lines.Add(mine);
             lines.AddRange(Dialogue.Lines(outcome.Text, _career, text + "\n\n" + label));
             scene.Play(lines, () => scene.ShowEnd(changes.Length > 0 ? $"<color=#5FA8FF>{changes}</color>" : null, "확인", () =>

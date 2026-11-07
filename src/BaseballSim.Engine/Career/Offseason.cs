@@ -47,24 +47,28 @@ namespace BaseballSim.Career
         {
             [FanMood.Great] = new[]
             {
+                "올해 {name} 경기 하이라이트만 모아도 영화 한 편", "상대 팀 팬들도 인정하는 분위기 ㅋㅋ", "이 선수 우리 팀이라 다행이다 진짜", "연봉 협상 구단이 알아서 잘해라. 놓치면 큰일",
                 "이 선수 보려고 시즌권 끊었습니다 ㅠㅠ", "{name} 없었으면 올해 어쩔 뻔했냐", "역대급 시즌이다 진짜",
                 "유니폼 마킹 {name}으로 바꿨어요!", "이 정도면 국대 확정 아님?", "올해의 선수는 그냥 정해져 있었네",
                 "직관 갈 때마다 해 주더라. 고맙다!", "우리 팀 얼굴 = {name}", "내년엔 더 잘할 거라는 게 무섭다 ㅋㅋ",
             },
             [FanMood.Good] = new[]
             {
+                "작년보다 확실히 단단해졌다", "이 페이스면 내년엔 더 무섭다", "팀에 꼭 필요한 선수", "기복 없이 한 시즌 버틴 게 대단함",
                 "올해 진짜 많이 늘었다", "꾸준한 게 제일 무섭지", "{name} 나오면 뭔가 해 줄 것 같음",
                 "내년엔 타이틀 하나 가자!", "이제 주전 자리 굳혔네", "기대 이상이었다 ㅎㅎ",
                 "중요할 때 한 방이 있음", "연봉 좀 올려 줘라 구단아",
             },
             [FanMood.Mixed] = new[]
             {
+                "반짝할 때는 진짜 반짝하던데", "여름에 좀 처졌던 게 아쉽다", "체력만 받쳐 주면 될 것 같은데", "응원은 계속한다. 내년엔 확 터져라",
                 "나쁘진 않았는데 뭔가 아쉽다", "기복만 줄이면 될 듯", "잘할 땐 잘하는데...",
                 "내년이 진짜 승부처", "가능성은 보여 줬다", "좀 더 해 줄 수 있잖아",
                 "평범했다. 그 이상은 아님", "찬스 때 좀 더 집중했으면",
             },
             [FanMood.Bad] = new[]
             {
+                "그래도 끝까지 열심히 뛰는 건 보였다", "겨울에 칼 갈고 와라. 믿는다", "이럴 때일수록 팬이 응원해 줘야지",
                 "이게 프로냐...", "{name} 2군 가서 다시 배워 와라", "연봉 아깝다는 말 나와도 할 말 없음",
                 "찬스마다 맥이 끊김", "작년이랑 뭐가 달라진 건지 모르겠다", "그래도 아직 어리니까... 믿어 본다",
                 "트레이드 카드로 쓰자는 말까지 나옴", "응원하는 마음으로 한 마디만. 정신 차려!",
@@ -72,6 +76,7 @@ namespace BaseballSim.Career
             },
             [FanMood.Hurt] = new[]
             {
+                "빈자리가 이렇게 클 줄 몰랐다", "복귀전 무조건 직관 간다", "조급해하지 말고 천천히 와",
                 "다친 게 너무 아까웠다", "건강하게만 돌아와 줘", "부상만 아니었으면...",
                 "몸 관리부터 다시 하자", "아프지 말고 내년에 보자!", "재활 잘해서 꼭 돌아와라",
             },
@@ -90,22 +95,100 @@ namespace BaseballSim.Career
             [TeamFate.Missed] = new[] { "팀도 개인도 최악의 해", "순위표 보기도 싫다. 다 같이 반성해라", "올해는 그냥 잊고 싶다" },
         };
 
-        /// <summary>A few fan comments about the season just finished, for the season-end card: the player's year and one about the club's.</summary>
-        public static List<string> FanComments(Career c, SeasonRecord r, int count = 3)
+        /// <summary>
+        /// Fan comments about the season just finished, for the season-end card: one or two about what
+        /// actually happened (the home runs, the ERA, a title, a trade, the age), a couple on the year's
+        /// mood and one about the club. In the career's last season the fans say goodbye instead.
+        /// </summary>
+        public static List<string> FanComments(Career c, SeasonRecord r, int count = 4)
         {
             var mood = Mood(r);
-            var team = (mood == FanMood.Great || mood == FanMood.Good ? TeamGood : TeamBad)[FateOf(r)];
-            var pool = Comments[mood];
             int seed = Seed(c, 11);
             var picked = new List<string>();
-            for (int k = 0; picked.Count < Math.Min(count, pool.Length); k++)
+            void Take(IList<string> pool, int n, int salt)
             {
-                var line = pool[(seed + k * 7) % pool.Length];
-                if (!picked.Contains(line)) picked.Add(line);
-                if (k > 50) break;
+                for (int k = 0; n > 0 && k < pool.Count; k++)
+                {
+                    var line = pool[(seed / 3 + salt * 13 + k * 7) % pool.Count];
+                    if (picked.Contains(line)) continue;
+                    picked.Add(line);
+                    n--;
+                }
             }
-            if (picked.Count > 0) picked[picked.Count - 1] = team[seed % team.Length];
+            if (c.IsFinalSeason)
+            {
+                Take(Farewell, 3, 1);
+                Take(Specific(c, r), 1, 2);
+                return picked.Select(t => StoryEvent.Fill(t, c)).ToList();
+            }
+            var specific = Specific(c, r);
+            Take(specific, specific.Count >= 4 ? 2 : 1, 3);
+            Take(Comments[mood], Math.Max(1, count - 1 - picked.Count), 4);
+            var team = (mood == FanMood.Great || mood == FanMood.Good ? TeamGood : TeamBad)[FateOf(r)];
+            Take(team, 1, 5);
             return picked.Select(t => StoryEvent.Fill(t, c)).ToList();
+        }
+
+        static readonly string[] Farewell =
+        {
+            "내년에 봐요... 라고 못 하는 게 이렇게 슬플 줄이야", "{name} 없는 개막전 상상이 안 된다", "덕분에 야구 보는 낙이 있었습니다. 진짜로",
+            "유니폼은 평생 간직할게요", "고생 많았어요. 이제 좀 쉬어요", "제 학창 시절 전부가 {name} 응원이었어요",
+            "은퇴식 날 무조건 직관 간다", "마지막 타석 영상 백 번은 봤다", "어디서 뭘 하든 응원할게요. 고마웠어요",
+        };
+
+        /// <summary>Comments about what this season actually was: big numbers, bad numbers, titles, moves, age.</summary>
+        static List<string> Specific(Career c, SeasonRecord r)
+        {
+            var list = new List<string>();
+            double scale = 144.0 / Math.Max(1, r.Games);
+            int S(int v) => (int)Math.Round(v * scale);
+            foreach (var t in r.Titles)
+            {
+                if (t == Postseason.ChampionTitle) continue;
+                list.Add($"{t}! 이건 진짜 인정이다");
+                list.Add($"{t} 축하해요 ㅠㅠ 시즌 내내 응원한 보람이 있네");
+            }
+            if (r.Pitching != null)
+            {
+                var p = r.Pitching;
+                if (p.Outs >= 30)
+                {
+                    if (p.Era < 2.50) list.Add($"평균자책점 {p.Era:0.00}... 이게 사람이 던지는 공이냐");
+                    else if (p.Era > 5.50) list.Add($"평균자책점 {p.Era:0.00}은 좀... 겨울에 제구 다시 잡자");
+                    if (p.Whip > 1.6) list.Add("주자 내보내고 시작하는 거 이제 그만 ㅠ");
+                }
+                if (S(p.Wins) >= 15) list.Add($"{p.Wins}승 투수! 등판하는 날은 맘 편히 본다");
+                if (S(p.Strikeouts) >= 180) list.Add($"삼진 {p.Strikeouts}개. 타자들 헛스윙하는 맛에 산다");
+                if (S(p.Saves) >= 30) list.Add($"{p.Saves}세이브. 9회에 {{name}} 나오면 TV 끌 준비 함 (이겨서)");
+                if (S(p.Holds) >= 25) list.Add($"{p.Holds}홀드. 빛 안 나는 자리에서 제일 고생했다");
+                if (S(p.BlownSaves) >= 6) list.Add("블론세이브 나올 때마다 심장 떨어지는 줄...");
+                if (S(p.Losses) >= 13) list.Add("패전 많은 건 타선 탓도 크다. 힘내라");
+            }
+            else if (r.Line != null && r.Line.AtBats >= 50)
+            {
+                var l = r.Line;
+                double avg = (double)l.Hits / l.AtBats;
+                if (S(l.HomeRuns) >= 40) list.Add($"{l.HomeRuns}홈런 실화냐 ㄷㄷ 담장이 좁아 보임");
+                else if (S(l.HomeRuns) >= 25) list.Add($"홈런 {l.HomeRuns}개! 한 방 있는 타자 됐다");
+                if (avg >= 0.330) list.Add($"타율 {avg:.000}. 치는 족족 안타네");
+                else if (avg < 0.235) list.Add($"타율 {avg:.000}... 멘도사 라인 근처는 너무하잖아");
+                if (S(l.RunsBattedIn) >= 100) list.Add($"{l.RunsBattedIn}타점! 주자만 있으면 불러들이는 해결사");
+                if (S(l.StolenBases) >= 30) list.Add($"도루 {l.StolenBases}개. {{name}} 1루 나가면 투수가 더 긴장함 ㅋㅋ");
+                if (S(l.Walks) >= 80) list.Add("볼넷 골라내는 눈이 미쳤다. 투수들이 피해 가네");
+                if (S(l.Strikeouts) >= 150) list.Add("삼진 좀만 줄이면 진짜 무서울 텐데");
+                if (S(l.Hits) >= 180) list.Add($"{l.Hits}안타. 매 경기 한 개 이상은 쳐 준 듯");
+            }
+            if (r.Age <= 21) list.Add($"이제 {r.Age}살이라는 게 제일 무섭다");
+            else if (r.Age >= 35) list.Add($"{r.Age}살에도 이 정도면 관리의 신이다");
+            if (r.Notes.Any(n => n.Contains("트레이드"))) list.Add("트레이드로 와서 이만큼 해 주면 대성공이지");
+            if (r.Notes.Any(n => n.Contains("올스타"))) list.Add("올스타 무대에서 본 {name} 진짜 멋있었다");
+            if (r.FarmDays > 0 && r.FarmDays < Math.Max(1, r.Games) / 3) list.Add("2군 다녀오더니 확실히 달라졌다");
+            if (r.InjuryDays > 0 && r.InjuryDays <= Math.Max(1, r.Games) / 4) list.Add("잠깐 다쳤을 때 진짜 걱정했다. 안 아픈 게 최고");
+            if (c.Me.Popularity >= 150) list.Add("{name} 굿즈 품절이라 못 샀다... 구단아 더 찍어라");
+            if (c.HasMark("married") && c.GamesSince("married") <= c.League.GamesPerSeason) list.Add("결혼하고 더 잘하는 거 보니 신혼의 힘 맞네 ㅋㅋ");
+            if (c.Rival != null && r.RivalLine != null && r.Line != null && r.Pitching == null && r.RivalLine.HomeRuns > 0)
+                list.Add(r.Line.HomeRuns >= r.RivalLine.HomeRuns ? $"라이벌 {c.Rival.Name}보다 홈런 많다! 이게 우리 팀 자존심" : $"{c.Rival.Name}한테 홈런 밀린 건 좀 분하다");
+            return list;
         }
 
         /// <summary>A line on how the club did, for the fan scene before opening day.</summary>

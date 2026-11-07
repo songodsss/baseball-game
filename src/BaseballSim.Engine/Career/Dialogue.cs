@@ -62,16 +62,104 @@ namespace BaseballSim.Career
             public List<string> Aliases = new List<string>();
         }
 
-        /// <summary>The lines of a text, its people taken from the career.</summary>
-        public static List<DialogueLine> Lines(string text, Career career, string context = null) => Lines(text, Cast(career), context);
+        /// <summary>
+        /// The lines of a text, its people taken from the career. Once she is my girlfriend or wife, the
+        /// heroine talks to me as a partner does (반말), and so do I when I answer her, whatever the
+        /// scene was written for: the main story's reporter or YouTuber keeps her polite words for others.
+        /// </summary>
+        public static List<DialogueLine> Lines(string text, Career career, string context = null)
+        {
+            var lines = Lines(text, Cast(career), context);
+            if (!Partnered(career)) return lines;
+            string lastSpeaker = context == null ? null : Lines(context, Cast(career)).LastOrDefault(l => l.IsSpeech)?.Speaker;
+            foreach (var l in lines)
+            {
+                if (!l.IsSpeech) continue;
+                if (IsPartner(career, l.Speaker) || l.Kind == SpeakerKind.Me && IsPartner(career, lastSpeaker)) l.Text = Casual(l.Text);
+                lastSpeaker = l.Speaker;
+            }
+            return lines;
+        }
 
-        /// <summary>The words chosen on a choice button, as my player's own line when they're a quote; null otherwise.</summary>
-        public static DialogueLine MyChoice(string label, Career career)
+        /// <summary>The words chosen on a choice button, as my player's own line when they're a quote; null otherwise.
+        /// context is the scene just told: an answer to my partner is said the way partners talk.</summary>
+        public static DialogueLine MyChoice(string label, Career career, string context = null)
         {
             if (string.IsNullOrEmpty(label)) return null;
             string t = label.Trim();
             if (t.Length < 3 || t[0] != '"' || t[t.Length - 1] != '"' || t.IndexOf('"', 1) != t.Length - 1) return null;
+            if (context != null && Partnered(career) && IsPartner(career, Lines(context, Cast(career)).LastOrDefault(l => l.IsSpeech && l.Kind != SpeakerKind.Me)?.Speaker))
+                t = Casual(t);
             return new DialogueLine { Kind = SpeakerKind.Me, Speaker = career.Me.Name, Text = t, PortraitKey = career.Me.Name };
+        }
+
+        static bool Partnered(Career c) => c?.Me != null && (Romance.Lover(c) != null || c.HasMark("married"));
+
+        static bool IsPartner(Career c, string speaker) =>
+            speaker != null && (speaker == Romance.Lover(c)?.Name || c.HasMark("married") && (speaker == "아내" || speaker == "연인"));
+
+        // Polite words (whole words: Word) and endings, with their 반말; longer ones first so "주세요" wins over "세요" and "요".
+        static readonly (string Polite, string Casual, bool Word)[] Endings =
+        {
+            ("선수님이", "네가", true), ("선수님은", "너는", true), ("선수님한테", "너한테", true), ("선수님", "너", true), ("그쪽이", "네가", true), ("그쪽은", "너는", true), ("그쪽", "너", true),
+            ("저도요", "나도", true), ("제가", "내가", true), ("저는", "나는", true), ("저를", "나를", true), ("저한테", "나한테", true), ("저랑", "나랑", true), ("저도", "나도", true), ("저희", "우리", true), ("제", "내", true), ("저", "나", true),
+            ("네", "응", true),
+            ("고맙습니다", "고마워", false), ("감사합니다", "고마워", false), ("죄송합니다", "미안해", false), ("미안합니다", "미안해", false), ("죄송해요", "미안해", false),
+            ("겁니다", "거야", false), ("갑니다", "가", false), ("봅니다", "봐", false), ("옵니다", "와", false), ("압니다", "알아", false), ("주십시오", "줘", false), ("하십시오", "해", false), ("입니다", "이야", false), ("합니다", "해", false), ("됩니다", "돼", false), ("습니다", null, false), ("니다", "다", false),
+            ("주세요", "줘", false), ("하세요", "해", false), ("보세요", "봐", false), ("오세요", "와", false), ("가세요", "가", false), ("드세요", "먹어", false), ("마세요", "마", false),
+            ("지세요", "져", false), ("아세요", "알아", false), ("계세요", "있어", false), ("으세요", "어", false), ("세요", "셔", false),
+            ("이에요", "이야", false), ("예요", "야", false), ("에요", "야", false), ("그쵸", "그치", false), ("죠", "지", false), ("군요", "구나", false),
+        };
+
+        static readonly string[] ThatOne = { "사람", "선수", "쪽", "집", "아이", "분", "멀리", "앞", "뒤", "위" };
+
+        const string Breaks = " \".?!,~…'\n)";
+
+        /// <summary>The 아/어 that follows a syllable (좋 → 아, 있 → 어): 습니다 → 좋아, 있어.</summary>
+        static string Harmony(StringBuilder sb)
+        {
+            if (sb.Length == 0 || !IsHangul(sb[sb.Length - 1])) return "어";
+            int vowel = (sb[sb.Length - 1] - 0xAC00) / 28 % 21;
+            return vowel == 0 || vowel == 2 || vowel == 8 ? "아" : "어";
+        }
+
+        /// <summary>A quoted line said the way partners talk (반말): "선수님이 정해 주세요" → "네가 정해 줘".</summary>
+        public static string Casual(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            var sb = new StringBuilder(text.Length);
+            int i = 0;
+            while (i < text.Length)
+            {
+                // Words: only where a word starts (after a space, a quote or the start), so "제가" inside "문제가" stays.
+                bool wordStart = i == 0 || " \"'\n(…".IndexOf(text[i - 1]) >= 0;
+                bool done = false;
+                foreach (var (polite, casual, word) in Endings)
+                {
+                    if (string.CompareOrdinal(text, i, polite, 0, polite.Length) != 0) continue;
+                    int end = i + polite.Length;
+                    bool atEnd = end >= text.Length || Breaks.IndexOf(text[end]) >= 0;
+                    // A word must start where a word starts; a lone word like 저 or 네 must also end there.
+                    if (word ? !wordStart || polite.Length == 1 && !atEnd : !atEnd) continue;
+                    // 네 is "yes" only right before a stop (네 덕분에 is already 반말); 저 사람 is "that person".
+                    if (polite == "네" && end < text.Length && text[end] == ' ') continue;
+                    if (polite == "저" && ThatOne.Any(w => string.CompareOrdinal(text, end + 1, w, 0, w.Length) == 0)) continue;
+                    sb.Append(casual ?? Harmony(sb));
+                    i = end;
+                    done = true;
+                    break;
+                }
+                if (done) continue;
+                // Any other "…요" at the end of a phrase: drop the 요 (있어요 → 있어, 할게요 → 할게).
+                if (text[i] == '요' && i > 0 && IsHangul(text[i - 1]) && text[i - 1] != '필' && text[i - 1] != '중' && (i + 1 >= text.Length || Breaks.IndexOf(text[i + 1]) >= 0))
+                {
+                    i++;
+                    continue;
+                }
+                sb.Append(text[i]);
+                i++;
+            }
+            return sb.ToString();
         }
 
         /// <summary>Everyone who can speak in this career's scenes.</summary>

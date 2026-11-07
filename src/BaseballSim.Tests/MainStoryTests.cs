@@ -67,10 +67,11 @@ public class MainStoryTests
             var order = MainStory.SceneIds.Select(id => MainStory.IdPrefix + id).ToList();
             var positions = scenes.Select(id => order.IndexOf(id)).ToList();
             Assert.Equal(positions.OrderBy(p => p), positions);
-            Assert.Equal(scenes.Count, career.Story.Log.Count);
+            Assert.True(scenes.Count == career.Story.Log.Count, $"seed {seed}: {string.Join(",", scenes)} | log {string.Join(",", career.Story.Log)}");
             Assert.Equal(new[] { "main_draft", "main_roommate", "main_camp" }, scenes.Take(3));
             // A career that lasts to 37 sees nearly the whole story; any career gets past the first wall.
-            if (career.Me.Age >= 38) Assert.True(scenes.Count >= MainStory.SceneCount - 6, $"seed {seed}: {scenes.Count} scenes: {string.Join(",", scenes)} | {string.Join(",", career.Story.Seen)} age {career.Me.Age}");
+            // (A release with no offers can end it a season early, before the last chapter.)
+            if (career.Me.Age >= 38 && !career.Released) Assert.True(scenes.Count >= MainStory.SceneCount - 6, $"seed {seed}: {scenes.Count} scenes: {string.Join(",", scenes)} | {string.Join(",", career.Story.Seen)} age {career.Me.Age}");
             Assert.True(scenes.Count >= 8, $"seed {seed}: only {scenes.Count} scenes");
         }
     }

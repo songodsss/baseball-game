@@ -553,6 +553,7 @@ namespace BaseballSim.Career
 
             AddLifeEvents(list);
             AddSideStories(list);
+            AddRafael(list);
             AddSpouseStories(list);
             AddSerialStories(list);
             return list;

@@ -625,7 +625,7 @@ namespace BaseballSim.Career
             if (c.InMilitary) return null;
             if (c.Day <= 1 && !c.InFarm && !c.SeenThisSeason("opening")) return Opening(c); // in case the season start was skipped
             // Right after my club's last home game of the year (it comes first: it can't wait for another day).
-            if (!c.InFarm && !c.SeenThisSeason("last_home") && c.Day - 1 >= LastHomeDay(c) && c.Day - 1 <= LastHomeDay(c) + 2) return LastHome;
+            if (!c.InFarm && !c.SeenThisSeason("last_home") && c.Day - 1 >= LastHomeDay(c) && c.Day - 1 <= LastHomeDay(c) + 2) return LastHomeFor(c);
             // Hitters get the real home run derby at the break; pitchers have their own fun.
             if (c.Day > c.AllStarDay && c.Day <= c.AllStarDay + 3 && MadeAllStar(c) && !c.Me.IsInjured && c.Me.IsPitcher && !c.SeenThisSeason(RadarDerby.Id))
                 return RadarDerby;
@@ -713,16 +713,75 @@ namespace BaseballSim.Career
             },
         };
 
-        static readonly StoryEvent LastHome = new StoryEvent
+        /// <summary>
+        /// The bow to the home crowd after the last home game. In the career's last season it is a farewell,
+        /// not "see you next year"; otherwise it follows how the year went (a race still on, a lost year,
+        /// a big season of mine) and changes from one year to the next.
+        /// </summary>
+        static StoryEvent LastHomeFor(Career c)
+        {
+            if (c.IsFinalSeason) return FarewellHome(c);
+            int rank = c.StandingRank();
+            bool autumn = rank <= Postseason.Teams;
+            bool big = c.Me.Popularity >= 100;
+            string[] scenes = autumn
+                ? new[]
+                {
+                    "올 시즌 마지막 홈경기가 끝났다. 하지만 아직 끝이 아니다. 가을야구가 남았다.\n선수단이 그라운드에 한 줄로 서자 관중석에서 '가을에 또 만나!' 함성이 터졌다.",
+                    "정규시즌 마지막 홈경기. 전광판에 '포스트시즌 진출 확정' 글자가 떴다.\n팬들이 수건을 머리 위로 돌리며 자리를 떠나지 않는다.",
+                }
+                : new[]
+                {
+                    "올 시즌 마지막 홈경기가 끝났다. 가을야구는 일찌감치 멀어졌다.\n그래도 관중석 절반이 끝까지 남아 있었다. 선수단이 한 줄로 섰다.",
+                    "순위표 아래쪽에서 맞은 마지막 홈경기. 비까지 부슬부슬 내렸다.\n그런데도 팬들이 우비를 쓰고 끝까지 자리를 지켰다.",
+                };
+            string text = scenes[(c.Season + c.Me.Name.Length) % scenes.Length]
+                + (big ? "\n어디선가 {name}의 응원가가 시작됐다. 곧 구장 전체가 따라 불렀다." : "");
+            string yell = autumn
+                ? new[] { "\"가을에 보자!\" \"우승하자!\" 함성이 그라운드를 덮었다.", "\"포스트시즌 표 벌써 샀다!\" 외야에서 누군가 소리쳤다." }[c.Season % 2]
+                : new[] { "\"내년엔 가을야구 가자!\" 함성이 오래 이어졌다.", "\"괜찮아! 내년이 있잖아!\" 그 말이 이상하게 오래 남았다.", "\"고생했다! 겨울에 푹 쉬어라!\" 박수가 오래 이어졌다." }[c.Season % 3];
+            return new StoryEvent
+            {
+                Id = "last_home",
+                Title = autumn ? "가을을 앞둔 마지막 홈경기" : "시즌 마지막 홈경기",
+                Text = text,
+                Weight = (_, __) => 0,
+                Choices =
+                {
+                    new EventChoice { Label = "모자를 벗고 인사한다", Result = yell, Apply = e => { e.Fans(40); e.Morale(4); } },
+                    new EventChoice { Label = "사인볼을 던져 준다 (50만원)", Result = "외야석까지 공이 날아가자 환호성이 터졌다. 공을 잡은 꼬마가 두 손을 번쩍 들었다.", Apply = e => { e.Money(-50); e.Fans(60); e.Morale(3); } },
+                    new EventChoice { Label = "그라운드를 한 바퀴 돈다", Result = "관중석 쪽으로 손을 흔들며 천천히 걸었다. 이름을 불러 주는 목소리를 하나하나 들었다.", Apply = e => { e.Fans(50); e.Morale(5); e.Fatigue(5); } },
+                },
+            };
+        }
+
+        /// <summary>The last home game of the career: the same lineup on the grass, but nobody says "next year".</summary>
+        static StoryEvent FarewellHome(Career c) => new StoryEvent
         {
             Id = "last_home",
-            Title = "시즌 마지막 홈경기",
-            Text = "올 시즌 마지막 홈경기가 끝났다.\n선수단이 그라운드에 한 줄로 섰다. 팬들이 자리를 떠나지 않는다.",
+            Title = "마지막 홈경기",
+            Text = "선수 생활 마지막 홈경기가 끝났다.\n여느 해처럼 선수단이 그라운드에 한 줄로 섰다. 그런데 올해는 아무도 '내년에 봐요'라고 외치지 않았다.\n관중석 여기저기서 {name}의 등번호가 적힌 수건이 올라왔다. 구장 전체가 조용히 박수를 치고 있었다.",
             Weight = (_, __) => 0,
             Choices =
             {
-                new EventChoice { Label = "모자를 벗고 인사한다", Result = "\"내년에 또 봐요!\" 함성이 오래 이어졌다.", Apply = e => { e.Fans(40); e.Morale(4); } },
-                new EventChoice { Label = "사인볼을 던져 준다 (50만원)", Result = "외야석까지 공이 날아가자 환호성이 터졌다.", Apply = e => { e.Money(-50); e.Fans(60); e.Morale(3); } },
+                new EventChoice
+                {
+                    Label = "마이크를 잡고 인사한다",
+                    Result = "\"매년 이 자리에서 내년에 또 보자고 했는데... 올해는 그 말을 못 하겠네요. 그동안 정말 고마웠습니다.\"\n누군가 외쳤다. \"우리가 더 고마웠다!\" 그 말에 결국 눈물이 터졌다.",
+                    Apply = e => { e.Fans(150); e.Morale(8); },
+                },
+                new EventChoice
+                {
+                    Label = "홈플레이트 흙을 한 줌 담는다",
+                    Result = "수천 번 밟았던 그 자리. 흙을 작은 병에 담는 동안 관중석이 다시 응원가를 불렀다. 마지막으로, 천천히.",
+                    Apply = e => { e.Fans(100); e.Morale(8); },
+                },
+                new EventChoice
+                {
+                    Label = "관중석 끝까지 돌며 손을 잡는다",
+                    Result = "한 시간 넘게 걸렸다. 신인 때 사인해 준 꼬마가 이제 아이 손을 잡고 와 있었다. \"우리 애도 당신 보고 야구 시작했어요.\"",
+                    Apply = e => { e.Fans(120); e.Morale(7); e.Fatigue(10); },
+                },
             },
         };
 

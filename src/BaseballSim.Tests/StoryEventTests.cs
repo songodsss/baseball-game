@@ -178,3 +178,15 @@ public class BothKindnessesTests
         Assert.Same(refusal, StoryEvents.WithBoth(refusal));
     }
 }
+
+public class PartnerSpeechTests
+{
+    [Fact]
+    public void APartnerTalksInBanmal()
+    {
+        Assert.Equal("\"이거 올리면 조회수 엄청날 거야. 근데 안 올릴게. 네가 정해 줘.\"",
+            Dialogue.Casual("\"이거 올리면 조회수 엄청날 거예요. 근데 안 올릴게요. 선수님이 정해 주세요.\""));
+        Assert.Equal("\"나 원래 선수랑 사적으로 안 만나. 고마워. 정말 좋아.\"", Dialogue.Casual("\"저 원래 선수랑 사적으로 안 만나요. 고맙습니다. 정말 좋습니다.\""));
+        Assert.Equal("\"네 덕분이야. 이게 필요.\"", Dialogue.Casual("\"네 덕분이야. 이게 필요.\"")); // already 반말 stays
+    }
+}

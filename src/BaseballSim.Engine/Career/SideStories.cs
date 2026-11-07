@@ -307,7 +307,7 @@ namespace BaseballSim.Career
                 Id = "foreign_leave",
                 Title = "공항에서",
                 Text = "라파엘이 재계약을 하지 못했다. 내일 고국으로 돌아간다.\n\"한국, 좋았어. 너 때문에.\"",
-                Weight = (c, d) => c.HasMark("rafael") && c.Seen("foreign_homesick") && SeasonsSince(c, "seen:foreign_arrive") >= 2 && Progress(c) >= 0.85 && !c.Seen("foreign_leave") ? 5 : 0,
+                Weight = (c, d) => RafaelLeaving(c) && !RafaelApart(c) ? 5 : 0,
                 Choices =
                 {
                     new EventChoice { Label = "공항까지 배웅한다", Result = "출국장 앞에서 라파엘이 \"수고하셨습니다!\" 하고 90도로 인사했다.", Apply = e => { e.Morale(4); e.Fatigue(5); } },
@@ -320,10 +320,10 @@ namespace BaseballSim.Career
                 Id = "foreign_letter",
                 Title = "지구 반대편에서 온 편지",
                 Text = "라파엘에게서 소포가 왔다. 고국 리그 우승 메달 사진과 편지.\n'이번 시즌, 네 등번호 달고 뛰었어. 우승했어, 형제!'",
-                Weight = (c, d) => c.HasMark("rafael_brother") && c.Seen("foreign_leave") && SeasonsSince(c, "seen:foreign_leave") >= 2 && !c.Seen("foreign_letter") ? 1.5 : 0,
+                Weight = (c, d) => c.HasMark("rafael_brother") && RafaelGone(c) && SeasonsSince(c, RafaelGoneMark(c)) >= 2 && !c.Seen("foreign_letter") ? 1.5 : 0,
                 Choices =
                 {
-                    new EventChoice { Label = "사진을 사물함에 붙인다", Result = "한국어로 쓴 맞춤법 틀린 편지가 이상하게 눈물 나게 웃겼다.", Apply = e => { e.Unmark("rafael"); e.Morale(8); } },
+                    new EventChoice { Label = "사진을 사물함에 붙인다", Result = "한국어로 쓴 맞춤법 틀린 편지가 이상하게 눈물 나게 웃겼다.", Apply = e => e.Morale(8) },
                 },
             });
 
