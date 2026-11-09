@@ -30,7 +30,7 @@ namespace BaseballSim.Career
         /// 31: signature skills (career).
         /// 32: the arena.
         /// 33: legend stages and visits, the story's version seed; legends whose record fell on the club.
-        /// 41: my player's look (body, skin, hair, hair colour, eyes, brows).
+        /// 41: my player's look (body, skin, hair, hair colour, eyes, expression).
         public const int Version = 41;
 
         public static byte[] ToBytes(Club club, Career career)
@@ -656,7 +656,7 @@ namespace BaseballSim.Career
                 w.Write(look.Hair);
                 w.Write(look.HairColor);
                 w.Write(look.Eyes);
-                w.Write(look.Brows);
+                w.Write(look.Expression);
             }
         }
 
@@ -909,7 +909,7 @@ namespace BaseballSim.Career
                     Hair = r.ReadInt32(),
                     HairColor = r.ReadInt32(),
                     Eyes = r.ReadInt32(),
-                    Brows = r.ReadInt32(),
+                    Expression = r.ReadInt32(),
                 });
             return career;
         }

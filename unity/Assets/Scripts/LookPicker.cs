@@ -56,9 +56,9 @@ namespace BaseballGame
                 preview.sprite = sprite;
                 preview.color = sprite == null ? Color.clear : Color.white;
                 foreach (var r in refreshers) r();
-                summary.text = AvatarArt.HasParts(look.Build)
+                summary.text = AvatarArt.HasModels(look.Build)
                     ? Looks.Describe(look)
-                    : Looks.Describe(look) + "\n<size=24>부위 그림이 들어오기 전까지는 체형이 같은 얼굴로 보여요</size>";
+                    : Looks.Describe(look) + "\n<size=24>3D 모델이 들어오기 전까지는 체형이 같은 그림으로 보여요</size>";
                 changed?.Invoke();
             }
 
@@ -66,8 +66,8 @@ namespace BaseballGame
             Part(right, "피부", Looks.Skins.Length, () => look.Skin, v => look.Skin = v, v => Looks.Skins[v].Name, v => Looks.Skins[v].Hex, refreshers, Refresh);
             Part(right, "머리", Looks.Hairs.Length, () => look.Hair, v => look.Hair = v, v => Looks.Hairs[v].Name, null, refreshers, Refresh);
             Part(right, "머리색", Looks.HairColors.Length, () => look.HairColor, v => look.HairColor = v, v => Looks.HairColors[v].Name, v => Looks.HairColors[v].Hex, refreshers, Refresh);
-            Part(right, "눈", Looks.Eyes.Length, () => look.Eyes, v => look.Eyes = v, v => Looks.Eyes[v].Name, null, refreshers, Refresh);
-            Part(right, "눈썹", Looks.Brows.Length, () => look.Brows, v => look.Brows = v, v => Looks.Brows[v].Name, null, refreshers, Refresh);
+            Part(right, "눈매", Looks.Eyes.Length, () => look.Eyes, v => look.Eyes = v, v => Looks.Eyes[v].Name, null, refreshers, Refresh);
+            Part(right, "표정", Looks.Expressions.Length, () => look.Expression, v => look.Expression = v, v => Looks.Expressions[v].Name, null, refreshers, Refresh);
 
             var dice = UiKit.Button(left, "랜덤 조합", () =>
             {
@@ -77,7 +77,7 @@ namespace BaseballGame
                 look.Hair = rolled.Hair;
                 look.HairColor = rolled.HairColor;
                 look.Eyes = rolled.Eyes;
-                look.Brows = rolled.Brows;
+                look.Expression = rolled.Expression;
                 Refresh();
                 UiAnim.PopIn(previewRt);
             }, UiKit.Card);

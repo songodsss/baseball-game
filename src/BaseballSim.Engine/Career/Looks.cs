@@ -8,6 +8,7 @@ namespace BaseballSim.Career
 
     /// <summary>
     /// What my player looks like, put together from parts at registration (or rolled at random).
+    /// The parts are VRoid models (see AvatarRig in the Unity project): a body per build, hair and faces swapped onto it.
     /// Each number is an index into the matching list in <see cref="Looks"/>. The game draws the
     /// portrait from these parts wherever my player's face shows: dialogue, profile, title screen.
     /// </summary>
@@ -18,12 +19,12 @@ namespace BaseballSim.Career
         public int Hair;
         public int HairColor;
         public int Eyes;
-        public int Brows;
+        public int Expression;
 
         public PlayerLook Clone() => (PlayerLook)MemberwiseClone();
 
         /// <summary>Same parts give the same key, so a drawn portrait can be cached by it.</summary>
-        public string Key => $"{(int)Build}-{Skin}-{Hair}-{HairColor}-{Eyes}-{Brows}";
+        public string Key => $"{(int)Build}-{Skin}-{Hair}-{HairColor}-{Eyes}-{Expression}";
 
         public override bool Equals(object obj) => obj is PlayerLook o && o.Key == Key;
         public override int GetHashCode() => Key.GetHashCode();
@@ -39,10 +40,11 @@ namespace BaseballSim.Career
             (BodyBuild.Big, "거구", "big"),
         };
 
-        public static readonly (string Name, string Hex)[] Skins =
+        /// <summary>Hex is the colour shown on the picker; Tint multiplies the model's (lightest) skin.</summary>
+        public static readonly (string Name, string Hex, string Tint)[] Skins =
         {
-            ("밝은 피부", "#FFE3D0"), ("보통 피부", "#F6CBAA"), ("햇볕에 탄 피부", "#DDA67F"),
-            ("구릿빛 피부", "#B97D55"), ("짙은 피부", "#8A5A3C"),
+            ("밝은 피부", "#FFE3D0", "#FFFFFF"), ("보통 피부", "#F6CBAA", "#F7E3D3"), ("햇볕에 탄 피부", "#DDA67F", "#E2C2A6"),
+            ("구릿빛 피부", "#B97D55", "#C49A78"), ("짙은 피부", "#8A5A3C", "#94694E"),
         };
 
         public static readonly (string Name, string File)[] Hairs =
@@ -57,15 +59,17 @@ namespace BaseballSim.Career
             ("애쉬 그레이", "#9AA0A8"), ("금발", "#E3C278"), ("붉은 갈색", "#8E3B2A"),
         };
 
+        /// <summary>Eyes and brows come together, from one face model each.</summary>
         public static readonly (string Name, string File)[] Eyes =
         {
-            ("또렷한 눈", "bright"), ("날카로운 눈", "sharp"), ("순한 눈", "gentle"),
-            ("가는 눈", "narrow"), ("큰 눈", "round"), ("졸린 눈", "sleepy"),
+            ("또렷한 눈매", "bright"), ("날카로운 눈매", "sharp"), ("순한 눈매", "gentle"),
+            ("가는 눈매", "narrow"), ("큰 눈매", "round"), ("졸린 눈매", "sleepy"),
         };
 
-        public static readonly (string Name, string File)[] Brows =
+        /// <summary>The portrait's expression, from the face model's own blend shapes (VRoid names), weight 0-1.</summary>
+        public static readonly (string Name, string Shape, float Weight)[] Expressions =
         {
-            ("곧은 눈썹", "straight"), ("올라간 눈썹", "angled"), ("짙은 눈썹", "thick"), ("처진 눈썹", "soft"),
+            ("무표정", null, 0f), ("미소", "Fcl_ALL_Fun", 0.7f), ("활짝 웃음", "Fcl_ALL_Joy", 0.6f), ("진지함", "Fcl_ALL_Angry", 0.35f),
         };
 
         public static string BuildName(BodyBuild b) => Builds.First(x => x.Build == b).Name;
@@ -82,7 +86,7 @@ namespace BaseballSim.Career
                 Hair = Pick(Hairs.Length),
                 HairColor = Pick(HairColors.Length),
                 Eyes = Pick(Eyes.Length),
-                Brows = Pick(Brows.Length),
+                Expression = Pick(Expressions.Length),
             };
         }
 
@@ -96,7 +100,7 @@ namespace BaseballSim.Career
             look.Hair = C(look.Hair, Hairs.Length);
             look.HairColor = C(look.HairColor, HairColors.Length);
             look.Eyes = C(look.Eyes, Eyes.Length);
-            look.Brows = C(look.Brows, Brows.Length);
+            look.Expression = C(look.Expression, Expressions.Length);
             return look;
         }
 

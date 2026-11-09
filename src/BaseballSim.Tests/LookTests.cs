@@ -11,7 +11,7 @@ public class LookTests
     {
         var random = new SeededRandom(3);
         var club = new Club();
-        var look = new PlayerLook { Build = BodyBuild.Big, Skin = 3, Hair = 5, HairColor = 4, Eyes = 2, Brows = 1 };
+        var look = new PlayerLook { Build = BodyBuild.Big, Skin = 3, Hair = 5, HairColor = 4, Eyes = 2, Expression = 1 };
         var league = new League(new RosterGenerator(random), 36);
         var me = CareerState.NewPlayer("외모", random, 0, look: look);
         var career = new CareerState(me, league, league.Teams[0], random);
