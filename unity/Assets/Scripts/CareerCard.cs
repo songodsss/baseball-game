@@ -34,12 +34,14 @@ namespace BaseballGame
         GameObject _buttons;
         Text _status;
         string _fileName;
+        string _shareLine;
 
         public static void Show(Transform canvas, Data data, Action onClose = null)
         {
             var dim = UiKit.Dim(canvas, "Career Card");
             var host = dim.gameObject.AddComponent<CareerCard>();
             host._fileName = data.FileName;
+            host._shareLine = $"{data.Name} · {data.Team} · {data.Subtitle}";
             host.Build(dim, data, onClose);
         }
 
@@ -118,7 +120,8 @@ namespace BaseballGame
             buttons.anchorMax = new Vector2(0.92f, 0.08f);
             buttons.offsetMin = buttons.offsetMax = Vector2.zero;
             UiKit.Row(buttons, 20);
-            UiKit.Button(buttons, "이미지로 저장", () => StartCoroutine(Capture()), new Color(1f, 0.82f, 0.3f)).GetComponentInChildren<Text>().color = new Color(0.15f, 0.12f, 0.05f);
+            UiKit.Button(buttons, "이미지로 저장", () => StartCoroutine(Capture(false)), new Color(1f, 0.82f, 0.3f)).GetComponentInChildren<Text>().color = new Color(0.15f, 0.12f, 0.05f);
+            UiKit.Button(buttons, "공유", () => StartCoroutine(Capture(true)), new Color(0.25f, 0.55f, 0.95f));
             UiKit.Button(buttons, "닫기", () => { Destroy(gameObject); onClose?.Invoke(); }, UiKit.Muted);
             _status = UiKit.Label(dim, "", 24, TextAnchor.MiddleCenter, UiKit.Muted);
             Place(_status.rectTransform, new Vector2(0.05f, 0.08f), new Vector2(0.95f, 0.11f));
@@ -131,8 +134,8 @@ namespace BaseballGame
             rt.offsetMin = rt.offsetMax = Vector2.zero;
         }
 
-        /// <summary>Saves just the card as a PNG in the app's folder. Sharing to apps comes with the phone build.</summary>
-        IEnumerator Capture()
+        /// <summary>Saves just the card as a PNG in the app's folder, or hands it to the phone's share sheet.</summary>
+        IEnumerator Capture(bool share)
         {
             _buttons.SetActive(false);
             _status.text = "";
@@ -150,6 +153,13 @@ namespace BaseballGame
             crop.SetPixels(shot.GetPixels(x, y, w, h));
             crop.Apply();
             Destroy(shot);
+
+            if (share)
+            {
+                _status.text = Juice.ShareTexture(crop, $"{_shareLine} #프로야구선수키우기");
+                Destroy(crop);
+                yield break;
+            }
 
             try
             {

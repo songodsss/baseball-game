@@ -694,6 +694,19 @@ namespace BaseballGame
             shadow.effectDistance = new Vector2(5, -5);
             GameAudio.Sfx(h.Title.Contains("홈런") ? GameAudio.BatHomeRun : GameAudio.BatHit, 0.9f);
             GameAudio.Sfx(h.Level >= 2 ? GameAudio.CheerBig : GameAudio.CheerSmall, 0.8f);
+            Juice.Shine(band.GetComponent<Image>(), new Color(1f, 1f, 1f, 0.7f), 0.6f, loop: false);
+            if (h.Level >= 2)
+            {
+                // 끝내기·만루 홈런·완봉: confetti, a camera shake and a roll of buzzes.
+                Juice.Confetti(root, new Vector2(0.5f, 0.42f), Juice.PartyColors, 120, 1.1f);
+                Juice.Shake(holder, 24f, 0.4f);
+                Juice.VibrateRoll(this, 3);
+            }
+            else
+            {
+                Juice.Sparkle(root, new Vector2(0.5f, 0.5f), Juice.GoldColors, 30, 1.6f);
+                Juice.Vibrate(Juice.Buzz.Medium);
+            }
             StartCoroutine(SweepCutIn(holder.gameObject, band));
         }
 
@@ -728,7 +741,14 @@ namespace BaseballGame
             var outline = word.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0, 0, 0, 0.8f);
             outline.effectDistance = new Vector2(4, -4);
-            UiAnim.PopIn(word, 0.4f);
+            Juice.SlamIn(word, 2.4f, 0.45f);
+            ColorUtility.TryParseHtmlString(color, out var gradeColor);
+            Juice.Shine(word, new Color(1f, 1f, 1f, 0.9f), 0.5f, loop: false, pause: 0f);
+            Juice.Sparkle(root, new Vector2(0.5f, 0.5f), new[] { gradeColor, Color.white, gradeColor }, 50, 2f);
+            bool top = up.Grade.StartsWith("S");
+            if (top) Juice.Confetti(root, new Vector2(0.5f, 0.3f), Juice.GoldColors, 90);
+            if (top) Juice.VibrateRoll(this, 2);
+            else Juice.Vibrate(Juice.Buzz.Medium);
             GameAudio.Sfx(GameAudio.LevelUp);
             GameAudio.Sfx(GameAudio.Achievement, 0.6f);
             StartCoroutine(FadeCrit(flash.gameObject));
@@ -748,7 +768,9 @@ namespace BaseballGame
             var outline = word.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0.35f, 0.15f, 0f, 0.9f);
             outline.effectDistance = new Vector2(4, -4);
-            UiAnim.PopIn(word, 0.35f);
+            Juice.SlamIn(word, crit >= 3 ? 2f : 1.6f, 0.35f);
+            Juice.Sparkle(root, new Vector2(0.5f, 0.5f), Juice.GoldColors, crit >= 3 ? 60 : 30, crit >= 3 ? 2.2f : 1.5f);
+            Juice.Vibrate(crit >= 3 ? Juice.Buzz.Heavy : Juice.Buzz.Light);
             GameAudio.Sfx(GameAudio.CheerSmall, 0.8f);
             if (crit >= 3) GameAudio.Sfx(GameAudio.Achievement, 0.7f);
             StartCoroutine(FadeCrit(flash.gameObject));
@@ -1794,6 +1816,12 @@ namespace BaseballGame
             UiKit.Height(UiKit.Label(card, "소리", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
             VolumeRow(card, "배경음악", GameAudio.MusicLevel, level => GameAudio.MusicLevel = level);
             VolumeRow(card, "효과음", GameAudio.SfxLevel, level => GameAudio.SfxLevel = level);
+            UiKit.Height(UiKit.Button(card, Juice.HapticsOn ? "진동: 켜짐" : "진동: 꺼짐", () =>
+            {
+                Juice.HapticsOn = !Juice.HapticsOn;
+                if (Juice.HapticsOn) Juice.Vibrate(Juice.Buzz.Medium);
+                ShowSettings();
+            }, Juice.HapticsOn ? UiKit.Accent : UiKit.Background), 110);
 
             UiKit.Height(UiKit.Label(card, "도움말", 30, TextAnchor.LowerLeft, UiKit.Muted), 60);
             UiKit.Height(UiKit.Button(card, "도움말 처음부터 다시 보기", () =>
@@ -1825,7 +1853,8 @@ namespace BaseballGame
             UiKit.Height(UiKit.Label(card, "프로토타입 0.1 · 결제와 광고는 아직 테스트용이라 실제로 청구되지 않아요.", 24, TextAnchor.MiddleCenter, UiKit.Muted), 60);
             UiKit.Height(UiKit.Label(card, "아이콘: game-icons.net (Delapouite, Lorc, Skoll · CC BY 3.0) · 글꼴: Pretendard (SIL OFL)\n" +
                 "선수 모델: Quaternius · 잔디·흙·하늘: Poly Haven · 버튼·효과음: Kenney (모두 CC0)\n" +
-                "관중 소리: Gregor Quendel (CC BY 4.0) · 배경음악·효과음: OpenGameArt (CC0)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 100);
+                "관중 소리: Gregor Quendel (CC BY 4.0) · 배경음악·효과음: OpenGameArt (CC0)\n" +
+                "연출: UIEffect·ParticleEffectForUGUI (mob-sakai) · LitMotion (Annulus Games) · HapticFeedback (Scott Doxey) · NativeShare (Süleyman Yasir Kula) (모두 MIT)", 22, TextAnchor.MiddleCenter, UiKit.Muted), 130);
             UiKit.Height(UiKit.Button(card, "닫기", CloseOverlay, UiKit.Muted), 110);
         }
 
@@ -2621,8 +2650,35 @@ namespace BaseballGame
                 foreach (var a in others)
                     UiKit.Height(UiKit.Label(body, $"{a.Title}  <b>{a.Winner}</b> <size=24><color=#BAC4D8>({a.Team}) {a.Value}</color></size>", 28, TextAnchor.MiddleLeft), 46);
             }
-            var ok = UiKit.Button(card, "시즌 결산 보기", () => next(), any ? Gold : UiKit.Accent);
-            UiKit.Height(ok, 120);
+            var canvas = GetComponentInChildren<Canvas>().transform;
+            if (any)
+            {
+                // Confetti from both lower corners once the trophies have landed; a champion gets a second wave.
+                StartCoroutine(Celebration(canvas, champion || mine.Count >= 3, 0.15f + 0.25f * order));
+            }
+            var row = UiKit.Empty(card, "Buttons");
+            UiKit.Height(row, 120);
+            UiKit.Row(row, 16);
+            if (any)
+            {
+                string year = CareerState.YearOf(summary.Record.Season).ToString();
+                string what = champion ? "한국시리즈 우승" : string.Join(", ", mine.Select(a => a.Title).Distinct().Take(3));
+                UiKit.Width(Juice.ShareButton(row, this, () => $"{_career.Me.Name} {year} 시상식 · {what} #프로야구선수키우기"), 220);
+            }
+            UiKit.Button(row, "시즌 결산 보기", () => next(), any ? Gold : UiKit.Accent);
+        }
+
+        System.Collections.IEnumerator Celebration(Transform canvas, bool big, float delay)
+        {
+            yield return new WaitForSecondsRealtime(delay);
+            if (canvas == null) yield break;
+            Juice.Confetti(canvas, new Vector2(0.12f, 0.08f), Juice.PartyColors, big ? 90 : 60, 1.15f);
+            Juice.Confetti(canvas, new Vector2(0.88f, 0.08f), Juice.PartyColors, big ? 90 : 60, 1.15f);
+            Juice.VibrateRoll(this, big ? 3 : 2);
+            if (!big) yield break;
+            yield return new WaitForSecondsRealtime(0.9f);
+            if (canvas == null) yield break;
+            Juice.Confetti(canvas, new Vector2(0.5f, 0.05f), Juice.GoldColors, 120, 1.3f);
         }
 
         /// <summary>One title I won: a gold-trimmed card with its trophy, the title big, and what earned it.</summary>
@@ -2663,7 +2719,9 @@ namespace BaseballGame
             yield return new WaitForSecondsRealtime(delay);
             if (panel == null) yield break;
             group.alpha = 1;
-            UiAnim.PopIn(panel, 0.3f);
+            Juice.SlamIn(panel, 1.35f, 0.32f);
+            Juice.Shine(panel.GetComponent<Image>(), new Color(1f, 0.9f, 0.55f, 0.55f), 0.9f, loop: true, pause: 1.6f);
+            Juice.Vibrate(Juice.Buzz.Light);
             GameAudio.Sfx(GameAudio.Achievement);
         }
 

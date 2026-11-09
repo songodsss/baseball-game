@@ -152,9 +152,133 @@ namespace BaseballGame
             if (results == null) return;
             _last = results;
             if (_career != null) _club.RefreshCards(_career);
-            GameAudio.Sfx(results.Any(r => r.Rarity == Rarity.SSR) ? GameAudio.Achievement : results.Any(r => r.Rarity == Rarity.SR) ? GameAudio.LevelUp : GameAudio.Coin);
+            GameAudio.Sfx(GameAudio.Coin);
             Save();
             Fill();
+            Reveal(results);
+        }
+
+        // ---------- Draw reveal ----------
+
+        static Color RarityColor(Rarity r)
+        {
+            ColorUtility.TryParseHtmlString(RarityColors[(int)r], out var c);
+            return c;
+        }
+
+        static string Tag(DrawResult r) =>
+            r.Pick ? "<color=#FFD24D>원하는 SSR을 골라요!</color>"
+            : r.Refund > 0 ? $"<color=#FFD24D>코인 +{r.Refund}</color>"
+            : r.New ? "<color=#5FA8FF>NEW</color>"
+            : r.LevelUp || r.Box == GachaBox.Cards ? $"<color=#7CD992>강화! Lv.{r.Level}</color>"
+            : $"Lv.{r.Level} (강화 재료 +1)";
+
+        /// <summary>
+        /// The draw, one card at a time: each card drops in, rarer ones last. SR and SSR cards shine;
+        /// an SSR turns the screen gold with confetti, a roll of buzzes and a share button.
+        /// </summary>
+        void Reveal(List<DrawResult> results)
+        {
+            var canvas = GetComponentInChildren<Canvas>().transform;
+            var dim = UiKit.Panel(canvas, "Reveal", new Color(0.03f, 0.04f, 0.08f, 0.94f), rounded: false);
+            UiKit.Stretch(dim);
+            dim.SetAsLastSibling();
+            var best = results.Max(r => r.Rarity);
+            var order = results.OrderBy(r => r.Rarity).ToList();
+
+            var glow = UiKit.Panel(dim, "Glow", Color.white, rounded: false);
+            UiKit.Stretch(glow);
+            glow.GetComponent<Image>().sprite = UiKit.GradientSprite(new Color(1f, 0.82f, 0.3f, 0.35f), new Color(1f, 0.82f, 0.3f, 0f));
+            glow.GetComponent<Image>().raycastTarget = false;
+            glow.gameObject.SetActive(false);
+
+            string head = best == Rarity.SSR ? $"{Colored(Rarity.SSR, "SSR")} 등장!" : best == Rarity.SR ? $"{Colored(Rarity.SR, "SR")} 등장!" : "스카우트 결과";
+            var title = UiKit.Label(dim, $"<b>{head}</b>", 72, TextAnchor.MiddleCenter, Color.white);
+            title.rectTransform.anchorMin = new Vector2(0.05f, 0.86f);
+            title.rectTransform.anchorMax = new Vector2(0.95f, 0.95f);
+            title.rectTransform.offsetMin = title.rectTransform.offsetMax = Vector2.zero;
+            title.raycastTarget = false;
+
+            var grid = UiKit.Empty(dim, "Cards");
+            grid.anchorMin = new Vector2(0.04f, 0.15f);
+            grid.anchorMax = new Vector2(0.96f, 0.85f);
+            grid.offsetMin = grid.offsetMax = Vector2.zero;
+            var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
+            bool single = order.Count == 1;
+            layout.cellSize = single ? new Vector2(640, 520) : new Vector2(470, 220);
+            layout.spacing = new Vector2(24, 22);
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            layout.constraintCount = single ? 1 : 2;
+
+            const float step = 0.14f;
+            for (int i = 0; i < order.Count; i++)
+            {
+                var r = order[i];
+                var color = RarityColor(r.Rarity);
+                var card = UiKit.Panel(grid, "Card", Color.Lerp(UiKit.Card, color, r.Rarity >= Rarity.SR ? 0.28f : 0.12f));
+                var edge = card.gameObject.AddComponent<Outline>();
+                edge.effectColor = color;
+                edge.effectDistance = r.Rarity >= Rarity.SR ? new Vector2(5, -5) : new Vector2(2, -2);
+                string rarity = r.Pick ? "SSR 선택권" : r.Rarity.ToString();
+                string name = r.Pick ? "원하는 SSR 1장" : r.Name;
+                var label = UiKit.Label(card,
+                    $"<size={(single ? 64 : 40)}><b>{Colored(r.Rarity, rarity)}</b></size>\n<size={(single ? 40 : 30)}>{name}</size>\n<size={(single ? 32 : 24)}>{Tag(r)}{(r.FromPity ? "  (확정)" : "")}</size>",
+                    30, TextAnchor.MiddleCenter, Color.white);
+                UiKit.Stretch(label.rectTransform);
+                label.rectTransform.offsetMin = new Vector2(16, 10);
+                label.rectTransform.offsetMax = new Vector2(-16, -10);
+                label.raycastTarget = false;
+
+                // The rarer the card, the longer the beat before it lands.
+                float delay = 0.2f + step * i + (r.Rarity == Rarity.SSR ? 0.45f : 0f);
+                Juice.SlamIn(card, r.Rarity == Rarity.SSR ? 2.6f : r.Rarity == Rarity.SR ? 1.9f : 1.4f, 0.38f, delay);
+                StartCoroutine(Landed(card, r, delay + 0.25f, canvas, glow.gameObject));
+            }
+
+            var buttons = UiKit.Empty(dim, "Buttons");
+            buttons.anchorMin = new Vector2(0.06f, 0.03f);
+            buttons.anchorMax = new Vector2(0.94f, 0.11f);
+            buttons.offsetMin = buttons.offsetMax = Vector2.zero;
+            UiKit.Row(buttons, 16);
+            if (best >= Rarity.SR)
+            {
+                var top = order.Last();
+                string brag = top.Pick ? "SSR 선택권" : $"[{top.Rarity}] {top.Name}";
+                UiKit.Width(Juice.ShareButton(buttons, this, () => $"스카우트 센터에서 {brag} 뽑았다! #프로야구선수키우기"), 240);
+            }
+            UiKit.Button(buttons, "확인", () => Destroy(dim.gameObject), UiKit.Accent);
+        }
+
+        System.Collections.IEnumerator Landed(RectTransform card, DrawResult r, float delay, Transform canvas, GameObject glow)
+        {
+            yield return new WaitForSecondsRealtime(delay);
+            if (card == null) yield break;
+            var image = card.GetComponent<Image>();
+            if (r.Rarity == Rarity.SSR)
+            {
+                glow.SetActive(true);
+                Juice.Shine(image, new Color(1f, 0.95f, 0.7f, 0.9f), 0.8f, loop: true, pause: 0.5f);
+                var at = (Vector2)canvas.InverseTransformPoint(card.position);
+                var size = ((RectTransform)canvas).rect.size;
+                var spot = new Vector2(0.5f + at.x / size.x, 0.5f + at.y / size.y);
+                Juice.Sparkle(canvas, spot, Juice.GoldColors, 60, 2.2f);
+                Juice.Confetti(canvas, new Vector2(0.15f, 0.05f), Juice.GoldColors, 80, 1.2f);
+                Juice.Confetti(canvas, new Vector2(0.85f, 0.05f), Juice.PartyColors, 80, 1.2f);
+                Juice.VibrateRoll(this, 3);
+                GameAudio.Sfx(GameAudio.Achievement);
+            }
+            else if (r.Rarity == Rarity.SR)
+            {
+                Juice.Shine(image, new Color(0.9f, 0.8f, 1f, 0.7f), 0.9f, loop: true, pause: 1.2f);
+                Juice.Vibrate(Juice.Buzz.Medium);
+                GameAudio.Sfx(GameAudio.LevelUp, 0.8f);
+            }
+            else
+            {
+                Juice.Vibrate(Juice.Buzz.Light);
+                GameAudio.Sfx(GameAudio.Coin, 0.4f);
+            }
         }
 
         void OddsBox(RectTransform body)
@@ -172,12 +296,8 @@ namespace BaseballGame
         void ResultBox(RectTransform body, List<DrawResult> results)
         {
             var lines = results.OrderByDescending(r => r.Rarity).Select(r =>
-            {
-                if (r.Pick) return $"{Colored(Rarity.SSR, "[SSR] 선택권")}  <color=#FFD24D>원하는 SSR을 골라요!</color>";
-                string tag = r.Refund > 0 ? $"<color=#FFD24D>코인 +{r.Refund}</color>" : r.New ? "<color=#5FA8FF>NEW</color>"
-                    : r.LevelUp || r.Box == GachaBox.Cards ? $"<color=#7CD992>강화! Lv.{r.Level}</color>" : $"Lv.{r.Level} (강화 재료 +1)";
-                return $"{Colored(r.Rarity, $"[{r.Rarity}] {r.Name}")}  {tag}" + (r.FromPity ? "  <size=22>(확정)</size>" : "");
-            });
+                r.Pick ? $"{Colored(Rarity.SSR, "[SSR] 선택권")}  {Tag(r)}"
+                : $"{Colored(r.Rarity, $"[{r.Rarity}] {r.Name}")}  {Tag(r)}" + (r.FromPity ? "  <size=22>(확정)</size>" : ""));
             Box(body, string.Join("\n", lines), 60 + 44 * results.Count, TextAnchor.MiddleLeft);
         }
 

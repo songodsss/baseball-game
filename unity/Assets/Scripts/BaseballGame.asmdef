@@ -4,7 +4,12 @@
     "references": [
         "BaseballSim.Engine",
         "UnityEngine.UI",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Coffee.UIEffect",
+        "Coffee.UIParticle",
+        "LitMotion",
+        "CandyCoded.HapticFeedback",
+        "NativeShare.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -18,6 +23,31 @@
             "name": "com.unity.inputsystem",
             "expression": "1.0.0",
             "define": "HAS_INPUT_SYSTEM"
+        },
+        {
+            "name": "com.coffee.ui-effect",
+            "expression": "5.0.0",
+            "define": "HAS_UI_EFFECT"
+        },
+        {
+            "name": "com.coffee.ui-particle",
+            "expression": "4.0.0",
+            "define": "HAS_UI_PARTICLE"
+        },
+        {
+            "name": "com.annulusgames.lit-motion",
+            "expression": "2.0.0",
+            "define": "HAS_LIT_MOTION"
+        },
+        {
+            "name": "xyz.candycoded.hapticfeedback",
+            "expression": "1.0.0",
+            "define": "HAS_HAPTICS"
+        },
+        {
+            "name": "com.yasirkula.nativeshare",
+            "expression": "1.0.0",
+            "define": "HAS_NATIVE_SHARE"
         }
     ],
     "noEngineReferences": false
