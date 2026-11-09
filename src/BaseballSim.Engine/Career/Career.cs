@@ -363,9 +363,10 @@ namespace BaseballSim.Career
         /// startBonus (from legacy points) lifts every starting rating.
         /// </summary>
         public static CareerPlayer NewPlayer(string name, IRandom random, int startBonus = 0, Position position = Position.CenterField, int number = 0,
-            PitcherRole role = PitcherRole.Starter, IEnumerable<Stat> specialties = null)
+            PitcherRole role = PitcherRole.Starter, IEnumerable<Stat> specialties = null, PlayerLook look = null)
         {
-            var me = new CareerPlayer { Id = "me", Name = name, Age = 18, Position = position, Number = number, Role = position == Position.Pitcher ? role : PitcherRole.Starter };
+            var me = new CareerPlayer { Id = "me", Name = name, Age = 18, Position = position, Number = number, Role = position == Position.Pitcher ? role : PitcherRole.Starter,
+                Look = Looks.Clamp(look?.Clone()) };
             foreach (var stat in me.MyStats)
             {
                 int start = StartRating + (int)(random.NextDouble() * StartSpread) + startBonus;

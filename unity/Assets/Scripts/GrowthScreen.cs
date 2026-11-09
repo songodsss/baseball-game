@@ -187,10 +187,10 @@ namespace BaseballGame
             SaveStore.Save(_club, _retired ? null : _career);
         }
 
-        void StartNewCareer(string name, int games, int team, Position position, int number, PitcherRole role, List<Stat> specialties)
+        void StartNewCareer(string name, int games, int team, Position position, int number, PitcherRole role, List<Stat> specialties, PlayerLook look)
         {
             var league = new League(new RosterGenerator(_random), games);
-            var me = CareerState.NewPlayer(name, _random, _club.StartBonus, position, number, role, specialties);
+            var me = CareerState.NewPlayer(name, _random, _club.StartBonus, position, number, role, specialties, look);
             _career = new CareerState(me, league, league.Teams[team], _random) { DecideAtBats = true };
             _career.Story.Route = MainStory.NextRoute(_club);
             _shownRatings.Clear();
@@ -234,7 +234,7 @@ namespace BaseballGame
             _emblem = ArtLibrary.Emblem(top, "", 104);
             _emblem.sizeDelta = new Vector2(104, 104);
             _header = UiKit.Label(top, "", 44);
-            Tappable(_header, () => ProfileScreen.Open(_career));
+            Tappable(_header, () => ProfileScreen.Open(_career, () => { Save(); Refresh(); }));
             _header.rectTransform.sizeDelta = new Vector2(0, 120);
             UiKit.Width(_header, 0, 1);
             HeaderButton(top, "홈", ConfirmSwitchPlayer);
@@ -2853,8 +2853,9 @@ namespace BaseballGame
             int number = 1 + (int)(_random.NextDouble() * 99);
             int games = League.FullSeason;
             var specialties = new List<Stat>();
-            const int Steps = 5;
-            string[] titles = { "이름과 입단 팀", "포지션", "주특기", "등번호", "확인" };
+            var look = Looks.Random(_random);
+            const int Steps = 6;
+            string[] titles = { "이름과 입단 팀", "포지션", "외모", "주특기", "등번호", "확인" };
             int step = 0;
             Text namePlaceholder = null;
 
@@ -2866,8 +2867,9 @@ namespace BaseballGame
                 {
                     case 0: NameAndTeam(card); break;
                     case 1: PositionStep(card); break;
-                    case 2: SpecialtyStep(card); break;
-                    case 3: NumberStep(card); break;
+                    case 2: LookStep(card); break;
+                    case 3: SpecialtyStep(card); break;
+                    case 4: NumberStep(card); break;
                     default: LengthStep(card); break;
                 }
                 UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
@@ -2884,14 +2886,14 @@ namespace BaseballGame
                             if (namePlaceholder != null) namePlaceholder.color = UiKit.Warning;
                             return;
                         }
-                        if (step == 2 && specialties.Count < CareerPlayer.SpecialtyCount) return;
+                        if (step == 3 && specialties.Count < CareerPlayer.SpecialtyCount) return;
                         step++;
                         Show();
                     });
                 else
                     UiKit.Button(nav, "육성 시작", () =>
                     {
-                        StartNewCareer(name.Trim(), games, team, position, number, role, specialties);
+                        StartNewCareer(name.Trim(), games, team, position, number, role, specialties, look);
                         CloseOverlay();
                         _logLines.Clear();
                         _history.Clear();
@@ -3020,6 +3022,13 @@ namespace BaseballGame
                 Mark();
             }
 
+            // Face, hair and build, part by part or all at random. Shows in every dialogue and on the profile.
+            void LookStep(RectTransform card)
+            {
+                UiKit.Height(UiKit.Label(card, "대화창·프로필 어디서나 이 얼굴로 나와요. 나중에 프로필에서 바꿀 수 있어요.", 28, TextAnchor.MiddleLeft, UiKit.Muted), 80);
+                LookPicker.Build(card, look, () => Looks.Random(_random));
+            }
+
             // Two ratings that grow 1.5 times as fast. Nothing about the ceiling is random, so the
             // picks are the whole difference between one rookie and the next.
             void SpecialtyStep(RectTransform card)
@@ -3080,11 +3089,18 @@ namespace BaseballGame
                 // A last look before starting.
                 string pos = position == Position.Pitcher ? Positions.RoleName(role) : Positions.Name(position);
                 var summary = UiKit.Panel(card, "Summary", UiKit.Background);
-                UiKit.Height(summary, 200);
-                UiKit.Column(summary, 20, 6);
-                UiKit.Height(UiKit.Label(summary, $"<b>{name.Trim()}</b>  #{number}  {pos}  <size=28><color=#BAC4D8>주특기 {string.Join("·", specialties.Select(s => StatNames[s]))}</color></size>", 40, TextAnchor.MiddleLeft), 70);
-                var club = UiKit.Label(summary, League.DefaultTeamNames[team], 32, TextAnchor.MiddleLeft, TeamColor(League.DefaultTeamNames[team]));
-                UiKit.Height(club, 60);
+                UiKit.Height(summary, 260);
+                var summaryRow = UiKit.Row(summary, 20);
+                summaryRow.padding = new RectOffset(16, 16, 10, 10);
+                summaryRow.childForceExpandWidth = false;
+                ArtLibrary.Icon(summary, AvatarArt.Portrait(look), 180);
+                var summaryText = UiKit.Empty(summary, "Text");
+                UiKit.Width(summaryText, 0, 1);
+                UiKit.Column(summaryText, 4, 6);
+                UiKit.Height(UiKit.Label(summaryText, $"<b>{name.Trim()}</b>  #{number}  {pos}\n<size=28><color=#BAC4D8>주특기 {string.Join("·", specialties.Select(s => StatNames[s]))}</color></size>", 40, TextAnchor.MiddleLeft), 110);
+                var club = UiKit.Label(summaryText, League.DefaultTeamNames[team], 32, TextAnchor.MiddleLeft, TeamColor(League.DefaultTeamNames[team]));
+                UiKit.Height(club, 50);
+                UiKit.Height(UiKit.Label(summaryText, Looks.Describe(look), 26, TextAnchor.MiddleLeft, UiKit.Muted), 50);
             }
 
             Show();

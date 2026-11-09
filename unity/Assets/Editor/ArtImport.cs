@@ -13,7 +13,7 @@ namespace BaseballGame.EditorTools
     public class ArtImport : AssetPostprocessor
     {
         // Bumping this makes Unity reimport every picture with the settings below.
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         const string ArtFolder = "Assets/Resources/Art/";
         const string WorldTextures = "Assets/Resources/World/Textures/";
@@ -52,6 +52,14 @@ namespace BaseballGame.EditorTools
             importer.maxTextureSize = 2048;
             importer.alphaIsTransparency = true;
             importer.npotScale = TextureImporterNPOTScale.None;
+            if (assetPath.StartsWith(ArtFolder + "Avatar/"))
+            {
+                // Face parts are layered into one portrait in code (AvatarArt), which reads their pixels.
+                importer.isReadable = true;
+                importer.mipmapEnabled = false;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.maxTextureSize = 1024;
+            }
             if (assetPath.StartsWith(ArtFolder + "UI/button"))
             {
                 // Kenney's button: keep the rounded corners and the bottom "depth" edge unstretched.
