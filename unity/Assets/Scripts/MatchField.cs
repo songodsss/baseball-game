@@ -23,6 +23,10 @@ namespace BaseballGame
         static readonly Vector3 BattersBox = new Vector3(-1.2f, 0, 0.3f);
         static readonly Vector3 CameraPos = new Vector3(0, 14, -22);
         static readonly Vector3 CameraTarget = new Vector3(0, 0, 30);
+        // The TV shot for every pitch: from behind the mound, a little off centre, long lens on the plate.
+        static readonly Vector3 PitchCamPos = new Vector3(1.6f, 3.4f, 34f);
+        static readonly Vector3 PitchCamTarget = new Vector3(-0.3f, 1.1f, 0f);
+        const float WideFov = 55f, PitchFov = 17f;
 
         // P, C, 1B, 2B, SS, 3B, LF, CF, RF
         static readonly Vector3[] FielderSpots =
@@ -56,6 +60,7 @@ namespace BaseballGame
         Vector3 _bodyScale = BodyScale;
         readonly Dictionary<Player, Transform> _runners = new Dictionary<Player, Transform>();
         Color _battingColor = Color.white;
+        Transform _batter;
 
         public static MatchField Build(Transform parent)
         {
@@ -468,6 +473,7 @@ namespace BaseballGame
                 _fielders[i].localPosition = FielderSpots[i] + Vector3.up;
                 Face(_fielders[i], -FielderSpots[i]);
                 Animate(_fielders[i], "Idle");
+                _fielders[i].GetComponent<Figure>()?.WearGlove(true);
             }
             _ball.gameObject.SetActive(false);
             ResetCamera();
@@ -481,6 +487,7 @@ namespace BaseballGame
                     runner.localPosition = BasePosition(b) + Vector3.up;
                     Face(runner, BasePosition(b + 1) - BasePosition(b));
                     Animate(runner, "Idle");
+                    runner.GetComponent<Figure>()?.HoldBat(false);
                 }
             if (batter != null)
             {
@@ -490,7 +497,9 @@ namespace BaseballGame
                 // Side-on to the pitcher, the way a right-handed hitter stands in the left box.
                 Face(hitter, Vector3.right);
                 Animate(hitter, "Idle");
+                hitter.GetComponent<Figure>()?.HoldBat(true);
             }
+            _batter = batter != null ? Runner(batter) : null;
 
             var gone = new List<Player>();
             foreach (var pair in _runners)
@@ -525,24 +534,55 @@ namespace BaseballGame
 
         void ResetCamera()
         {
+            _camera.fieldOfView = WideFov;
             _camera.transform.localPosition = CameraPos;
             _camera.transform.LookAt(transform.TransformPoint(CameraTarget));
+        }
+
+        void PitchCamera()
+        {
+            _camera.fieldOfView = PitchFov;
+            _camera.transform.localPosition = PitchCamPos;
+            _camera.transform.LookAt(transform.TransformPoint(PitchCamTarget));
         }
 
         // ---------- Animation ----------
 
         float Step => Time.deltaTime * Speed;
 
-        public IEnumerator Pitch()
+        /// <summary>
+        /// One pitch from the TV camera behind the mound: the windup and throw, the ball to the plate,
+        /// and the hitter's swing when the play needs one (anything put in play, most strikeouts).
+        /// </summary>
+        public IEnumerator Pitch(Outcome outcome = Outcome.Walk, int seed = 0)
         {
-            _ball.gameObject.SetActive(true);
-            var from = Mound + new Vector3(0, 1.8f, 0);
-            var to = new Vector3(0, 1f, 0.6f);
-            for (float t = 0; t < 1 && !Skipping(); t += Step / 0.45f)
+            if (!Skipping()) PitchCamera();
+            var pitcher = _fielders.Count > 0 ? _fielders[0] : null;
+            if (pitcher != null)
             {
-                _ball.localPosition = Vector3.Lerp(from, to, t);
+                Face(pitcher, -Mound);
+                Animate(pitcher, "Punch", 1.3f);
+            }
+            for (float t = 0; t < 1 && !Skipping(); t += Step / 0.35f) yield return null; // the windup
+
+            _ball.gameObject.SetActive(true);
+            var from = Mound + new Vector3(-0.4f, 1.9f, -0.8f);
+            var to = new Vector3(0, 0.9f, -0.6f);
+            bool inPlay = outcome != Outcome.Strikeout && outcome != Outcome.Walk && outcome != Outcome.HitByPitch;
+            bool swings = inPlay || outcome == Outcome.Strikeout && seed % 3 != 0; // some strikeouts are looking
+            var batter = _batter != null ? _batter.GetComponent<Figure>() : null;
+            bool swung = false;
+            for (float t = 0; t < 1 && !Skipping(); t += Step / 0.42f)
+            {
+                _ball.localPosition = Vector3.Lerp(from, to, t) + Vector3.up * (0.25f * t * (1 - t));
+                if (swings && !swung && t > 0.55f && batter != null) { batter.Swing(0.32f / Mathf.Max(0.5f, Speed)); swung = true; }
                 yield return null;
             }
+            if (swings && !swung && batter != null) batter.Swing(0.32f / Mathf.Max(0.5f, Speed));
+            if (pitcher != null) Animate(pitcher, "Idle");
+            // Hold the plate shot a beat on a strikeout or a walk; a ball in play cuts to the wide camera.
+            if (!inPlay)
+                for (float t = 0; t < 1 && !Skipping(); t += Step / 0.35f) yield return null;
         }
 
         public IEnumerator Result(ReplayStep step)
@@ -557,8 +597,11 @@ namespace BaseballGame
             }
 
             bool inPlay = ev.Outcome != Outcome.Strikeout && ev.Outcome != Outcome.Walk && ev.Outcome != Outcome.HitByPitch;
+            ResetCamera();
             if (inPlay) StartCoroutine(Track(BallInPlay(step)));
             else _ball.gameObject.SetActive(false);
+            // The hitter drops the bat and runs.
+            if (_batter != null && ev.Outcome != Outcome.Strikeout) _batter.GetComponent<Figure>()?.HoldBat(false);
 
             foreach (var move in step.Moves)
                 if (move.To != move.From) StartCoroutine(Track(Run(move, ev.Outcome)));
@@ -618,10 +661,16 @@ namespace BaseballGame
             }
 
             // Grounders go to first; anything else still in the park comes back to the infield.
+            var outcome = step.Event.Outcome;
             if (chaser != null)
             {
-                Face(chaser, -chaserEnd);
-                Animate(chaser, step.Event.Outcome == Outcome.GroundOut ? "PickUp" : "Idle");
+                // A catch in the air reaches up with the glove; a grounder is scooped up; a hit is fielded off the grass.
+                bool caught = outcome == Outcome.FlyOut || outcome == Outcome.LineOut;
+                Face(chaser, caught ? from - chaserEnd : -chaserEnd);
+                Animate(chaser, caught ? "Shoot_OneHanded" : "PickUp");
+                for (float t = 0; t < 1 && !Skipping(); t += Step / (caught ? 0.45f : 0.3f)) yield return null;
+                Face(chaser, (outcome == Outcome.GroundOut ? BasePosition(0) : BasePosition(1) * 0.6f) - chaserEnd);
+                Animate(chaser, "Punch", 1.4f); // the throw
             }
             if (distance < FenceRadius)
             {
