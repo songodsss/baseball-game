@@ -13,11 +13,14 @@ namespace BaseballGame
         static readonly Color Gold = new Color(1f, 0.82f, 0.3f);
 
         CareerState _career;
+        System.Action _changed;
 
-        public static void Open(CareerState career)
+        /// <param name="changed">Called after the look is changed here, so the caller can save.</param>
+        public static void Open(CareerState career, System.Action changed = null)
         {
             var screen = new GameObject("ProfileScreen").AddComponent<ProfileScreen>();
             screen._career = career;
+            screen._changed = changed;
             screen.Build();
         }
 
@@ -37,7 +40,13 @@ namespace BaseballGame
             row.childForceExpandWidth = false;
             row.childAlignment = TextAnchor.MiddleLeft;
             var portrait = ArtLibrary.Icon(band, ArtLibrary.Portrait(me), 150, first: false);
-            if (portrait != null) portrait.GetComponent<LayoutElement>().preferredHeight = 180;
+            if (portrait != null)
+            {
+                portrait.GetComponent<LayoutElement>().preferredHeight = 180;
+                // Tapping the face opens the look picker.
+                portrait.raycastTarget = true;
+                portrait.gameObject.AddComponent<Button>().onClick.AddListener(EditLook);
+            }
             var emblem = ArtLibrary.Emblem(band, _career.MyTeam.Name, portrait != null ? 100 : 150);
             UiKit.Width(emblem, portrait != null ? 100 : 150);
             string position = me.IsPitcher ? Positions.RoleName(me.Role) : Positions.Name(me.Position);
@@ -101,6 +110,35 @@ namespace BaseballGame
             if (me.WbcTitles > 0) Line(content, $"WBC 우승 {me.WbcTitles}회");
 
             UiKit.Height(UiKit.Button(root, "닫기", () => Destroy(gameObject), UiKit.Muted), 110);
+        }
+
+        /// <summary>The look picker over the profile; 저장 keeps the new look and redraws the profile.</summary>
+        void EditLook()
+        {
+            var me = _career.Me;
+            var draft = me.Look?.Clone() ?? new PlayerLook();
+            var random = new BaseballSim.SeededRandom(System.Environment.TickCount);
+            var canvas = UiKit.Canvas(transform, "LookCanvas", 6);
+            var dim = UiKit.Dim(canvas.transform);
+            var card = UiKit.PopupCard(dim, new Vector2(0.04f, 0.2f), new Vector2(0.96f, 0.8f));
+            UiKit.Column(card, 36, 16);
+            var heading = UiKit.Label(card, "외모 바꾸기", 44, TextAnchor.MiddleCenter);
+            heading.fontStyle = FontStyle.Bold;
+            UiKit.Height(heading, 80);
+            LookPicker.Build(card, draft, () => Looks.Random(random));
+            UiKit.Height(UiKit.Empty(card, "Spacer"), 0, 1);
+            var nav = UiKit.Empty(card, "Nav");
+            UiKit.Height(nav, 110);
+            UiKit.Row(nav, 16);
+            UiKit.Button(nav, "취소", () => Destroy(canvas.gameObject), UiKit.Muted);
+            UiKit.Button(nav, "저장", () =>
+            {
+                me.Look = draft;
+                _changed?.Invoke();
+                var changed = _changed;
+                Destroy(gameObject);
+                Open(_career, changed);
+            });
         }
 
         void Radar(RectTransform content)

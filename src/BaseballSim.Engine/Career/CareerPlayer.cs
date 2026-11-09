@@ -40,6 +40,8 @@ namespace BaseballSim.Career
         public string Id;
         public string Name;
         public int Age;
+        /// <summary>The face picked at registration; null in careers from before looks existed (a face is then picked from the id).</summary>
+        public PlayerLook Look;
 
         /// <summary>Trained ratings, never above potential. Equipment adds on top during games.</summary>
         public Dictionary<Stat, int> Ratings = new Dictionary<Stat, int>();

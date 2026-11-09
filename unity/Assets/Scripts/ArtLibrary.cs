@@ -79,11 +79,13 @@ namespace BaseballGame
         public static Sprite Background(string screen) => Get("Backgrounds/" + screen);
 
         /// <summary>
-        /// The drawn face for a player: one of the portrait set, picked from the player's id so the
-        /// same player keeps the same face. Pitchers use their own set when it exists.
+        /// The drawn face for my player: the look picked at registration (see AvatarArt), or, for a
+        /// career from before looks, one of the portrait set picked from the id so it stays the same.
         /// </summary>
         public static Sprite Portrait(CareerPlayer me)
         {
+            var look = AvatarArt.Portrait(me.Look);
+            if (look != null) return look;
             string key = me.Id ?? me.Name ?? "";
             int hash = 17;
             foreach (char c in key) hash = unchecked(hash * 31 + c);

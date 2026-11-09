@@ -30,7 +30,8 @@ namespace BaseballSim.Career
         /// 31: signature skills (career).
         /// 32: the arena.
         /// 33: legend stages and visits, the story's version seed; legends whose record fell on the club.
-        public const int Version = 40;
+        /// 41: my player's look (body, skin, hair, hair colour, eyes, expression).
+        public const int Version = 41;
 
         public static byte[] ToBytes(Club club, Career career)
         {
@@ -645,6 +646,18 @@ namespace BaseballSim.Career
             w.Write(career.Me.WbcTitles);
             w.Write(career.TradeRumor ?? "");
             w.Write(career.TradeRumorReal);
+            // Added in version 41.
+            var look = career.Me.Look;
+            w.Write(look != null);
+            if (look != null)
+            {
+                w.Write((int)look.Build);
+                w.Write(look.Skin);
+                w.Write(look.Hair);
+                w.Write(look.HairColor);
+                w.Write(look.Eyes);
+                w.Write(look.Expression);
+            }
         }
 
         static Career ReadCareer(BinaryReader r, IRandom random, Club club, int version)
@@ -888,6 +901,16 @@ namespace BaseballSim.Career
                 career.TradeRumor = r.ReadString();
                 career.TradeRumorReal = r.ReadBoolean();
             }
+            if (version >= 41 && r.ReadBoolean())
+                career.Me.Look = Looks.Clamp(new PlayerLook
+                {
+                    Build = (BodyBuild)r.ReadInt32(),
+                    Skin = r.ReadInt32(),
+                    Hair = r.ReadInt32(),
+                    HairColor = r.ReadInt32(),
+                    Eyes = r.ReadInt32(),
+                    Expression = r.ReadInt32(),
+                });
             return career;
         }
 
