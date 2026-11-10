@@ -37,6 +37,10 @@ namespace BaseballGame
             return clip;
         }
 
+        /// <summary>A move or its second version (swing / swing2), picked by any number; the plain name when there's no second.</summary>
+        public static string Variant(string name, int pick) =>
+            (pick & 1) == 1 && Move(name + "2") != null ? name + "2" : name;
+
         /// <summary>The skybox material the editor makes from the sky picture.</summary>
         public static Material Sky => Resources.Load<Material>("World/Sky");
 

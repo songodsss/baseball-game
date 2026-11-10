@@ -503,7 +503,7 @@ namespace BaseballGame
                 hitter.localPosition = BattersBox + Vector3.up;
                 // Side-on to the pitcher, the way a right-handed hitter stands in the left box.
                 Face(hitter, Vector3.right);
-                Move(hitter, "stance", "Idle");
+                Move(hitter, WorldArt.Variant("stance", batter.Name.Length), "Idle");
                 hitter.GetComponent<Figure>()?.HoldBat(true);
             }
             _batter = batter != null ? Runner(batter) : null;
@@ -569,6 +569,12 @@ namespace BaseballGame
             {
                 Face(pitcher, -Mound);
                 Move(pitcher, "pitch", "Punch", 1.4f * Speed, 1.3f);
+            }
+            // The catcher sets up and takes the pitch.
+            if (_fielders.Count > 1)
+            {
+                Face(_fielders[1], Mound - FielderSpots[1]);
+                Move(_fielders[1], "catcher", "Idle", 1.2f * Speed);
             }
             for (float t = 0; t < 1 && !Skipping(); t += Step / 0.35f) yield return null; // the windup
 
@@ -712,14 +718,17 @@ namespace BaseballGame
             for (int i = 1; i < path.Count; i++)
             {
                 Face(runner, path[i] - path[i - 1]);
-                Move(runner, "run", "Walk", 1.2f, RunAnimSpeed);
+                // Scoring on a hit (not a trot after a home run): slide into the plate on the last leg.
+                bool slide = i == path.Count - 1 && move.To == RunnerMove.Scored && outcome != Outcome.HomeRun;
+                if (slide) Move(runner, "slide", "Walk", 1.3f, RunAnimSpeed);
+                else Move(runner, "run", "Walk", 1.2f, RunAnimSpeed);
                 for (float t = 0; t < 1 && !Skipping(); t += Step / RunSecondsPerBase)
                 {
                     runner.localPosition = Vector3.Lerp(path[i - 1], path[i], t);
                     yield return null;
                 }
             }
-            if (move.To == RunnerMove.Scored && outcome == Outcome.HomeRun) Move(runner, "cheer", "Victory");
+            if (move.To == RunnerMove.Scored && outcome == Outcome.HomeRun) Move(runner, WorldArt.Variant("cheer", move.Runner.Name.Length), "Victory");
             else Animate(runner, move.To == RunnerMove.Out ? "Defeat" : "Idle");
 
             if (move.To == RunnerMove.Out || move.To == RunnerMove.Scored)

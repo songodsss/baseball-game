@@ -104,7 +104,7 @@ namespace BaseballGame.EditorTools
             string file = System.IO.Path.GetFileNameWithoutExtension(assetPath);
             foreach (var clip in clips)
             {
-                clip.loopTime = moves ? file == "run" || file == "stance" : clip.name.EndsWith("Idle") || clip.name.EndsWith("Walk");
+                clip.loopTime = moves ? file == "run" || file.StartsWith("stance") : clip.name.EndsWith("Idle") || clip.name.EndsWith("Walk");
                 // The field moves the players itself: Mixamo's root motion stays in place.
                 clip.lockRootRotation = clip.lockRootHeightY = clip.lockRootPositionXZ = true;
                 clip.keepOriginalOrientation = clip.keepOriginalPositionY = clip.keepOriginalPositionXZ = true;

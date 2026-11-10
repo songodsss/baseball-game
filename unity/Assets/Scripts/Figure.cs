@@ -196,10 +196,11 @@ namespace BaseballGame
             _swingSeconds = Mathf.Max(0.1f, seconds);
             _swing = 0f;
             // A real swing (Mixamo) moves the body and hands itself; the made-up one turns the hips.
-            _realSwing = PlayMove("swing", "Punch", 1.2f / Mathf.Max(0.3f, seconds / 0.35f), 1.6f);
+            _realSwing = PlayMove(WorldArt.Variant("swing", ++_swings), "Punch", 1.2f / Mathf.Max(0.3f, seconds / 0.35f), 1.6f);
         }
 
         bool _realSwing;
+        static int _swings;
         Vector3 _batDir = Vector3.up;
 
         bool IsMovePlaying => _current != null && _current.StartsWith("move:");
@@ -212,7 +213,7 @@ namespace BaseballGame
             {
                 _swing += Time.deltaTime / _swingSeconds;
                 phase = Mathf.Clamp01(_swing);
-                if (_swing >= 2.2f) { _swing = -1f; _realSwing = false; PlayMove("stance", "Idle"); }
+                if (_swing >= 2.2f) { _swing = -1f; _realSwing = false; PlayMove(WorldArt.Variant("stance", _swings), "Idle"); }
             }
             else if (_swing >= 0f)
             {
