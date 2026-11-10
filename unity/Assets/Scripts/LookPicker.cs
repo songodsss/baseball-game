@@ -30,7 +30,7 @@ namespace BaseballGame
 
             // Preview and the dice.
             var left = UiKit.Empty(top, "Left");
-            UiKit.Width(left, 300);
+            UiKit.Width(left, 360);
             UiKit.Column(left, 0, 12);
             var frame = UiKit.Panel(left, "Frame", UiKit.Background);
             UiKit.Height(frame, 0, 1);
@@ -99,7 +99,7 @@ namespace BaseballGame
                 UiAnim.PopIn(previewRt);
             }, UiKit.Card);
             dice.GetComponentInChildren<Text>().fontSize = 30;
-            UiKit.Height(dice, 96);
+            UiKit.Height(dice, 80);
 
             Refresh();
         }

@@ -240,21 +240,76 @@ namespace BaseballGame
             }
         }
 
-        /// <summary>VRoid models come in a T-pose; lower the arms to the sides for the photo.</summary>
+        /// <summary>
+        /// VRoid models come in a T-pose; let the arms hang at the sides with a slight bend at the elbow.
+        /// Each bone is turned from where it points now to where it should point, so it doesn't matter
+        /// which way the model faces or how its bones are rolled.
+        /// </summary>
         static void ArmsDown(GameObject body)
         {
-            var animator = body.GetComponentInChildren<Animator>(true);
-            Transform Bone(HumanBodyBones human, string vroid)
+            var rig = Rig.Of(body);
+            if (rig.Head == null) return;
+            var fwd = rig.Forward;
+            foreach (int side in new[] { -1, 1 })
             {
-                Transform t = null;
-                if (animator != null && animator.isHuman) t = animator.GetBoneTransform(human);
-                return t != null ? t : body.GetComponentsInChildren<Transform>(true).FirstOrDefault(x => x.name == vroid);
+                var upper = side < 0 ? rig.LeftUpperArm : rig.RightUpperArm;
+                var lower = side < 0 ? rig.LeftLowerArm : rig.RightLowerArm;
+                var hand = side < 0 ? rig.LeftHand : rig.RightHand;
+                if (upper == null || lower == null) continue;
+                var outward = Vector3.ProjectOnPlane(lower.position - upper.position, Vector3.up).normalized;
+                // Down, a little out from the body and a touch forward.
+                Aim(upper, lower, (Vector3.down * 0.96f + outward * 0.22f + fwd * 0.05f).normalized);
+                if (hand != null) Aim(lower, hand, (Vector3.down * 0.95f + outward * 0.08f + fwd * 0.28f).normalized);
             }
-            var left = Bone(HumanBodyBones.LeftUpperArm, "J_Bip_L_UpperArm");
-            var right = Bone(HumanBodyBones.RightUpperArm, "J_Bip_R_UpperArm");
-            // The model faces +Z: its left arm points to +X, its right arm to -X.
-            if (left != null) left.rotation = Quaternion.AngleAxis(-72, body.transform.forward) * left.rotation;
-            if (right != null) right.rotation = Quaternion.AngleAxis(72, body.transform.forward) * right.rotation;
+        }
+
+        static void Aim(Transform bone, Transform child, Vector3 dir)
+        {
+            var now = child.position - bone.position;
+            if (now.sqrMagnitude < 1e-8f) return;
+            bone.rotation = Quaternion.FromToRotation(now, dir) * bone.rotation;
+        }
+
+        /// <summary>The bones the photo needs, from the humanoid avatar or else by VRoid's bone names.</summary>
+        struct Rig
+        {
+            public Transform Head, Neck, Hips, LeftUpperArm, RightUpperArm, LeftLowerArm, RightLowerArm, LeftHand, RightHand;
+
+            /// <summary>The way the model faces, worked out from its shoulders.</summary>
+            public Vector3 Forward
+            {
+                get
+                {
+                    if (LeftUpperArm == null || RightUpperArm == null) return Vector3.forward;
+                    var right = Vector3.ProjectOnPlane(RightUpperArm.position - LeftUpperArm.position, Vector3.up);
+                    var f = Vector3.Cross(right, Vector3.up);
+                    return f.sqrMagnitude < 1e-8f ? Vector3.forward : f.normalized;
+                }
+            }
+
+            public static Rig Of(GameObject body)
+            {
+                var animator = body.GetComponentInChildren<Animator>(true);
+                var all = body.GetComponentsInChildren<Transform>(true);
+                Transform Bone(HumanBodyBones human, string vroid)
+                {
+                    Transform t = null;
+                    if (animator != null && animator.isHuman) t = animator.GetBoneTransform(human);
+                    return t != null ? t : all.FirstOrDefault(x => x.name == vroid);
+                }
+                return new Rig
+                {
+                    Head = Bone(HumanBodyBones.Head, "J_Bip_C_Head"),
+                    Neck = Bone(HumanBodyBones.Neck, "J_Bip_C_Neck"),
+                    Hips = Bone(HumanBodyBones.Hips, "J_Bip_C_Hips"),
+                    LeftUpperArm = Bone(HumanBodyBones.LeftUpperArm, "J_Bip_L_UpperArm"),
+                    RightUpperArm = Bone(HumanBodyBones.RightUpperArm, "J_Bip_R_UpperArm"),
+                    LeftLowerArm = Bone(HumanBodyBones.LeftLowerArm, "J_Bip_L_LowerArm"),
+                    RightLowerArm = Bone(HumanBodyBones.RightLowerArm, "J_Bip_R_LowerArm"),
+                    LeftHand = Bone(HumanBodyBones.LeftHand, "J_Bip_L_Hand"),
+                    RightHand = Bone(HumanBodyBones.RightHand, "J_Bip_R_Hand"),
+                };
+            }
         }
 
         static void SetLayer(GameObject go, int layer)
@@ -265,24 +320,24 @@ namespace BaseballGame
         // ---------- The photo ----------
 
         /// <summary>
-        /// Waist-up from the front. Shot once on black and once on white: where the two differ the model
-        /// is see-through, which gives clean soft edges whatever the toon shader writes to alpha.
+        /// Head and shoulders from the front, the face in the upper part of the picture. Shot once on black
+        /// and once on white: where the two differ the model is see-through, which gives clean soft edges
+        /// whatever the toon shader writes to alpha.
         /// </summary>
         static Sprite Shoot(GameObject body, List<Object> temps)
         {
-            var animator = body.GetComponentInChildren<Animator>(true);
-            Transform head = animator != null && animator.isHuman ? animator.GetBoneTransform(HumanBodyBones.Head) : null;
-            Transform hips = animator != null && animator.isHuman ? animator.GetBoneTransform(HumanBodyBones.Hips) : null;
-            var bounds = new Bounds(body.transform.position, Vector3.zero);
-            bool any = false;
-            foreach (var r in body.GetComponentsInChildren<Renderer>(false))
-            {
-                if (!any) bounds = r.bounds; else bounds.Encapsulate(r.bounds);
-                any = true;
-            }
-            float top = bounds.max.y + 0.04f;
-            float bottom = hips != null ? hips.position.y - 0.05f : bounds.min.y + bounds.size.y * 0.45f;
-            float centerX = head != null ? head.position.x : bounds.center.x;
+            var rig = Rig.Of(body);
+            var fwd = rig.Forward;
+            // The top of the hair: the highest point of the meshes on the head (the body's own bounds
+            // still hold the T-pose arms, which only widen, never raise, it).
+            float top = float.MinValue;
+            foreach (var r in body.GetComponentsInChildren<Renderer>(false)) top = Mathf.Max(top, r.bounds.max.y);
+            Vector3 head = rig.Head != null ? rig.Head.position : body.transform.position + Vector3.up * 1.4f;
+            if (top == float.MinValue || top < head.y) top = head.y + 0.2f;
+            float neckY = rig.Neck != null ? rig.Neck.position.y : head.y - 0.08f;
+            float headH = Mathf.Max(0.12f, top - neckY);
+            top += headH * 0.10f;
+            float bottom = neckY - headH * 1.45f; // down to the chest
             float frameH = top - bottom;
 
             var camGo = new GameObject("AvatarCamera");
@@ -291,14 +346,15 @@ namespace BaseballGame
             cam.enabled = false;
             cam.cullingMask = 1 << PhotoLayer;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.fieldOfView = 18;
+            cam.fieldOfView = 20;
             cam.nearClipPlane = 0.05f;
             cam.farClipPlane = 50;
             cam.aspect = Width / (float)Height;
             float distance = frameH * 0.5f / Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-            var look = new Vector3(centerX, (top + bottom) * 0.5f, bounds.center.z);
-            camGo.transform.position = look + body.transform.forward * distance;
-            camGo.transform.rotation = Quaternion.LookRotation(-body.transform.forward, Vector3.up);
+            var target = new Vector3(head.x, (top + bottom) * 0.5f, head.z);
+            camGo.transform.position = target + fwd * distance;
+            camGo.transform.rotation = Quaternion.LookRotation(-fwd, Vector3.up);
+            var right = Vector3.Cross(Vector3.up, fwd);
 
             var lightGo = new GameObject("AvatarLight");
             temps.Add(lightGo);
@@ -308,7 +364,7 @@ namespace BaseballGame
             light.intensity = 1.1f;
             light.color = new Color(1f, 0.97f, 0.93f);
             light.shadows = LightShadows.None;
-            lightGo.transform.rotation = Quaternion.LookRotation(-body.transform.forward + Vector3.down * 0.5f + body.transform.right * 0.3f);
+            lightGo.transform.rotation = Quaternion.LookRotation(-fwd + Vector3.down * 0.4f + right * 0.3f);
 
             var rt = RenderTexture.GetTemporary(Width, Height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default, 4);
             cam.targetTexture = rt;
