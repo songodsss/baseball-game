@@ -37,10 +37,17 @@ namespace BaseballGame
         public static bool HasModels(BodyBuild build) => Prefab("base_" + Looks.BuildFile(build)) != null;
 
         /// <summary>Whether that hairstyle (index into Looks.Hairs) has its model.</summary>
-        public static bool HasHair(int hair) => Prefab("hair_" + Looks.Hairs[hair].File) != null;
+        public static bool HasHair(int hair) => Part("hair_", Looks.Hairs[hair].File, out _);
 
         /// <summary>Whether that face (index into Looks.Eyes) has its model.</summary>
-        public static bool HasFace(int eyes) => Prefab("face_" + Looks.Eyes[eyes].File) != null;
+        public static bool HasFace(int eyes) => Part("face_", Looks.Eyes[eyes].File, out _);
+
+        /// <summary>A part with no file is the base model's own, so it's always there and nothing is swapped.</summary>
+        static bool Part(string prefix, string file, out GameObject prefab)
+        {
+            prefab = file == null ? null : Prefab(prefix + file);
+            return file == null || prefab != null;
+        }
 
         public static Sprite Portrait(PlayerLook look)
         {
@@ -114,10 +121,10 @@ namespace BaseballGame
                 StopScripts(body);
 
                 // Hair and face come off their own models onto this body.
-                var hairPrefab = Prefab("hair_" + Looks.Hairs[look.Hair].File);
-                if (hairPrefab != null) Swap(body, hairPrefab, stage, temps, IsHair);
-                var facePrefab = Prefab("face_" + Looks.Eyes[look.Eyes].File);
-                if (facePrefab != null) Swap(body, facePrefab, stage, temps, IsFace);
+                if (Part("hair_", Looks.Hairs[look.Hair].File, out var hairPrefab) && hairPrefab != null)
+                    Swap(body, hairPrefab, stage, temps, IsHair);
+                if (Part("face_", Looks.Eyes[look.Eyes].File, out var facePrefab) && facePrefab != null)
+                    Swap(body, facePrefab, stage, temps, IsFace);
 
                 Tint(body, look, temps);
                 Express(body, Looks.Expressions[look.Expression]);
@@ -140,11 +147,11 @@ namespace BaseballGame
             if (animator != null) animator.enabled = false;
         }
 
-        static bool IsHair(SkinnedMeshRenderer r) =>
-            r.name.StartsWith("Hair") || r.sharedMaterials.Any(m => m != null && m.name.Contains("_HAIR"));
+        // VRoid exports the parts as their own objects: "Face", "Body" (with the scalp's back hair merged
+        // in, so it stays) and "Hair" (the hairstyle, missing on the base, which has only that scalp).
+        static bool IsHair(SkinnedMeshRenderer r) => r.name.StartsWith("Hair");
 
-        static bool IsFace(SkinnedMeshRenderer r) =>
-            r.name == "Face" || r.sharedMaterials.Any(m => m != null && (m.name.Contains("_Face_") || m.name.Contains("FaceMouth")));
+        static bool IsFace(SkinnedMeshRenderer r) => r.name.StartsWith("Face");
 
         /// <summary>
         /// Hides the body's own part and moves the donor model's part onto the body's skeleton, bone by

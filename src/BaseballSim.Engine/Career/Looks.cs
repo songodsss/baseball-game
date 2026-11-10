@@ -47,10 +47,10 @@ namespace BaseballSim.Career
             ("구릿빛 피부", "#B97D55", "#C49A78"), ("짙은 피부", "#8A5A3C", "#94694E"),
         };
 
+        /// <summary>File is the hair_&lt;file&gt; model; null is the base model's own hair, always there.</summary>
         public static readonly (string Name, string File)[] Hairs =
         {
-            ("짧은 머리", "short"), ("스포츠머리", "buzz"), ("투블럭", "twoblock"), ("덮은 앞머리", "bangs"),
-            ("가르마", "sidepart"), ("곱슬 파마", "curly"), ("장발", "long"), ("빡빡머리", "shaved"),
+            ("스포츠머리", null), ("덮은 앞머리", "bangs"), ("가르마", "sidepart"), ("장발", "long"),
         };
 
         public static readonly (string Name, string Hex)[] HairColors =
@@ -59,11 +59,10 @@ namespace BaseballSim.Career
             ("애쉬 그레이", "#9AA0A8"), ("금발", "#E3C278"), ("붉은 갈색", "#8E3B2A"),
         };
 
-        /// <summary>Eyes and brows come together, from one face model each.</summary>
+        /// <summary>Eyes and brows come together, from one face_&lt;file&gt; model each; null is the base model's own face.</summary>
         public static readonly (string Name, string File)[] Eyes =
         {
-            ("또렷한 눈매", "bright"), ("날카로운 눈매", "sharp"), ("순한 눈매", "gentle"),
-            ("가는 눈매", "narrow"), ("큰 눈매", "round"), ("졸린 눈매", "sleepy"),
+            ("또렷한 눈매", null), ("날카로운 눈매", "sharp"), ("순한 눈매", "gentle"), ("큰 눈매", "round"),
         };
 
         /// <summary>The portrait's expression, from the face model's own blend shapes (VRoid names), weight 0-1.</summary>
