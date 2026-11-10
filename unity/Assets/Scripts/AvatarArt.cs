@@ -36,6 +36,12 @@ namespace BaseballGame
         /// <summary>True once the 3D base for this build is in.</summary>
         public static bool HasModels(BodyBuild build) => Prefab("base_" + Looks.BuildFile(build)) != null;
 
+        /// <summary>Whether that hairstyle (index into Looks.Hairs) has its model.</summary>
+        public static bool HasHair(int hair) => Prefab("hair_" + Looks.Hairs[hair].File) != null;
+
+        /// <summary>Whether that face (index into Looks.Eyes) has its model.</summary>
+        public static bool HasFace(int eyes) => Prefab("face_" + Looks.Eyes[eyes].File) != null;
+
         public static Sprite Portrait(PlayerLook look)
         {
             if (look == null) return null;
