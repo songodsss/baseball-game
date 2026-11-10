@@ -21,6 +21,22 @@ namespace BaseballGame
             return tex;
         }
 
+        static readonly Dictionary<string, AnimationClip> Moves = new Dictionary<string, AnimationClip>();
+
+        /// <summary>
+        /// A baseball move from Mixamo in World/Moves/&lt;name&gt;.fbx (pitch, swing, stance, catch, throw,
+        /// run, pickup, cheer), imported as humanoid so it plays on any of the player models; null until
+        /// the file is there, and the figure falls back to its own generic clips.
+        /// </summary>
+        public static AnimationClip Move(string name)
+        {
+            if (Moves.TryGetValue(name, out var clip)) return clip;
+            foreach (var c in Resources.LoadAll<AnimationClip>("World/Moves/" + name))
+                if (!c.name.StartsWith("__preview__")) { clip = c; break; }
+            Moves[name] = clip;
+            return clip;
+        }
+
         /// <summary>The skybox material the editor makes from the sky picture.</summary>
         public static Material Sky => Resources.Load<Material>("World/Sky");
 

@@ -91,10 +91,33 @@ namespace BaseballGame
             foreach (var c in _clips)
                 if (c.name.EndsWith(clipName)) { clip = c; break; }
             if (clip == null) return;
+            PlayClip(clip, clipName, speed);
+        }
+
+        void PlayClip(AnimationClip clip, string key, float speed)
+        {
             if (_graph.IsValid()) _graph.Destroy();
             _playing = AnimationPlayableUtilities.PlayClip(_animator, clip, out _graph);
             _playing.SetSpeed(speed);
-            _current = clipName;
+            _current = key;
+        }
+
+        /// <summary>
+        /// Plays a Mixamo baseball move (WorldArt.Move) when it's there and the model is humanoid;
+        /// otherwise the model's own clip named fallback. True when the real move played.
+        /// </summary>
+        public bool PlayMove(string move, string fallback, float speed = 1f, float fallbackSpeed = -1f)
+        {
+            var clip = WorldArt.Move(move);
+            if (clip != null && _animator != null && _animator.avatar != null && _animator.avatar.isHuman)
+            {
+                string key = "move:" + move;
+                if (_current == key && _graph.IsValid()) { _playing.SetSpeed(speed); return true; }
+                PlayClip(clip, key, speed);
+                return true;
+            }
+            Play(fallback, fallbackSpeed < 0 ? speed : fallbackSpeed);
+            return false;
         }
 
         public void SetUniform(Color color)
@@ -172,14 +195,26 @@ namespace BaseballGame
         {
             _swingSeconds = Mathf.Max(0.1f, seconds);
             _swing = 0f;
-            Play("Punch", 1.6f);
+            // A real swing (Mixamo) moves the body and hands itself; the made-up one turns the hips.
+            _realSwing = PlayMove("swing", "Punch", 1.2f / Mathf.Max(0.3f, seconds / 0.35f), 1.6f);
         }
+
+        bool _realSwing;
+        Vector3 _batDir = Vector3.up;
+
+        bool IsMovePlaying => _current != null && _current.StartsWith("move:");
 
         void LateUpdate()
         {
             if (_model == null) _model = transform.Find("Model");
             float yaw = 0f, phase = 0f;
-            if (_swing >= 0f)
+            if (_swing >= 0f && _realSwing)
+            {
+                _swing += Time.deltaTime / _swingSeconds;
+                phase = Mathf.Clamp01(_swing);
+                if (_swing >= 2.2f) { _swing = -1f; _realSwing = false; PlayMove("stance", "Idle"); }
+            }
+            else if (_swing >= 0f)
             {
                 _swing += Time.deltaTime / _swingSeconds;
                 // Load (turn back a little), then whip through to a long follow-through.
@@ -199,6 +234,17 @@ namespace BaseballGame
                 float k = _swing < 0f ? 0f : phase < 0.25f ? 0f : Mathf.SmoothStep(0, 1, (phase - 0.25f) / 0.5f);
                 var local = Vector3.Slerp(stance, through, k);
                 var dir = (_model != null ? _model : transform).TransformDirection(local);
+                if (_realSwing || IsMovePlaying)
+                {
+                    // With real moves the hands lead: the bat runs on from the bottom hand through the top one.
+                    _leftFist = _leftFist ?? Bone("Fist.L");
+                    if (_leftFist != null && _rightFist != null)
+                    {
+                        var grip = _rightFist.position - _leftFist.position;
+                        if (grip.sqrMagnitude > 0.0004f) dir = Vector3.Slerp(_batDir, grip.normalized, 0.5f);
+                    }
+                }
+                _batDir = dir;
                 _bat.rotation = Quaternion.FromToRotation(Vector3.up, dir);
                 _bat.position = hand + dir * 0.4f;
             }

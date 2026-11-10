@@ -457,6 +457,13 @@ namespace BaseballGame
             if (figure != null) figure.Play(clip, speed);
         }
 
+        /// <summary>A baseball move from Mixamo when it's there, else the model's own clip.</summary>
+        static void Move(Transform t, string move, string fallback, float speed = 1f, float fallbackSpeed = -1f)
+        {
+            var figure = t.GetComponent<Figure>();
+            if (figure != null) figure.PlayMove(move, fallback, speed, fallbackSpeed);
+        }
+
         // ---------- State ----------
 
         public void SetTeamColors(Color batting, Color fielding)
@@ -496,7 +503,7 @@ namespace BaseballGame
                 hitter.localPosition = BattersBox + Vector3.up;
                 // Side-on to the pitcher, the way a right-handed hitter stands in the left box.
                 Face(hitter, Vector3.right);
-                Animate(hitter, "Idle");
+                Move(hitter, "stance", "Idle");
                 hitter.GetComponent<Figure>()?.HoldBat(true);
             }
             _batter = batter != null ? Runner(batter) : null;
@@ -561,7 +568,7 @@ namespace BaseballGame
             if (pitcher != null)
             {
                 Face(pitcher, -Mound);
-                Animate(pitcher, "Punch", 1.3f);
+                Move(pitcher, "pitch", "Punch", 1.4f * Speed, 1.3f);
             }
             for (float t = 0; t < 1 && !Skipping(); t += Step / 0.35f) yield return null; // the windup
 
@@ -649,7 +656,7 @@ namespace BaseballGame
             if (chaser != null)
             {
                 Face(chaser, chaserEnd - chaserStart);
-                Animate(chaser, "Walk", RunAnimSpeed);
+                Move(chaser, "run", "Walk", 1.2f, RunAnimSpeed);
             }
             for (float t = 0; t < 1 && !Skipping(); t += Step / seconds)
             {
@@ -667,10 +674,11 @@ namespace BaseballGame
                 // A catch in the air reaches up with the glove; a grounder is scooped up; a hit is fielded off the grass.
                 bool caught = outcome == Outcome.FlyOut || outcome == Outcome.LineOut;
                 Face(chaser, caught ? from - chaserEnd : -chaserEnd);
-                Animate(chaser, caught ? "Shoot_OneHanded" : "PickUp");
+                if (caught) Move(chaser, "catch", "Shoot_OneHanded", 1.3f);
+                else Move(chaser, "pickup", "PickUp", 1.5f);
                 for (float t = 0; t < 1 && !Skipping(); t += Step / (caught ? 0.45f : 0.3f)) yield return null;
                 Face(chaser, (outcome == Outcome.GroundOut ? BasePosition(0) : BasePosition(1) * 0.6f) - chaserEnd);
-                Animate(chaser, "Punch", 1.4f); // the throw
+                Move(chaser, "throw", "Punch", 1.4f); // the throw
             }
             if (distance < FenceRadius)
             {
@@ -704,15 +712,15 @@ namespace BaseballGame
             for (int i = 1; i < path.Count; i++)
             {
                 Face(runner, path[i] - path[i - 1]);
-                Animate(runner, "Walk", RunAnimSpeed);
+                Move(runner, "run", "Walk", 1.2f, RunAnimSpeed);
                 for (float t = 0; t < 1 && !Skipping(); t += Step / RunSecondsPerBase)
                 {
                     runner.localPosition = Vector3.Lerp(path[i - 1], path[i], t);
                     yield return null;
                 }
             }
-            Animate(runner, move.To == RunnerMove.Scored && outcome == Outcome.HomeRun ? "Victory"
-                : move.To == RunnerMove.Out ? "Defeat" : "Idle");
+            if (move.To == RunnerMove.Scored && outcome == Outcome.HomeRun) Move(runner, "cheer", "Victory");
+            else Animate(runner, move.To == RunnerMove.Out ? "Defeat" : "Idle");
 
             if (move.To == RunnerMove.Out || move.To == RunnerMove.Scored)
                 for (float t = 0; t < 1 && !Skipping(); t += Step / 0.4f)

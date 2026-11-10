@@ -13,11 +13,22 @@ namespace BaseballGame.EditorTools
     public class ArtImport : AssetPostprocessor
     {
         // Bumping this makes Unity reimport every picture with the settings below.
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         const string ArtFolder = "Assets/Resources/Art/";
         const string WorldTextures = "Assets/Resources/World/Textures/";
         const string Characters = "Assets/Resources/World/Characters/";
+        const string Moves = "Assets/Resources/World/Moves/";
+
+        /// <summary>The player models' bones (CharacterArmature) for Unity's humanoid body, so Mixamo moves retarget onto them.</summary>
+        static readonly (string Human, string Bone)[] ModelBones =
+        {
+            ("Hips", "Hips"), ("Spine", "Abdomen"), ("Chest", "Torso"), ("Neck", "Neck"), ("Head", "Head"),
+            ("LeftShoulder", "Shoulder.L"), ("LeftUpperArm", "UpperArm.L"), ("LeftLowerArm", "LowerArm.L"), ("LeftHand", "Fist.L"),
+            ("RightShoulder", "Shoulder.R"), ("RightUpperArm", "UpperArm.R"), ("RightLowerArm", "LowerArm.R"), ("RightHand", "Fist.R"),
+            ("LeftUpperLeg", "UpperLeg.L"), ("LeftLowerLeg", "LowerLeg.L"), ("LeftFoot", "Foot.L"),
+            ("RightUpperLeg", "UpperLeg.R"), ("RightLowerLeg", "LowerLeg.R"), ("RightFoot", "Foot.R"),
+        };
         const string SkyTexture = WorldTextures + "sky.jpg";
         const string SkyMaterial = "Assets/Resources/World/Sky.mat";
 
@@ -65,10 +76,20 @@ namespace BaseballGame.EditorTools
 
         void OnPreprocessModel()
         {
-            if (!assetPath.StartsWith(Characters)) return;
+            bool moves = assetPath.StartsWith(Moves);
+            if (!assetPath.StartsWith(Characters) && !moves) return;
             var importer = (ModelImporter)assetImporter;
-            importer.animationType = ModelImporterAnimationType.Generic;
+            // Humanoid on both sides once there are Mixamo moves: the models' own clips still play, and the
+            // moves retarget onto them. Until then the models stay generic, as they always were.
+            bool humanoid = moves || HasMoves();
+            importer.animationType = humanoid ? ModelImporterAnimationType.Human : ModelImporterAnimationType.Generic;
             importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+            if (humanoid && !moves)
+            {
+                var description = importer.humanDescription;
+                description.human = ModelBones.Select(b => new HumanBone { humanName = b.Human, boneName = b.Bone, limit = new HumanLimit { useDefaultValues = true } }).ToArray();
+                importer.humanDescription = description;
+            }
             importer.importCameras = false;
             importer.importLights = false;
             importer.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
@@ -76,17 +97,38 @@ namespace BaseballGame.EditorTools
 
         void OnPreprocessAnimation()
         {
-            if (!assetPath.StartsWith(Characters)) return;
+            bool moves = assetPath.StartsWith(Moves);
+            if (!assetPath.StartsWith(Characters) && !moves) return;
             var importer = (ModelImporter)assetImporter;
             var clips = importer.defaultClipAnimations;
+            string file = System.IO.Path.GetFileNameWithoutExtension(assetPath);
             foreach (var clip in clips)
-                clip.loopTime = clip.name.EndsWith("Idle") || clip.name.EndsWith("Walk");
+            {
+                clip.loopTime = moves ? file == "run" || file == "stance" : clip.name.EndsWith("Idle") || clip.name.EndsWith("Walk");
+                // The field moves the players itself: Mixamo's root motion stays in place.
+                clip.lockRootRotation = clip.lockRootHeightY = clip.lockRootPositionXZ = true;
+                clip.keepOriginalOrientation = clip.keepOriginalPositionY = clip.keepOriginalPositionXZ = true;
+            }
             importer.clipAnimations = clips;
         }
+
+        static bool HasMoves() =>
+            System.IO.Directory.Exists(Moves) && System.IO.Directory.GetFiles(Moves, "*.fbx").Length > 0;
 
         static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom)
         {
             if (imported.Contains(SkyTexture)) EditorApplication.delayCall += EnsureSkyMaterial;
+            // The first Mixamo move just came in: reimport the player models as humanoid so it plays on them.
+            if (imported.Any(p => p.StartsWith(Moves) && p.EndsWith(".fbx")))
+                EditorApplication.delayCall += () =>
+                {
+                    foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { Characters.TrimEnd('/') }))
+                    {
+                        string path = AssetDatabase.GUIDToAssetPath(guid);
+                        if (AssetImporter.GetAtPath(path) is ModelImporter m && m.animationType != ModelImporterAnimationType.Human)
+                            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                    }
+                };
         }
 
         [InitializeOnLoadMethod]
