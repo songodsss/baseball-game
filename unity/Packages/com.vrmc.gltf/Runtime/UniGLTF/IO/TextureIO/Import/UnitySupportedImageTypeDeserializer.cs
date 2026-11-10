@@ -35,12 +35,8 @@ namespace UniGLTF
             try
             {
                 var texture = new Texture2D(2, 2, TextureFormat.ARGB32, textureInfo.UseMipmap, textureInfo.ColorSpace == ColorSpace.Linear);
-#if UNITY_6000_0_OR_NEWER
-                // Unity 6000.0.42f1 以降は LoadImage が ReadOnlySpan を受け取れるため、NativeArray からのコピーを避ける。
-                texture.LoadImage(textureInfo.ImageData.AsReadOnlySpan(), ImportedTexturesAccessibility.ToMarkNonReadable());
-#else
+                // Patched: the ReadOnlySpan overload only exists from 6000.0.42f1; the array copy builds on every editor.
                 texture.LoadImage(textureInfo.ImageData.ToArray(), ImportedTexturesAccessibility.ToMarkNonReadable());
-#endif
                 await awaitCaller.NextFrame();
 
                 texture.wrapModeU = textureInfo.WrapModeU;
