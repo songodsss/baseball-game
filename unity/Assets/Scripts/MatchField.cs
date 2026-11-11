@@ -53,6 +53,8 @@ namespace BaseballGame
         /// <summary>While true, animations end at once and the screen snaps to the result.</summary>
         public Func<bool> Skipping = () => false;
         public Player Mine;
+        /// <summary>My player's look; when its models are in, he takes the field in it instead of a shared model.</summary>
+        public BaseballSim.Career.PlayerLook MineLook;
 
         Camera _camera;
         Transform _ball;
@@ -61,6 +63,9 @@ namespace BaseballGame
         readonly Dictionary<Player, Transform> _runners = new Dictionary<Player, Transform>();
         Color _battingColor = Color.white;
         Transform _batter;
+        Color _fieldingColor = Color.gray;
+        /// <summary>The usual pitcher, and my player on the mound when he's the one pitching.</summary>
+        Transform _pitcher, _myPitcher;
 
         public static MatchField Build(Transform parent)
         {
@@ -469,6 +474,7 @@ namespace BaseballGame
         public void SetTeamColors(Color batting, Color fielding)
         {
             _battingColor = batting;
+            _fieldingColor = fielding;
             foreach (var f in _fielders) Tint(f, fielding);
         }
 
@@ -518,6 +524,45 @@ namespace BaseballGame
             }
         }
 
+        /// <summary>Puts my player on the mound when he is the one pitching, and the usual pitcher back otherwise.</summary>
+        public void SetPitcher(Player pitcher)
+        {
+            if (_fielders.Count == 0) return;
+            if (_pitcher == null) _pitcher = _fielders[0];
+            bool mine = pitcher != null && pitcher == Mine && MineLook != null;
+            if (mine && _myPitcher == null)
+            {
+                _myPitcher = MyPerson(pitcher.Name, _fieldingColor, Mound);
+                if (_myPitcher != null) AddMarker(_myPitcher);
+                else MineLook = null; // his models aren't in: don't try again every pitch
+            }
+            var on = mine && _myPitcher != null ? _myPitcher : _pitcher;
+            var off = on == _pitcher ? _myPitcher : _pitcher;
+            if (off != null) off.gameObject.SetActive(false);
+            on.gameObject.SetActive(true);
+            _fielders[0] = on;
+        }
+
+        /// <summary>My player built from his look (null when it can't be), on the shared clips.</summary>
+        Transform MyPerson(string name, Color color, Vector3 position)
+        {
+            if (MineLook == null) return null;
+            WorldArt.Body(0, out var clips);
+            var figure = Figure.CreateMine(transform, name, MineLook, clips, position);
+            if (figure == null) return null;
+            _bodyScale = Vector3.one;
+            figure.SetUniform(color);
+            return figure.transform;
+        }
+
+        void AddMarker(Transform t)
+        {
+            var marker = Shape(PrimitiveType.Sphere, "Mine Marker", Gold);
+            marker.SetParent(t, false);
+            marker.localPosition = new Vector3(0, t.GetComponent<Figure>() != null ? Figure.HeadTop + 0.45f : 2.1f, 0);
+            marker.localScale = new Vector3(0.45f, 0.4f, 0.45f);
+        }
+
         Transform Runner(Player p)
         {
             if (_runners.TryGetValue(p, out var t))
@@ -526,15 +571,11 @@ namespace BaseballGame
                 Tint(t, _battingColor);
                 return t;
             }
-            t = Person(p.Name, _battingColor, BattersBox, p.Name.GetHashCode());
-            if (p == Mine)
-            {
-                // My player wears the team uniform like everyone else; a gold marker overhead picks them out.
-                var marker = Shape(PrimitiveType.Sphere, "Mine Marker", Gold);
-                marker.SetParent(t, false);
-                marker.localPosition = new Vector3(0, t.GetComponent<Figure>() != null ? Figure.HeadTop + 0.45f : 2.1f, 0);
-                marker.localScale = new Vector3(0.45f, 0.4f, 0.45f);
-            }
+            // My player comes in his own look when its models are in; otherwise a shared model like everyone.
+            t = p == Mine ? MyPerson(p.Name, _battingColor, BattersBox) : null;
+            if (t == null) t = Person(p.Name, _battingColor, BattersBox, p.Name.GetHashCode());
+            // He wears the team uniform like everyone else; a gold marker overhead picks him out.
+            if (p == Mine) AddMarker(t);
             _runners[p] = t;
             return t;
         }

@@ -1686,7 +1686,7 @@ namespace BaseballGame
             Save();
             Refresh();
             _canvas.SetActive(false);
-            MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true));
+            MatchScreen.Open(_lastDay.MyGame, _lastDay.MyGamePlayer, () => _canvas.SetActive(true), _career.Me.Look);
         }
 
         /// <summary>Replays any game; my player is found by id among its batters.</summary>
@@ -1694,7 +1694,7 @@ namespace BaseballGame
         {
             var mine = game.Batting.Keys.Concat(game.Pitching.Keys).FirstOrDefault(p => p.Id == _career.Me.Id);
             _canvas.SetActive(false);
-            MatchScreen.Open(game, mine, () => _canvas.SetActive(true));
+            MatchScreen.Open(game, mine, () => _canvas.SetActive(true), _career.Me.Look);
         }
 
         // ---------- Monetization hooks ----------

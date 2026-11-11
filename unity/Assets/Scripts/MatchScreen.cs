@@ -19,6 +19,8 @@ namespace BaseballGame
         const int InningColumns = 9;
 
         MatchReplay _replay;
+        /// <summary>My player's look, so he takes the field in the same model as his portrait.</summary>
+        PlayerLook _mineLook;
         Action _onClose;
         MatchField _field;
 
@@ -41,10 +43,11 @@ namespace BaseballGame
         public const string SpeedPref = "match_speed";
 
         /// <summary>Opens the screen; <paramref name="onClose"/> runs when the player leaves it.</summary>
-        public static MatchScreen Open(GameResult game, Player mine, Action onClose)
+        public static MatchScreen Open(GameResult game, Player mine, Action onClose, PlayerLook mineLook = null)
         {
             var screen = new GameObject("MatchScreen").AddComponent<MatchScreen>();
             screen._replay = new MatchReplay(game, mine);
+            screen._mineLook = mine != null ? mineLook : null;
             screen._onClose = onClose;
             screen._speedIndex = Mathf.Clamp(PlayerPrefs.GetInt(SpeedPref, 0), 0, Speeds.Length - 1);
             return screen;
@@ -61,6 +64,7 @@ namespace BaseballGame
         {
             _field = MatchField.Build(transform);
             _field.Mine = _replay.Mine;
+            _field.MineLook = _mineLook;
             _field.Skipping = () => Skipping;
             BuildUi();
             _songBefore = GameAudio.CurrentMusic;
@@ -87,6 +91,7 @@ namespace BaseballGame
 
                 var batting = ev.IsTopHalf ? Game.Away : Game.Home;
                 var fielding = ev.IsTopHalf ? Game.Home : Game.Away;
+                _field.SetPitcher(ev.Pitcher);
                 _field.SetTeamColors(TeamColor(batting), TeamColor(fielding));
 
                 if (animate)

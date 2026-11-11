@@ -34,13 +34,35 @@ namespace BaseballGame
             go.transform.SetParent(parent, false);
             go.transform.localPosition = position + Vector3.up;
             var figure = go.AddComponent<Figure>();
-            figure.Build(model, clips);
+            figure.Build(Instantiate(model, go.transform, false), clips);
             return figure;
         }
 
-        void Build(GameObject model, AnimationClip[] clips)
+        /// <summary>
+        /// My player in the look he was given (AvatarArt.Model, the same VRoid model as his portrait),
+        /// playing the shared humanoid clips and Mixamo moves. Null when his look's models aren't in.
+        /// </summary>
+        public static Figure CreateMine(Transform parent, string name, BaseballSim.Career.PlayerLook look, AnimationClip[] clips, Vector3 position)
         {
-            var body = Instantiate(model, transform, false);
+            if (look == null) return null;
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = position + Vector3.up;
+            GameObject body = null;
+            try { body = AvatarArt.Model(look, go.transform); }
+            catch (System.Exception e) { Debug.LogWarning("My player's model failed: " + e.Message); }
+            if (body == null)
+            {
+                Destroy(go);
+                return null;
+            }
+            var figure = go.AddComponent<Figure>();
+            figure.Build(body, clips);
+            return figure;
+        }
+
+        void Build(GameObject body, AnimationClip[] clips)
+        {
             body.name = "Model";
             body.transform.localRotation = Quaternion.Euler(0, ModelYaw, 0);
 
@@ -56,7 +78,8 @@ namespace BaseballGame
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 foreach (var m in r.materials)
                 {
-                    if (m.name.StartsWith("Shirt")) _shirts.Add(m);
+                    // The shared models' shirt is "Shirt"; a VRoid model's top is "..._Tops_..._CLOTH".
+                    if (m.name.StartsWith("Shirt") || m.name.Contains("Tops")) _shirts.Add(m);
                     else if (m.name.StartsWith("Pants")) m.color = Pants;
                 }
             }
@@ -122,7 +145,12 @@ namespace BaseballGame
 
         public void SetUniform(Color color)
         {
-            foreach (var m in _shirts) m.color = color;
+            foreach (var m in _shirts)
+            {
+                if (m.HasProperty("_Color")) m.color = color;
+                // VRoid's toon shader has its own colour for the shaded side.
+                if (m.HasProperty("_ShadeColor")) m.SetColor("_ShadeColor", new Color(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f, 1f));
+            }
         }
 
         /// <summary>Turns to look along a direction on the ground (in the field's space).</summary>
@@ -141,6 +169,17 @@ namespace BaseballGame
         Transform _rightFist, _leftFist;
         float _swing = -1f;      // 0..1 while swinging, -1 otherwise
         float _swingSeconds = 0.35f;
+
+        /// <summary>A hand: the humanoid's own bone when there is one (VRoid's J_Bip_R_Hand...), else the shared rig's fist.</summary>
+        Transform Hand(bool right)
+        {
+            if (_animator != null && _animator.avatar != null && _animator.avatar.isHuman)
+            {
+                var hand = _animator.GetBoneTransform(right ? HumanBodyBones.RightHand : HumanBodyBones.LeftHand);
+                if (hand != null) return hand;
+            }
+            return Bone(right ? "Fist.R" : "Fist.L");
+        }
 
         Transform Bone(string name)
         {
@@ -166,7 +205,7 @@ namespace BaseballGame
         {
             if (on && _bat == null)
             {
-                _rightFist = _rightFist ?? Bone("Fist.R");
+                _rightFist = _rightFist ?? Hand(true);
                 _bat = Prop(PrimitiveType.Cylinder, "Bat", new Color(0.78f, 0.6f, 0.38f), new Vector3(0.07f, 0.42f, 0.07f));
                 _bat.SetParent(transform, false);
             }
@@ -178,7 +217,7 @@ namespace BaseballGame
         {
             if (on && _glove == null)
             {
-                _leftFist = _leftFist ?? Bone("Fist.L");
+                _leftFist = _leftFist ?? Hand(false);
                 if (_leftFist == null) return;
                 _glove = Prop(PrimitiveType.Sphere, "Glove", new Color(0.45f, 0.26f, 0.12f), new Vector3(0.2f, 0.24f, 0.12f));
                 _glove.SetParent(_leftFist, false);
@@ -238,7 +277,7 @@ namespace BaseballGame
                 if (_realSwing || IsMovePlaying)
                 {
                     // With real moves the hands lead: the bat runs on from the bottom hand through the top one.
-                    _leftFist = _leftFist ?? Bone("Fist.L");
+                    _leftFist = _leftFist ?? Hand(false);
                     if (_leftFist != null && _rightFist != null)
                     {
                         var grip = _rightFist.position - _leftFist.position;
