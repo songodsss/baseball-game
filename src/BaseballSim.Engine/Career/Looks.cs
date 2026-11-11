@@ -65,10 +65,15 @@ namespace BaseballSim.Career
             ("또렷한 눈매", null), ("날카로운 눈매", "sharp"), ("순한 눈매", "gentle"), ("큰 눈매", "round"),
         };
 
-        /// <summary>The portrait's expression, from the face model's own blend shapes (VRoid names), weight 0-1.</summary>
+        /// <summary>
+        /// The portrait's expression, from the face model's own blend shapes (VRoid names, joined by +), weight 0-1.
+        /// Only the mouth and brows move: VRoid's whole-face shapes shut the eyes, which on the narrow
+        /// grown-up eyes leaves them looking closed.
+        /// </summary>
         public static readonly (string Name, string Shape, float Weight)[] Expressions =
         {
-            ("무표정", null, 0f), ("미소", "Fcl_ALL_Fun", 0.7f), ("활짝 웃음", "Fcl_ALL_Joy", 0.6f), ("진지함", "Fcl_ALL_Angry", 0.35f),
+            ("무표정", null, 0f), ("미소", "Fcl_MTH_Fun", 0.55f), ("활짝 웃음", "Fcl_MTH_Joy+Fcl_BRW_Joy", 0.5f),
+            ("진지함", "Fcl_BRW_Angry+Fcl_MTH_Angry", 0.4f),
         };
 
         public static string BuildName(BodyBuild b) => Builds.First(x => x.Build == b).Name;

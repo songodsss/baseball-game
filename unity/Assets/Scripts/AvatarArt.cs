@@ -296,20 +296,47 @@ namespace BaseballGame
                 if (mesh == null) continue;
                 for (int i = 0; i < mesh.blendShapeCount; i++) r.SetBlendShapeWeight(i, 0);
                 if (expression.Shape == null) continue;
-                // VRoid names it "Fcl_ALL_Joy"; some exports add a prefix.
-                for (int i = 0; i < mesh.blendShapeCount; i++)
-                    if (mesh.GetBlendShapeName(i).EndsWith(expression.Shape))
-                        r.SetBlendShapeWeight(i, expression.Weight * 100f);
+                // VRoid names them "Fcl_MTH_Joy"; some exports add a prefix.
+                foreach (var shape in expression.Shape.Split('+'))
+                    for (int i = 0; i < mesh.blendShapeCount; i++)
+                        if (mesh.GetBlendShapeName(i).EndsWith(shape))
+                            r.SetBlendShapeWeight(i, expression.Weight * 100f);
             }
         }
 
         /// <summary>
-        /// VRoid models come in a T-pose; let the arms hang at the sides with a slight bend at the elbow.
-        /// Each bone is turned from where it points now to where it should point, so it doesn't matter
-        /// which way the model faces or how its bones are rolled.
+        /// VRoid models come in a T-pose; stand him at ease with the arms hanging at his sides. Done through
+        /// Unity's humanoid muscles, so every bone (and the sleeve bones under the arms) moves together,
+        /// whatever the model's facing or bone rolls. Without a humanoid avatar the arm bones are aimed by hand.
         /// </summary>
         static void ArmsDown(GameObject body)
         {
+            var animator = body.GetComponentInChildren<Animator>(true);
+            if (animator != null && animator.avatar != null && animator.avatar.isHuman)
+            {
+                var handler = new HumanPoseHandler(animator.avatar, animator.transform);
+                var pose = new HumanPose();
+                handler.GetHumanPose(ref pose);
+                var muscles = pose.muscles;
+                for (int i = 0; i < muscles.Length; i++) muscles[i] = 0f; // Unity's relaxed standing pose
+                void Set(string name, float v)
+                {
+                    int i = System.Array.IndexOf(HumanTrait.MuscleName, name);
+                    if (i >= 0 && i < muscles.Length) muscles[i] = v;
+                }
+                foreach (var side in new[] { "Left", "Right" })
+                {
+                    Set(side + " Arm Down-Up", -0.55f);
+                    Set(side + " Arm Front-Back", 0.15f);
+                    Set(side + " Forearm Stretch", 0.85f);
+                    Set(side + " Shoulder Down-Up", 0f);
+                }
+                pose.muscles = muscles;
+                handler.SetHumanPose(ref pose);
+                handler.Dispose();
+                return;
+            }
+
             var rig = Rig.Of(body);
             if (rig.Head == null) return;
             var fwd = rig.Forward;
@@ -320,7 +347,6 @@ namespace BaseballGame
                 var hand = side < 0 ? rig.LeftHand : rig.RightHand;
                 if (upper == null || lower == null) continue;
                 var outward = Vector3.ProjectOnPlane(lower.position - upper.position, Vector3.up).normalized;
-                // Down, a little out from the body and a touch forward.
                 Aim(upper, lower, (Vector3.down * 0.96f + outward * 0.22f + fwd * 0.05f).normalized);
                 if (hand != null) Aim(lower, hand, (Vector3.down * 0.95f + outward * 0.08f + fwd * 0.28f).normalized);
             }
@@ -424,7 +450,7 @@ namespace BaseballGame
             var light = lightGo.AddComponent<Light>();
             light.type = LightType.Directional;
             light.cullingMask = 1 << PhotoLayer;
-            light.intensity = 1.1f;
+            light.intensity = 0.9f;
             light.color = new Color(1f, 0.97f, 0.93f);
             light.shadows = LightShadows.None;
             lightGo.transform.rotation = Quaternion.LookRotation(-fwd + Vector3.down * 0.4f + right * 0.3f);
