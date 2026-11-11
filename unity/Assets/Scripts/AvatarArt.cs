@@ -207,6 +207,7 @@ namespace BaseballGame
                 foreach (var m in mats)
                 {
                     if (m == null) continue;
+                    Outline(m);
                     Color? tint = m.name.Contains("_SKIN") ? skin
                         : m.name.Contains("_HAIR") ? hair
                         : m.name.Contains("FaceBrow") ? hair * 0.75f
@@ -216,6 +217,22 @@ namespace BaseballGame
                     MultiplyColor(m, "_ShadeColor", tint.Value);
                 }
             }
+        }
+
+        /// <summary>
+        /// The game's drawings have bold dark outlines; VRoid's are hairline thin, and none on the hair.
+        /// Skin, clothes and hair get a thicker dark-brown line (MToon's world-space outline).
+        /// </summary>
+        static void Outline(Material m)
+        {
+            bool skin = m.name.Contains("_SKIN"), hair = m.name.Contains("_HAIR"), cloth = m.name.Contains("_CLOTH");
+            if (!(skin || hair || cloth) || !m.HasProperty("_OutlineWidth")) return;
+            m.SetInt("_OutlineWidthMode", 1);
+            m.DisableKeyword("_MTOON_OUTLINE_SCREEN");
+            m.EnableKeyword("_MTOON_OUTLINE_WORLD");
+            m.SetFloat("_OutlineWidth", hair ? 0.0022f : 0.0026f);
+            if (m.HasProperty("_OutlineColor")) m.SetColor("_OutlineColor", new Color(0.13f, 0.09f, 0.08f));
+            if (m.HasProperty("_OutlineLightingMix")) m.SetFloat("_OutlineLightingMix", 0f);
         }
 
         static void MultiplyColor(Material m, string property, Color tint)
