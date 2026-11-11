@@ -105,29 +105,75 @@ namespace BaseballGame
 
         // ---------- Putting the model together ----------
 
-        static Sprite Photograph(PlayerLook look)
+        /// <summary>
+        /// My player's whole 3D model put together from his look (build, hair, face, skin and hair colour,
+        /// expression), for the game field. Null until the base for his build is in.
+        /// Comes in the model's T-pose with its humanoid Animator enabled, so Mixamo clips play on it;
+        /// spring bones and the VRM runtime are off. Facing +Z, feet at the parent's origin, real size
+        /// (about 1.78 m). Destroy it like any GameObject; its tinted materials go with it.
+        /// </summary>
+        public static GameObject Model(PlayerLook look, Transform parent = null)
+        {
+            if (look == null) return null;
+            var stage = new GameObject("AvatarDonors");
+            stage.SetActive(false); // the donor models are never seen
+            var temps = new List<Object> { stage };
+            try
+            {
+                var body = Assemble(look, parent, stage, temps);
+                if (body == null) return null;
+                var animator = body.GetComponentInChildren<Animator>(true);
+                if (animator != null) animator.enabled = true;
+                // The tinted material copies belong to this model now, not to the clean-up list.
+                var owned = body.AddComponent<OwnedMaterials>();
+                foreach (var r in body.GetComponentsInChildren<Renderer>(true)) owned.Materials.AddRange(r.sharedMaterials);
+                return body;
+            }
+            finally
+            {
+                foreach (var o in temps)
+                    if (o != null && !(o is Material)) Object.Destroy(o);
+            }
+        }
+
+        /// <summary>Destroys the material copies made for a model when the model goes.</summary>
+        sealed class OwnedMaterials : MonoBehaviour
+        {
+            public readonly List<Material> Materials = new List<Material>();
+            void OnDestroy() { foreach (var m in Materials) if (m != null) Destroy(m); }
+        }
+
+        /// <summary>The base body with the look's hair and face moved onto it, tinted and wearing the expression.</summary>
+        static GameObject Assemble(PlayerLook look, Transform parent, GameObject stage, List<Object> temps)
         {
             var basePrefab = Prefab("base_" + Looks.BuildFile(look.Build));
             if (basePrefab == null) return null;
+            var body = Object.Instantiate(basePrefab, parent, false);
+            body.name = "MyPlayer";
+            body.transform.localPosition = Vector3.zero;
+            body.transform.localRotation = Quaternion.identity;
+            StopScripts(body);
 
+            // Hair and face come off their own models onto this body.
+            if (Part("hair_", Looks.Hairs[look.Hair].File, out var hairPrefab) && hairPrefab != null)
+                Swap(body, hairPrefab, stage, temps, IsHair);
+            if (Part("face_", Looks.Eyes[look.Eyes].File, out var facePrefab) && facePrefab != null)
+                Swap(body, facePrefab, stage, temps, IsFace);
+
+            Tint(body, look, temps);
+            Express(body, Looks.Expressions[look.Expression]);
+            return body;
+        }
+
+        static Sprite Photograph(PlayerLook look)
+        {
             var stage = new GameObject("AvatarStage");
             stage.transform.position = new Vector3(0, -500, 0); // out of sight of every game camera
             var temps = new List<Object> { stage };
             try
             {
-                var body = Object.Instantiate(basePrefab, stage.transform, false);
-                body.transform.localPosition = Vector3.zero;
-                body.transform.localRotation = Quaternion.identity;
-                StopScripts(body);
-
-                // Hair and face come off their own models onto this body.
-                if (Part("hair_", Looks.Hairs[look.Hair].File, out var hairPrefab) && hairPrefab != null)
-                    Swap(body, hairPrefab, stage, temps, IsHair);
-                if (Part("face_", Looks.Eyes[look.Eyes].File, out var facePrefab) && facePrefab != null)
-                    Swap(body, facePrefab, stage, temps, IsFace);
-
-                Tint(body, look, temps);
-                Express(body, Looks.Expressions[look.Expression]);
+                var body = Assemble(look, stage.transform, stage, temps);
+                if (body == null) return null;
                 ArmsDown(body);
                 SetLayer(stage, PhotoLayer);
                 return Shoot(body, temps);
