@@ -18,6 +18,11 @@ namespace BaseballSim.Career
         Eye,
         Speed,
         Defense,
+        // Pitchers'
+        Velocity,
+        Control,
+        Breaking,
+        Stamina,
     }
 
     /// <summary>
