@@ -195,9 +195,16 @@ namespace BaseballGame
 
         // VRoid exports the parts as their own objects: "Face", "Body" (with the scalp's back hair merged
         // in, so it stays) and "Hair" (the hairstyle, missing on the base, which has only that scalp).
-        static bool IsHair(SkinnedMeshRenderer r) => r.name.StartsWith("Hair");
+        // An importer may name the object after the mesh ("Face (merged)") or split it, so the materials
+        // decide too: a hair part is all _HAIR, a face part has the face's own materials.
+        static bool IsHair(SkinnedMeshRenderer r) =>
+            Named(r, "Hair") || (r.sharedMaterials.Length > 0 && r.sharedMaterials.All(m => m != null && m.name.Contains("_HAIR") && !m.name.Contains("HairBack")));
 
-        static bool IsFace(SkinnedMeshRenderer r) => r.name.StartsWith("Face");
+        static bool IsFace(SkinnedMeshRenderer r) =>
+            Named(r, "Face") || r.sharedMaterials.Any(m => m != null && (m.name.Contains("_Face_") || m.name.Contains("_FACE") || m.name.Contains("_EYE")));
+
+        static bool Named(SkinnedMeshRenderer r, string part) =>
+            r.name.StartsWith(part) || (r.sharedMesh != null && r.sharedMesh.name.StartsWith(part));
 
         /// <summary>
         /// Hides the body's own part and moves the donor model's part onto the body's skeleton, bone by
@@ -210,8 +217,9 @@ namespace BaseballGame
             temps.Add(donor);
             StopScripts(donor);
 
+            // The body's own part is switched off, so nothing of it can show under the donor's part.
             foreach (var r in body.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-                if (part(r)) r.gameObject.SetActive(false);
+                if (part(r)) { r.enabled = false; r.gameObject.SetActive(false); }
 
             var bones = body.GetComponentsInChildren<Transform>(true).GroupBy(t => t.name).ToDictionary(g => g.Key, g => g.First());
             foreach (var r in donor.GetComponentsInChildren<SkinnedMeshRenderer>(true).Where(part).ToList())
