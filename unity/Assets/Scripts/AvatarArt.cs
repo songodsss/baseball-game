@@ -230,6 +230,8 @@ namespace BaseballGame
                 r.transform.SetParent(body.transform, false);
                 r.gameObject.SetActive(true);
             }
+            // The rest of the donor (its whole T-posed body in white) must not show in the photo.
+            donor.SetActive(false);
         }
 
         static Transform Map(Transform bone, Dictionary<string, Transform> bones)
